@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearch, Link } from "wouter";
 import { useLibrary } from "@/lib/library";
 import { useGenerateScene, GeneratedScene } from "@/hooks/useGenerateScene";
+import { useRemoteBooks, useRemoteBookScenes } from "@/hooks/useApiLibrary";
 import { DEMO_BOOKS, CHAPTERS, SCENE_IMAGES } from "@/data/books";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,9 +13,21 @@ export default function Experience() {
   const searchString = useSearch();
   const chapterNumber = parseInt(new URLSearchParams(searchString).get("chapter") || "1", 10);
   
-  const { userLibrary } = useLibrary();
+  const { userLibrary, isSignedIn } = useLibrary();
   const { readCachedScenes } = useGenerateScene();
-  
+  const remoteBooks = useRemoteBooks();
+
+  // Map URL id → backend user_books UUID for signed-in users so we can
+  // hydrate previously saved scenes from the server.
+  const remoteBookId = useMemo(() => {
+    if (!isSignedIn || !id) return null;
+    const list = remoteBooks.data ?? [];
+    const match =
+      list.find((b) => b.demoBookId === id) ?? list.find((b) => b.id === id);
+    return match?.id ?? null;
+  }, [isSignedIn, id, remoteBooks.data]);
+  const remoteScenesQuery = useRemoteBookScenes(remoteBookId);
+
   const [scenes, setScenes] = useState<GeneratedScene[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -22,30 +35,60 @@ export default function Experience() {
 
   useEffect(() => {
     if (!book) return;
-    
-    // Check cache
+
+    // 1) Prefer server-saved scenes for the current chapter (signed-in only).
+    const remote = (remoteScenesQuery.data ?? []).filter(
+      (s) => s.chapterNumber === chapterNumber,
+    );
+    if (remote.length > 0) {
+      const mapped: GeneratedScene[] = remote
+        .slice()
+        .sort((a, b) => a.sceneIndex - b.sceneIndex)
+        .map((s) => ({
+          id: s.id,
+          chapterId: `${id}-${s.chapterNumber}`,
+          title: s.title,
+          summary: s.summary ?? "",
+          narration: s.narration ?? "",
+          location: s.location ?? "",
+          mood: s.mood ?? "",
+          characters: s.characters ?? [],
+          gradientColors: (s.gradientColors ?? ["#1a1525", "#453560"]) as string[],
+          imagePrompt: s.imagePrompt ?? "",
+          imageUrl: s.imageUrl ?? null,
+        }));
+      setScenes(mapped);
+      return;
+    }
+
+    // 2) Browser cache from a recent generation.
     const cached = readCachedScenes({
       bookTitle: book.title,
       author: book.author,
       chapterTitle: `Chapter ${chapterNumber}`,
       chapterNumber,
       visualStyle: book.visualStyle,
-      spoilerMode: "spoilerMode" in book ? book.spoilerMode : "no-spoilers"
+      spoilerMode: "spoilerMode" in book ? book.spoilerMode : "no-spoilers",
     });
-    
     if (cached && cached.length > 0) {
       setScenes(cached);
-    } else if (book.sourceType === "demo") {
-      // Fallback to demo baked scenes
+      return;
+    }
+
+    // 3) Demo baked scenes.
+    if (book.sourceType === "demo") {
       const demoCh = CHAPTERS[book.id]?.find(c => c.chapterNumber === chapterNumber);
       if (demoCh) {
         setScenes(demoCh.scenes.map(s => ({
           ...s,
-          imageUrl: SCENE_IMAGES[s.id] || null
+          imageUrl: SCENE_IMAGES[s.id] || null,
         })));
+        return;
       }
     }
-  }, [book, chapterNumber, readCachedScenes]);
+
+    setScenes([]);
+  }, [book, id, chapterNumber, readCachedScenes, remoteScenesQuery.data]);
 
   if (!book || scenes.length === 0) {
     return (

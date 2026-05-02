@@ -1,7 +1,19 @@
+@layer theme, base, clerk, components, utilities;
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 @import "tailwindcss";
+@import "@clerk/themes/shadcn.css";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
+
+/* Clerk overrides — placeholder + focus visibility on dark theme */
+.cl-formFieldInput::placeholder {
+  color: hsl(40 20% 65% / 0.55);
+  opacity: 1;
+}
+.cl-formFieldInput:focus {
+  outline: 2px solid hsl(40 80% 60%);
+  outline-offset: -1px;
+}
 
 @custom-variant dark (&:is(.dark *));
 

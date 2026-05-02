@@ -43,24 +43,34 @@ export default function Upload() {
     }
   };
 
-  const handleAddBook = () => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleAddBook = async () => {
     if (!parsedData) return;
-    
-    const newBookId = addBook({
-      title: parsedData.title,
-      author: parsedData.author,
-      format,
-      currentChapter: parseInt(chapter, 10) || 1,
-      currentPage: 1,
-      currentAudioTimestamp: "00:00:00",
-      spoilerMode: spoiler,
-      userNote: "",
-      visualStyle: style,
-      progress: 0,
-      coverGradient: ["#1a1525", "#2d2440", "#453560"], // Default dark plum gradient
-    });
-    
-    setLocation(`/book/${newBookId}`);
+    setIsSaving(true);
+    try {
+      const newBookId = await addBook({
+        title: parsedData.title,
+        author: parsedData.author,
+        format,
+        currentChapter: parseInt(chapter, 10) || 1,
+        currentPage: 1,
+        currentAudioTimestamp: "00:00:00",
+        spoilerMode: spoiler,
+        userNote: "",
+        visualStyle: style,
+        progress: 0,
+        coverGradient: ["#1a1525", "#2d2440", "#453560"],
+      });
+      setLocation(`/book/${newBookId}`);
+    } catch (err) {
+      toast({
+        title: "Couldn't save book",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -148,8 +158,11 @@ export default function Upload() {
                 </div>
                 
                 <div className="pt-6 flex justify-end gap-4">
-                  <Button variant="outline" onClick={() => setParsedData(null)}>Cancel</Button>
-                  <Button onClick={handleAddBook}>Add to Library</Button>
+                  <Button variant="outline" onClick={() => setParsedData(null)} disabled={isSaving}>Cancel</Button>
+                  <Button onClick={handleAddBook} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isSaving ? "Adding..." : "Add to Library"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

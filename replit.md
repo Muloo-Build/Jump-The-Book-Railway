@@ -30,23 +30,38 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ## Artifacts
 
 ### `artifacts/api-server` — Express API server
-- Routes: `/api/healthz`, `/api/scenes/generate`, `/api/scenes/image`, `/api/scenes/cache/stats`, `/api/storage/objects/:namespace/:id`, `/api/storage/public-objects/*`
+- Routes: `/api/healthz`, `/api/scenes/generate`, `/api/scenes/image`, `/api/scenes/cache/stats`, `/api/storage/objects/:namespace/:id`, `/api/storage/public-objects/*`, `/api/me/*` (authed user library), `/api/__clerk/*` (Clerk Frontend API proxy, prod only)
 - AI: uses `@workspace/integrations-openai-ai-server` (gpt-5.4 + gpt-image-1)
-- Env vars: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY` (auto-provisioned), `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID`
+- Auth: Clerk via `@clerk/express` `clerkMiddleware`. `requireAuth` middleware on `/api/me/*` enforces signed-in (Clerk `getAuth(req).userId`).
+- CORS is restricted to `REPLIT_DOMAINS` + `REPLIT_DEV_DOMAIN` (http/https). Same-origin / no-Origin requests pass through.
+- Env vars: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY` (auto-provisioned), `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `SESSION_SECRET`
 - **Storage model**: scene PNGs are uploaded to App Storage under `${PRIVATE_OBJECT_DIR}/scene-images/<uuid>` and stored in `image_cache.object_path` as `/objects/scene-images/<uuid>`. The web client receives `imageUrl = /api/storage/objects/scene-images/<uuid>`. The storage GET route only serves an allow-list of namespaces (currently `scene-images`); other private objects are 404. Legacy base64 column (`image_b64`) is nullable for backward compat.
+- **Per-user library tables** (in `lib/db`): `app_users` (clerkUserId PK, defaultVisualStyle, spoilerMode, readingMode, onboardedAt), `user_books` (userId, title, author, source: demo|upload|manual, demoBookId?, visualStyle, spoilerMode, currentChapter/Page, progress…), `user_scenes` (userId, userBookId, chapterNumber, sceneIndex, title/narration/location/mood/characters/gradientColors/imagePrompt/imageUrl, sceneCacheKey/imageCacheKey). Scene upserts are idempotent on (userBookId, chapterNumber, sceneIndex) with `imageUrl` updated via `COALESCE(EXCLUDED.image_url, existing)` so partial generations don't regress.
 
 ### `artifacts/jump-the-book-web` — React + Vite web app (primary)
 Jump the Book — web reading companion. Reader uploads an EPUB (parsed entirely in-browser via JSZip) or picks a public-domain demo book, gets spoiler-safe AI scenes for the chapter they're on, and views them as Comic (stacked panels) or Cinematic (full-screen with narration).
 
-**Stack**: React 19, Vite, TypeScript, Tailwind v4, shadcn/ui (Radix), wouter, framer-motion, TanStack Query.
+**Stack**: React 19, Vite, TypeScript, Tailwind v4, shadcn/ui (Radix), wouter, framer-motion, TanStack Query, Clerk (`@clerk/react` + `@clerk/themes`).
 
-**Routes**: `/` Home, `/library`, `/upload`, `/generate`, `/book/:id`, `/position/:id`, `/experience/:id` (Cinematic), `/comic/:id`, `/help`.
+**Routes**: `/` Home, `/sign-in/*?`, `/sign-up/*?`, `/onboarding`, `/library`, `/upload`, `/generate`, `/book/:id`, `/position/:id`, `/experience/:id` (Cinematic), `/comic/:id`, `/help`.
+
+**Auth & onboarding**:
+- `App.tsx` wraps the router in `<ClerkProvider>` with the dark cinematic shadcn theme. In dev the publishable key is used directly (Clerk CDN); in prod (`VITE_CLERK_PROXY_URL` set) the key is derived from the current host via `publishableKeyFromHost` so the same build serves multiple custom domains.
+- `HomeRedirect`: signed-out → marketing home; signed-in + not onboarded → `/onboarding`; signed-in + onboarded → `/library`.
+- `pages/onboarding.tsx` — 3-step wizard (visual style, spoiler mode, optional first book) → `PATCH /me { markOnboarded: true }`.
+- `components/layout.tsx` exposes a UserMenu dropdown (avatar, sign out) for signed-in users; signed-out shows Sign in / Get started.
 
 **Data layer**:
 - `src/data/books.ts` — demo book catalog (Alice, Dracula, Frankenstein, Sherlock) + chapters, characters, scenes; `SCENE_IMAGES` points to static `/scenes/<id>.png` files in `public/scenes/`.
-- `src/lib/library.ts` — `useLibrary()` hook, localStorage-backed user library, positions, reading sessions, streak. No backend calls.
+- `src/lib/library.ts` — `useLibrary()` is **auth-aware**: signed-in users read/write through React Query against `/api/me/*`; signed-out users continue to use localStorage. Same hook surface either way. `addBook` is async and returns the canonical (real) id — callers must await before navigating. `resolveRemoteBookId(book)` maps a URL id (demo slug or UUID) to the backend `user_books.id`, creating the row if missing.
+- `src/hooks/useApiLibrary.ts` — React Query hooks: `useRemoteUser`, `useUpdateRemoteUser`, `useRemoteBooks`, `useAddRemoteBook`, `usePatchRemoteBook`, `useDeleteRemoteBook`, `useRemoteBookScenes(userBookId)`, `useRemoteSceneLibrary`, `useSaveRemoteScene`.
 - `src/lib/epub.ts` — `parseEpubFromArrayBuffer()` browser-side EPUB parser.
 - `src/hooks/useGenerateScene.ts` — calls `/api/scenes/generate` then `/api/scenes/image` with bounded concurrency, exposes `onScenesReady` / `onImageReady` callbacks. Consumes `imageUrl` (URL string) — never base64.
+
+**Auto-save**:
+- `pages/generate.tsx` resolves the remote book id once per run, then upserts each scene on `onScenesReady` (metadata) and again on `onImageReady` (image URL). All run state (`active` flag, `runRemoteBookId`, `runScenes`) is captured in the effect closure so callbacks from a prior chapter/book run can never persist into a different target.
+- `pages/experience.tsx` and `pages/comic.tsx` hydrate scenes by priority: server-saved (via `useRemoteBookScenes`) → in-browser cache → demo baked. This makes saved scenes available across devices, not just in the browser that generated them.
+- `pages/library.tsx` shows a third "Your Scene Library" masonry section for signed-in users from `useRemoteSceneLibrary`, with a sign-in CTA for signed-out visitors.
 
 **Theme**: dark cinematic — Playfair Display (serif) + Plus Jakarta Sans, deep plums/oxbloods/dusty golds/midnight blues. Palette in `src/index.css` `:root` and `.dark` blocks (HSL tokens compatible with shadcn/ui).
 

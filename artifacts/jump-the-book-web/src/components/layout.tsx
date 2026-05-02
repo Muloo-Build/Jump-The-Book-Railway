@@ -1,10 +1,87 @@
 import { Link, useLocation } from "wouter";
-import { Book, Compass, Info, Home, Plus } from "lucide-react";
+import { Compass, LogOut, User as UserIcon, Settings } from "lucide-react";
+import { Show, useUser, useClerk } from "@clerk/react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface LayoutProps {
   children: React.ReactNode;
   hideNav?: boolean;
+}
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function UserMenu() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const initials = (() => {
+    const f = user?.firstName?.[0] ?? "";
+    const l = user?.lastName?.[0] ?? "";
+    return (f + l) || user?.username?.[0] || user?.emailAddresses[0]?.emailAddress?.[0] || "?";
+  })().toUpperCase();
+  const email = user?.primaryEmailAddress?.emailAddress;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="h-9 w-9 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-200 font-medium text-sm flex items-center justify-center hover:bg-amber-400/25 transition-colors"
+          aria-label="Account menu"
+        >
+          {user?.imageUrl ? (
+            <img
+              src={user.imageUrl}
+              alt=""
+              className="h-full w-full rounded-full object-cover"
+            />
+          ) : (
+            initials
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium">
+              {user?.fullName || user?.username || "Reader"}
+            </p>
+            {email && (
+              <p className="text-xs text-muted-foreground truncate">{email}</p>
+            )}
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/library">
+            <UserIcon className="w-4 h-4 mr-2" />
+            My library
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/onboarding">
+            <Settings className="w-4 h-4 mr-2" />
+            Reading preferences
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => signOut({ redirectUrl: basePath || "/" })}
+          className="text-destructive focus:text-destructive"
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export default function Layout({ children, hideNav = false }: LayoutProps) {
@@ -29,7 +106,9 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               href="/library"
               className={cn(
                 "transition-colors hover:text-foreground/80",
-                location?.startsWith("/library") ? "text-foreground" : "text-foreground/60"
+                location?.startsWith("/library")
+                  ? "text-foreground"
+                  : "text-foreground/60",
               )}
             >
               Library
@@ -38,7 +117,9 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               href="/upload"
               className={cn(
                 "transition-colors hover:text-foreground/80",
-                location?.startsWith("/upload") ? "text-foreground" : "text-foreground/60"
+                location?.startsWith("/upload")
+                  ? "text-foreground"
+                  : "text-foreground/60",
               )}
             >
               Upload
@@ -47,12 +128,34 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               href="/help"
               className={cn(
                 "transition-colors hover:text-foreground/80",
-                location?.startsWith("/help") ? "text-foreground" : "text-foreground/60"
+                location?.startsWith("/help")
+                  ? "text-foreground"
+                  : "text-foreground/60",
               )}
             >
               Help
             </Link>
           </nav>
+          <div className="ml-auto flex items-center gap-3">
+            <Show when="signed-out">
+              <Link href="/sign-in">
+                <Button variant="ghost" size="sm">
+                  Sign in
+                </Button>
+              </Link>
+              <Link href="/sign-up">
+                <Button
+                  size="sm"
+                  className="bg-amber-400 text-black hover:bg-amber-300"
+                >
+                  Get started
+                </Button>
+              </Link>
+            </Show>
+            <Show when="signed-in">
+              <UserMenu />
+            </Show>
+          </div>
         </div>
       </header>
       <main className="flex-1 flex flex-col">{children}</main>

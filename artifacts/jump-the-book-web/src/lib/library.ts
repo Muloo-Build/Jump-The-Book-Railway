@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useUser } from "@clerk/react";
 import type { SpoilerMode, UserLibraryItem, VisualStyle } from "@/data/books";
+import {
+  useAddRemoteBook,
+  useDeleteRemoteBook,
+  usePatchRemoteBook,
+  useRemoteBooks,
+  useRemoteUser,
+  useUpdateRemoteUser,
+  type RemoteBook,
+} from "@/hooks/useApiLibrary";
 
 // ─── Storage Keys ───────────────────────────────────────────────────────────
 const STORAGE_KEY = "@jump_the_book_library";
@@ -11,7 +21,7 @@ const STREAK_KEY = "@jump_the_book_streak";
 
 export interface BookPosition {
   bookId: string;
-  bookFormat: string; // free-form format label e.g. "EPUB", "Paperback"
+  bookFormat: string;
   chapter: number;
   page: number;
   timestamp: string;
@@ -94,15 +104,54 @@ function writeJSON(key: string, value: unknown) {
   }
 }
 
+function remoteBookToItem(b: RemoteBook): UserLibraryItem & {
+  remoteId: string;
+  demoBookId?: string | null;
+  source: "demo" | "upload" | "manual";
+} {
+  // For demo books, surface the demo id as the item id so URL routing
+  // (`/book/alice`) still resolves locally. For uploads/manual, use the
+  // backend UUID. Always keep `remoteId` for scene saves.
+  const isDemo = b.source === "demo" && b.demoBookId;
+  const id = isDemo ? b.demoBookId! : b.id;
+  return {
+    id,
+    title: b.title,
+    author: b.author,
+    format: b.format,
+    currentChapter: b.currentChapter,
+    currentPage: b.currentPage,
+    currentAudioTimestamp: b.currentAudioTimestamp,
+    spoilerMode: b.spoilerMode,
+    userNote: b.userNote,
+    visualStyle: b.visualStyle,
+    progress: b.progress,
+    coverGradient: b.coverGradient,
+    createdAt: b.createdAt,
+    sourceType: b.source === "demo" ? "demo" : "user-added",
+    tagline: b.tagline ?? undefined,
+    heroImage: b.heroImage ?? undefined,
+    remoteId: b.id,
+    demoBookId: b.demoBookId,
+    source: b.source,
+  };
+}
+
 /**
- * Browser-native library hook (localStorage). Mirrors the mobile context API
- * one-to-one so screens can be written the same way on web.
+ * Auth-aware library hook. Same surface for signed-in (backend-backed) and
+ * signed-out (localStorage) users. When signed in, books and settings are
+ * persisted server-side; sessions / streak / activeBook stay local since they
+ * are per-device.
  */
 export function useLibrary() {
-  const [userLibrary, setUserLibrary] = useState<UserLibraryItem[]>(() =>
+  const { isSignedIn, isLoaded } = useUser();
+  const signedIn = isLoaded && !!isSignedIn;
+
+  // ── Local-only state (always mounted, used as fallback or for per-device prefs)
+  const [localLibrary, setLocalLibrary] = useState<UserLibraryItem[]>(() =>
     readJSON<UserLibraryItem[]>(STORAGE_KEY, []),
   );
-  const [settings, setSettings] = useState<AppSettings>(() =>
+  const [localSettings, setLocalSettings] = useState<AppSettings>(() =>
     readJSON<AppSettings>(SETTINGS_KEY, defaultSettings),
   );
   const [activeBookId, setActiveBookIdState] = useState<string | null>(() =>
@@ -118,52 +167,168 @@ export function useLibrary() {
     readJSON<StreakData>(STREAK_KEY, defaultStreak),
   );
 
-  // Cross-tab sync
+  // ── Remote queries (only fire when signed in)
+  const remoteUser = useRemoteUser();
+  const remoteBooks = useRemoteBooks();
+  const updateRemoteUser = useUpdateRemoteUser();
+  const addRemoteBook = useAddRemoteBook();
+  const deleteRemoteBook = useDeleteRemoteBook();
+  const patchRemoteBook = usePatchRemoteBook();
+
   useEffect(() => {
     function onStorage(e: StorageEvent) {
-      if (e.key === STORAGE_KEY) setUserLibrary(readJSON(STORAGE_KEY, []));
-      if (e.key === SETTINGS_KEY) setSettings(readJSON(SETTINGS_KEY, defaultSettings));
-      if (e.key === ACTIVE_BOOK_KEY) setActiveBookIdState(localStorage.getItem(ACTIVE_BOOK_KEY));
+      if (e.key === STORAGE_KEY) setLocalLibrary(readJSON(STORAGE_KEY, []));
+      if (e.key === SETTINGS_KEY)
+        setLocalSettings(readJSON(SETTINGS_KEY, defaultSettings));
+      if (e.key === ACTIVE_BOOK_KEY)
+        setActiveBookIdState(localStorage.getItem(ACTIVE_BOOK_KEY));
       if (e.key === POSITIONS_KEY) setPositions(readJSON(POSITIONS_KEY, {}));
       if (e.key === SESSIONS_KEY) setSessions(readJSON(SESSIONS_KEY, []));
-      if (e.key === STREAK_KEY) setStreak(readJSON(STREAK_KEY, defaultStreak));
+      if (e.key === STREAK_KEY)
+        setStreak(readJSON(STREAK_KEY, defaultStreak));
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // ── Resolved values ────────────────────────────────────────────────────────
+  const userLibrary: UserLibraryItem[] = useMemo(() => {
+    if (signedIn && remoteBooks.data)
+      return remoteBooks.data.map(remoteBookToItem);
+    return localLibrary;
+  }, [signedIn, remoteBooks.data, localLibrary]);
+
+  const settings: AppSettings = useMemo(() => {
+    if (signedIn && remoteUser.data) {
+      return {
+        defaultVisualStyle: remoteUser.data.defaultVisualStyle,
+        spoilerMode: remoteUser.data.spoilerMode,
+        readingMode: remoteUser.data.readingMode,
+      };
+    }
+    return localSettings;
+  }, [signedIn, remoteUser.data, localSettings]);
+
+  // Resolve a book.id (URL param) to the backend user_books.id (UUID),
+  // creating the row if necessary. Returns null when signed out.
+  const resolveRemoteBookId = useCallback(
+    async (book: {
+      id: string;
+      title: string;
+      author: string;
+      format?: string;
+      visualStyle: VisualStyle;
+      spoilerMode?: SpoilerMode;
+      coverGradient?: string[];
+      tagline?: string;
+      heroImage?: string;
+      sourceType?: "demo" | "user-added" | "user-writing";
+    }): Promise<string | null> => {
+      if (!signedIn) return null;
+
+      // First check the remote books cache
+      const list = remoteBooks.data ?? [];
+      const isDemo = book.sourceType === "demo" || book.sourceType === undefined;
+      const matched = isDemo
+        ? list.find((b) => b.demoBookId === book.id)
+        : list.find((b) => b.id === book.id);
+      if (matched) return matched.id;
+
+      // Otherwise create
+      const created = await addRemoteBook.mutateAsync({
+        title: book.title,
+        author: book.author,
+        format: book.format ?? "Paperback",
+        source: isDemo ? "demo" : "manual",
+        demoBookId: isDemo ? book.id : null,
+        coverGradient: book.coverGradient ?? [],
+        visualStyle: book.visualStyle,
+        spoilerMode: book.spoilerMode ?? settings.spoilerMode,
+        tagline: book.tagline ?? null,
+        heroImage: book.heroImage ?? null,
+      });
+      return created.id;
+    },
+    [signedIn, remoteBooks.data, addRemoteBook, settings.spoilerMode],
+  );
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
   const addBook = useCallback(
-    (item: Omit<UserLibraryItem, "id" | "createdAt">): string => {
+    async (
+      item: Omit<UserLibraryItem, "id" | "createdAt">,
+    ): Promise<string> => {
+      if (signedIn) {
+        const created = await addRemoteBook.mutateAsync({
+          title: item.title,
+          author: item.author,
+          format: item.format,
+          source: "upload",
+          coverGradient: item.coverGradient,
+          visualStyle: item.visualStyle,
+          spoilerMode: item.spoilerMode,
+          currentChapter: item.currentChapter,
+          currentPage: item.currentPage,
+          currentAudioTimestamp: item.currentAudioTimestamp,
+          progress: item.progress,
+          userNote: item.userNote,
+          tagline: item.tagline ?? null,
+          heroImage: item.heroImage ?? null,
+        });
+        return created.id;
+      }
       const newItem: UserLibraryItem = {
         ...item,
         id: Date.now().toString() + Math.random().toString(36).slice(2, 11),
         createdAt: new Date().toISOString(),
       };
-      setUserLibrary((prev) => {
+      setLocalLibrary((prev) => {
         const next = [...prev, newItem];
         writeJSON(STORAGE_KEY, next);
         return next;
       });
       return newItem.id;
     },
-    [],
+    [signedIn, addRemoteBook],
   );
 
-  const removeBook = useCallback((id: string) => {
-    setUserLibrary((prev) => {
-      const next = prev.filter((b) => b.id !== id);
-      writeJSON(STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
+  const removeBook = useCallback(
+    (id: string) => {
+      if (signedIn) {
+        const list = remoteBooks.data ?? [];
+        // Match by demoBookId for demo entries, else by remote uuid
+        const remote =
+          list.find((b) => b.demoBookId === id) ??
+          list.find((b) => b.id === id);
+        if (remote) deleteRemoteBook.mutate(remote.id);
+        return;
+      }
+      setLocalLibrary((prev) => {
+        const next = prev.filter((b) => b.id !== id);
+        writeJSON(STORAGE_KEY, next);
+        return next;
+      });
+    },
+    [signedIn, remoteBooks.data, deleteRemoteBook],
+  );
 
-  const updateProgress = useCallback((id: string, progress: number) => {
-    setUserLibrary((prev) => {
-      const next = prev.map((b) => (b.id === id ? { ...b, progress } : b));
-      writeJSON(STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
+  const updateProgress = useCallback(
+    (id: string, progress: number) => {
+      if (signedIn) {
+        const list = remoteBooks.data ?? [];
+        const remote =
+          list.find((b) => b.demoBookId === id) ??
+          list.find((b) => b.id === id);
+        if (remote) patchRemoteBook.mutate({ id: remote.id, progress });
+        return;
+      }
+      setLocalLibrary((prev) => {
+        const next = prev.map((b) => (b.id === id ? { ...b, progress } : b));
+        writeJSON(STORAGE_KEY, next);
+        return next;
+      });
+    },
+    [signedIn, remoteBooks.data, patchRemoteBook],
+  );
 
   const setActiveBookId = useCallback((id: string | null) => {
     setActiveBookIdState(id);
@@ -171,21 +336,48 @@ export function useLibrary() {
     else localStorage.removeItem(ACTIVE_BOOK_KEY);
   }, []);
 
-  const updateSettings = useCallback((next: Partial<AppSettings>) => {
-    setSettings((prev) => {
-      const merged = { ...prev, ...next };
-      writeJSON(SETTINGS_KEY, merged);
-      return merged;
-    });
-  }, []);
+  const updateSettings = useCallback(
+    (next: Partial<AppSettings>) => {
+      if (signedIn) {
+        updateRemoteUser.mutate(next);
+        return;
+      }
+      setLocalSettings((prev) => {
+        const merged = { ...prev, ...next };
+        writeJSON(SETTINGS_KEY, merged);
+        return merged;
+      });
+    },
+    [signedIn, updateRemoteUser],
+  );
 
-  const updatePosition = useCallback((pos: Omit<BookPosition, "lastUpdated">) => {
-    setPositions((prev) => {
-      const next = { ...prev, [pos.bookId]: { ...pos, lastUpdated: new Date().toISOString() } };
-      writeJSON(POSITIONS_KEY, next);
-      return next;
-    });
-  }, []);
+  const updatePosition = useCallback(
+    (pos: Omit<BookPosition, "lastUpdated">) => {
+      setPositions((prev) => {
+        const next = {
+          ...prev,
+          [pos.bookId]: { ...pos, lastUpdated: new Date().toISOString() },
+        };
+        writeJSON(POSITIONS_KEY, next);
+        return next;
+      });
+      if (signedIn) {
+        const list = remoteBooks.data ?? [];
+        const remote =
+          list.find((b) => b.demoBookId === pos.bookId) ??
+          list.find((b) => b.id === pos.bookId);
+        if (remote) {
+          patchRemoteBook.mutate({
+            id: remote.id,
+            currentChapter: pos.chapter,
+            currentPage: pos.page,
+            progress: pos.percentComplete,
+          });
+        }
+      }
+    },
+    [signedIn, remoteBooks.data, patchRemoteBook],
+  );
 
   const getPosition = useCallback(
     (bookId: string): BookPosition | null => positions[bookId] ?? null,
@@ -194,7 +386,8 @@ export function useLibrary() {
 
   const startSession = useCallback(
     (bookId: string, bookTitle: string, chapter: number): string => {
-      const id = "sess_" + Date.now().toString() + Math.random().toString(36).slice(2, 7);
+      const id =
+        "sess_" + Date.now().toString() + Math.random().toString(36).slice(2, 7);
       const session: ReadingSession = {
         id,
         bookId,
@@ -256,6 +449,9 @@ export function useLibrary() {
       positions,
       sessions,
       streak,
+      isSignedIn: signedIn,
+      isOnboarded: signedIn ? !!remoteUser.data?.onboarded : true,
+      isUserLoaded: isLoaded,
       addBook,
       removeBook,
       updateProgress,
@@ -266,6 +462,7 @@ export function useLibrary() {
       startSession,
       endSession,
       getActiveSession,
+      resolveRemoteBookId,
     }),
     [
       userLibrary,
@@ -274,6 +471,9 @@ export function useLibrary() {
       positions,
       sessions,
       streak,
+      signedIn,
+      isLoaded,
+      remoteUser.data?.onboarded,
       addBook,
       removeBook,
       updateProgress,
@@ -284,6 +484,7 @@ export function useLibrary() {
       startSession,
       endSession,
       getActiveSession,
+      resolveRemoteBookId,
     ],
   );
 }
