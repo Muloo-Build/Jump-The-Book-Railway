@@ -156,15 +156,15 @@ export default function Library() {
               <div className="space-y-2 max-w-2xl">
                 <div className="inline-flex items-center gap-2 text-amber-300 text-sm font-medium">
                   <Sparkles className="w-4 h-4" />
-                  Smart Setup
+                  Your shelf, brought to life
                 </div>
                 <h3 className="font-serif text-xl font-semibold">
-                  Reading something we don't have a file of?
+                  Every book you're reading — in one place.
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Add any modern book by title and author — Kindle, Audible,
-                  hardcover, anything. We'll build a story profile and visualize
-                  your reading position spoiler-free.
+                  Paperback, Kindle, Audible, library copy — track them all on
+                  one shelf. Then, for any chapter you've reached, we'll paint
+                  a cinematic scene of the moment. Spoiler-free, always.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">

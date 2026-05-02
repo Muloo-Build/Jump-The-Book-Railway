@@ -41,10 +41,30 @@ function buildSubtext(nowReading: UserLibraryItem | null, total: number) {
   return `Chapter ${ch} of ${nowReading.title} is queued and waiting.`;
 }
 
+/**
+ * Best-effort display name. Tries Clerk's first name → username → the
+ * local part of the primary email address (e.g. "ada.lovelace@foo.com" →
+ * "Ada"). Falls back to "Reader" only when truly nothing is available,
+ * so email-only signups still get a personal greeting.
+ */
+function resolveFirstName(user: ReturnType<typeof useUser>["user"]): string {
+  const fn = user?.firstName?.trim();
+  if (fn) return fn;
+  const un = user?.username?.trim();
+  if (un) return un;
+  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+  const local = email.split("@")[0] ?? "";
+  // Take everything before the first separator and capitalize. e.g.
+  // "ada.lovelace+tag" → "Ada", "j_smith42" → "J".
+  const seed = local.split(/[._+\-0-9]/).filter(Boolean)[0] ?? "";
+  if (seed) return seed.charAt(0).toUpperCase() + seed.slice(1).toLowerCase();
+  return "Reader";
+}
+
 export default function WelcomeHero({ nowReading, totalBooks }: Props) {
   const { user } = useUser();
   const datePill = useNowPill();
-  const firstName = user?.firstName || user?.username || "Reader";
+  const firstName = resolveFirstName(user);
   const sub = buildSubtext(nowReading, totalBooks);
 
   const continueHref = nowReading
