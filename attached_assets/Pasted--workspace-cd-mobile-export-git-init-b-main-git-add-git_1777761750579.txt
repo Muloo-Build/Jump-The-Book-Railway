@@ -1,0 +1,99 @@
+~/workspace$ cd mobile-export
+git init -b main
+git add .
+git -c user.email="jarrud@muloo.co" -c user.name="Jarrud" commit -m "Initial commit: Jump the Book mobile (split from monorepo)"
+git remote add origin https://github.com/Muloo-Build/jumptheboo_mobile.git
+git push -u origin main
+Initialized empty Git repository in /home/runner/workspace/mobile-export/.git/
+[main (root-commit) cf710ab] Initial commit: Jump the Book mobile (split from monorepo)
+ 79 files changed, 13180 insertions(+)
+ create mode 100644 .env.example
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 SETUP.md
+ create mode 100644 app.json
+ create mode 100644 app/(auth)/_layout.tsx
+ create mode 100644 app/(auth)/sign-in.tsx
+ create mode 100644 app/(auth)/sign-up.tsx
+ create mode 100644 app/(tabs)/_layout.tsx
+ create mode 100644 app/(tabs)/characters.tsx
+ create mode 100644 app/(tabs)/immersion.tsx
+ create mode 100644 app/(tabs)/index.tsx
+ create mode 100644 app/(tabs)/library.tsx
+ create mode 100644 app/(tabs)/settings.tsx
+ create mode 100644 app/+not-found.tsx
+ create mode 100644 app/_layout.tsx
+ create mode 100644 app/account.tsx
+ create mode 100644 app/book/[id].tsx
+ create mode 100644 app/discover.tsx
+ create mode 100644 app/experience/[id].tsx
+ create mode 100644 app/setup-book.tsx
+ create mode 100644 app/upload.tsx
+ create mode 100644 assets/images/alice-hero.png
+ create mode 100644 assets/images/dracula-hero.png
+ create mode 100644 assets/images/frankenstein-hero.png
+ create mode 100644 assets/images/icon.png
+ create mode 100644 assets/images/scenes/alice-ch1-s1.png
+ create mode 100644 assets/images/scenes/alice-ch1-s2.png
+ create mode 100644 assets/images/scenes/alice-ch1-s3.png
+ create mode 100644 assets/images/scenes/alice-ch1-s4.png
+ create mode 100644 assets/images/scenes/alice-ch1-s5.png
+ create mode 100644 assets/images/scenes/alice-ch1-s6.png
+ create mode 100644 assets/images/scenes/dracula-ch1-s1.png
+ create mode 100644 assets/images/scenes/dracula-ch1-s2.png
+ create mode 100644 assets/images/scenes/dracula-ch1-s3.png
+ create mode 100644 assets/images/scenes/frank-ch1-s1.png
+ create mode 100644 assets/images/scenes/frank-ch1-s2.png
+ create mode 100644 assets/images/scenes/frank-ch1-s3.png
+ create mode 100644 assets/images/scenes/sherlock-ch1-s1.png
+ create mode 100644 assets/images/scenes/sherlock-ch1-s2.png
+ create mode 100644 assets/images/scenes/sherlock-ch1-s3.png
+ create mode 100644 assets/images/sherlock-hero.png
+ create mode 100644 babel.config.js
+ create mode 100644 components/Badge.tsx
+ create mode 100644 components/BookCard.tsx
+ create mode 100644 components/CharacterCard.tsx
+ create mode 100644 components/ClaimOrphanModal.tsx
+ create mode 100644 components/CoverPickerModal.tsx
+ create mode 100644 components/EditBookModal.tsx
+ create mode 100644 components/ErrorBoundary.tsx
+ create mode 100644 components/ErrorFallback.tsx
+ create mode 100644 components/KeyboardAwareScrollViewCompat.tsx
+ create mode 100644 components/NowReadingHero.tsx
+ create mode 100644 components/ScenesSection.tsx
+ create mode 100644 components/SnapCoverButton.tsx
+ create mode 100644 components/SnapPageButton.tsx
+ create mode 100644 components/StreakBadge.tsx
+ create mode 100644 components/StyleSelector.tsx
+ create mode 100644 constants/colors.ts
+ create mode 100644 context/LibraryContext.tsx
+ create mode 100644 data/books.ts
+ create mode 100644 expo-env.d.ts
+ create mode 100644 hooks/useBookBible.ts
+ create mode 100644 hooks/useColors.ts
+ create mode 100644 hooks/useGenerateScene.ts
+ create mode 100644 hooks/useRemoteLibrary.ts
+ create mode 100644 metro.config.js
+ create mode 100644 package.json
+ create mode 100644 scripts/build.js
+ create mode 100644 server/serve.js
+ create mode 100644 server/templates/landing-page.html
+ create mode 100644 tsconfig.json
+ create mode 100644 vendor/api-client-react/src/custom-fetch.ts
+ create mode 100644 vendor/api-client-react/src/generated/api.schemas.ts
+ create mode 100644 vendor/api-client-react/src/generated/api.ts
+ create mode 100644 vendor/api-client-react/src/index.ts
+ create mode 100644 vendor/jump-the-book-shared/src/index.ts
+ create mode 100644 vendor/jump-the-book-shared/src/openLibrary.ts
+ create mode 100644 vendor/jump-the-book-shared/src/types.ts
+Enumerating objects: 103, done.
+Counting objects: 100% (103/103), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (93/93), done.
+Writing objects: 100% (103/103), 33.53 MiB | 5.95 MiB/s, done.
+Total 103 (delta 6), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (6/6), done.
+To https://github.com/Muloo-Build/jumptheboo_mobile.git
+ * [new branch]      main -> main
+branch 'main' set up to track 'origin/main'.
+~/workspace/mobile-export$ 
