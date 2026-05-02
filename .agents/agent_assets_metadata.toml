@@ -70,7 +70,7 @@ title = "generated_image"
 id = "XieLZpR1-U_jKTnjGl8Y9"
 uri = "file://app-store/icon/icon-1024.png"
 type = "image"
-title = "App Icon (1024×1024)"
+title = "App Store icon (real bunny logo, 1024×1024)"
 
 [[outputs]]
 id = "lgJzmdri1RvQ-YtmVtR4W"
@@ -107,3 +107,9 @@ id = "I8OKToj8u4kxGzAg71GQO"
 uri = "file://app-store/APP_STORE_LISTING.md"
 type = "text"
 title = "App Store copy + checklist"
+
+[[outputs]]
+id = "bS7zlP-jtPwJDrUWxE7Re"
+uri = "file://app-store/icon/adaptive-icon.png"
+type = "image"
+title = "Android adaptive icon foreground"

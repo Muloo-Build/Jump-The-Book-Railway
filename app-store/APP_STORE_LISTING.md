@@ -182,18 +182,39 @@ Notes:    Sign in with email/password via Clerk. The demo account
 
 ```
 app-store/
-├── APP_STORE_LISTING.md          ← this file
+├── APP_STORE_LISTING.md           ← this file
 ├── icon/
-│   └── icon-1024.png             ← upload to App Store Connect "App Icon"
+│   ├── icon-source.svg            ← editable source (iOS — solid dark bg)
+│   ├── adaptive-foreground.svg    ← editable source (transparent)
+│   ├── icon-1024.png              ← upload to App Store Connect "App Icon"
+│   ├── adaptive-icon.png          ← Android adaptive icon foreground
+│   ├── splash-icon.png            ← Expo splash screen
+│   └── favicon-512.png            ← optional web favicon refresh
 └── screenshots/
-    ├── 01-hero.png               ← upload as screenshot 1
-    ├── 02-styles.png             ← screenshot 2
-    ├── 03-spoiler.png            ← screenshot 3
-    ├── 04-trailer.png            ← screenshot 4
-    └── 05-library.png            ← screenshot 5
+    ├── 01-hero.png                ← upload as screenshot 1
+    ├── 02-styles.png              ← screenshot 2
+    ├── 03-spoiler.png             ← screenshot 3
+    ├── 04-trailer.png             ← screenshot 4
+    └── 05-library.png             ← screenshot 5
 ```
 
-The icon also needs to live in the **mobile repo** at
-`assets/images/icon.png` (and `adaptive-icon.png` / `splash-icon.png` if you
-want to keep them in lockstep). Copy it across, commit, and Expo will bake
-it into your next EAS build.
+The icon is the same golden bunny used on the web home page header
+(`artifacts/jump-the-book-web/public/logo.svg`), rendered at App Store sizes
+on the dark midnight background that matches the in-app aesthetic.
+
+**To wire it into the mobile repo (`jumptheboo_mobile`):**
+
+| Mobile repo path                     | Copy from                                  |
+| ------------------------------------ | ------------------------------------------ |
+| `assets/images/icon.png`             | `app-store/icon/icon-1024.png`             |
+| `assets/images/adaptive-icon.png`    | `app-store/icon/adaptive-icon.png`         |
+| `assets/images/splash-icon.png`      | `app-store/icon/splash-icon.png`           |
+
+Then in `app.json` of the mobile repo, confirm:
+```json
+"name": "Jump the Book",
+"ios":     { "bundleIdentifier": "com.muloo.jumpthebook" },
+"android": { "adaptiveIcon": { "backgroundColor": "#0d0918" } }
+```
+Run `eas build --platform ios --profile production` and the bunny will be
+baked into the binary.
