@@ -118,6 +118,9 @@ export interface UserLibraryItem {
   sourceType?: "demo" | "user-added" | "user-writing";
   tagline?: string;
   heroImage?: string;
+  // Backend user_books.id (UUID). Present for remote-backed items (signed-in
+  // users); local/demo items use slug ids and have no remote id yet.
+  remoteId?: string;
 }
 
 export const DEMO_BOOKS: Book[] = [

@@ -42,8 +42,16 @@ export default function BookDetail() {
   const userBook = userLibrary.find((b) => b.id === id);
   const book = userBook || demoBook;
 
-  // Only fetch a bible for signed-in users on a real (UUID) user_book row.
-  const bibleBookId = isSignedIn && userBook && UUID_RE.test(id) ? id : null;
+  // Bibles are keyed by user_books.id (UUID). For uploaded/manual books the
+  // URL `id` is already that UUID; for demo-mapped books (slug URL like
+  // "alice") we need the remote UUID stored on the library item. Only fetch
+  // when signed in and we actually have a UUID to look up.
+  const bibleBookId =
+    isSignedIn && userBook
+      ? UUID_RE.test(id)
+        ? id
+        : userBook.remoteId ?? null
+      : null;
   const bibleQ = useBookBible(bibleBookId);
   const bible = bibleQ.data?.bible ?? null;
 
@@ -200,7 +208,7 @@ export default function BookDetail() {
                               : "Your story profile"}
                           </h3>
                         </div>
-                        <Link href={`/setup-book?bookId=${book.id}`}>
+                        <Link href={`/setup-book?bookId=${bibleBookId}`}>
                           <Button size="sm" variant="ghost">
                             <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
                           </Button>
@@ -272,7 +280,7 @@ export default function BookDetail() {
                             this book's world.
                           </p>
                         </div>
-                        <Link href={`/setup-book?bookId=${book.id}`}>
+                        <Link href={`/setup-book?bookId=${bibleBookId}`}>
                           <Button>
                             <Sparkles className="w-4 h-4 mr-2" /> Add a bible
                           </Button>

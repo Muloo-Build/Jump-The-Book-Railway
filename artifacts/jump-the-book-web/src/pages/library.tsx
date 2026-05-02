@@ -7,6 +7,7 @@ import {
   useRemoteSceneLibrary,
   useRemoteBooks,
 } from "@/hooks/useApiLibrary";
+import { useUserBibleSummaries } from "@/hooks/useBookBible";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { Plus, Sparkles, Loader2 } from "lucide-react";
@@ -20,6 +21,7 @@ export default function Library() {
   const { userLibrary, isSignedIn, activeBookId } = useLibrary();
   const sceneLib = useRemoteSceneLibrary();
   const remoteBooks = useRemoteBooks();
+  const bibleSummariesQ = useUserBibleSummaries();
 
   // Build a lookup from remote book uuid → display id (demoBookId or uuid)
   const bookIdMap = useMemo(() => {
@@ -32,6 +34,20 @@ export default function Library() {
     });
     return map;
   }, [remoteBooks.data]);
+
+  // Bibles are stored against the backend UUID (user_books.id). Library tiles
+  // use the *display* id (demoBookId slug for demo books, UUID for the rest),
+  // so translate UUID → displayId via bookIdMap so the badge appears on
+  // demo-mapped tiles too.
+  const bibleBookIds = useMemo(() => {
+    const set = new Set<string>();
+    (bibleSummariesQ.data?.summaries ?? []).forEach((s) => {
+      set.add(s.userBookId);
+      const mapped = bookIdMap.get(s.userBookId);
+      if (mapped) set.add(mapped.displayId);
+    });
+    return set;
+  }, [bibleSummariesQ.data, bookIdMap]);
 
   // Pick the "now reading" book: the active one if it still exists, else the
   // most-recently-updated book in the library (API returns books ordered by
@@ -162,7 +178,12 @@ export default function Library() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {userLibrary.map((book, i) => (
-                <LibraryBookTile key={book.id} book={book} index={i} />
+                <LibraryBookTile
+                  key={book.id}
+                  book={book}
+                  index={i}
+                  hasBible={bibleBookIds.has(book.id)}
+                />
               ))}
             </div>
           )}

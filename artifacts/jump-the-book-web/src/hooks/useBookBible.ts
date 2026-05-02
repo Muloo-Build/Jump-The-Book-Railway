@@ -102,6 +102,28 @@ export function useBookBible(bookId: string | null | undefined) {
   });
 }
 
+export interface BibleSummary {
+  userBookId: string;
+  series: string | null;
+  bookNumber: number | null;
+  characterCount: number;
+  locationCount: number;
+  contextVersion: number;
+}
+
+// Fetch one row per bible the user owns. Used to badge the library tiles
+// without a per-tile network call.
+export function useUserBibleSummaries() {
+  const enabled = useIsSignedIn();
+  return useQuery({
+    queryKey: ["bible-summaries"],
+    enabled,
+    queryFn: () =>
+      apiFetch<{ summaries: BibleSummary[] }>("/me/bibles/summaries"),
+    staleTime: 30_000,
+  });
+}
+
 export interface SaveBibleInput {
   bookId: string;
   draft: BibleDraft;
@@ -123,6 +145,7 @@ export function useSaveBookBible() {
       ),
     onSuccess: (data, vars) => {
       qc.setQueryData(["bible", vars.bookId], { bible: data.bible });
+      qc.invalidateQueries({ queryKey: ["bible-summaries"] });
     },
   });
 }

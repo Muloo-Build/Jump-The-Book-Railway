@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { db } from "@workspace/db";
@@ -171,17 +172,37 @@ router.post("/scenes/generate", async (req, res) => {
       return;
     }
 
-    // Optional: load bible for bible-aware generation. Fail-soft if missing.
+    // Optional: load bible for bible-aware generation. Fail-soft if missing
+    // or if the requester does not own it (prevents cross-tenant leakage on
+    // this public endpoint).
     let bible: BookBibleRow | null = null;
     if (typeof bookBibleId === "string" && bookBibleId.length > 0) {
-      const rows = await db
-        .select()
-        .from(bookBiblesTable)
-        .where(eq(bookBiblesTable.id, bookBibleId))
-        .limit(1);
-      bible = rows[0] ?? null;
-      if (!bible) {
-        req.log.warn({ bookBibleId }, "scenes: bible id not found, generating without bible context");
+      const requesterId = getAuth(req)?.userId ?? null;
+      if (!requesterId) {
+        req.log.warn(
+          { bookBibleId },
+          "scenes: bookBibleId provided without auth, ignoring",
+        );
+      } else {
+        const rows = await db
+          .select()
+          .from(bookBiblesTable)
+          .where(eq(bookBiblesTable.id, bookBibleId))
+          .limit(1);
+        const candidate = rows[0] ?? null;
+        if (!candidate) {
+          req.log.warn(
+            { bookBibleId },
+            "scenes: bible id not found, generating without bible context",
+          );
+        } else if (candidate.userId !== requesterId) {
+          req.log.warn(
+            { bookBibleId, owner: candidate.userId, requesterId },
+            "scenes: bible ownership mismatch, ignoring",
+          );
+        } else {
+          bible = candidate;
+        }
       }
     }
 

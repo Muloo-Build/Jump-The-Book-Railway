@@ -276,6 +276,41 @@ async function findUserBook(userId: string, bookId: string) {
   return rows[0] ?? null;
 }
 
+// Lightweight summary of every bible the user owns. Used by the library to
+// render a "Bible" badge on each tile without N+1 fetches.
+meRouter.get("/me/bibles/summaries", async (req, res) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const rows = await db
+      .select({
+        userBookId: bookBiblesTable.userBookId,
+        series: bookBiblesTable.series,
+        bookNumber: bookBiblesTable.bookNumber,
+        characterProfiles: bookBiblesTable.characterProfiles,
+        locations: bookBiblesTable.locations,
+        contextVersion: bookBiblesTable.contextVersion,
+      })
+      .from(bookBiblesTable)
+      .where(eq(bookBiblesTable.userId, userId));
+
+    const summaries = rows.map((r) => ({
+      userBookId: r.userBookId,
+      series: r.series,
+      bookNumber: r.bookNumber,
+      characterCount: Array.isArray(r.characterProfiles)
+        ? r.characterProfiles.length
+        : 0,
+      locationCount: Array.isArray(r.locations) ? r.locations.length : 0,
+      contextVersion: r.contextVersion ?? 1,
+    }));
+
+    res.json({ summaries });
+  } catch (err) {
+    req.log.error({ err }, "GET /me/bibles/summaries failed");
+    res.status(500).json({ error: "Failed to load bible summaries" });
+  }
+});
+
 meRouter.get("/me/books/:bookId/bible", async (req, res) => {
   const userId = (req as unknown as AuthedRequest).userId;
   const { bookId } = req.params;
