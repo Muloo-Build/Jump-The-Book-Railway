@@ -28,6 +28,11 @@ const STYLE_DESCRIPTIONS: Record<string, string> = {
   "fantasy-illustration": "rich detailed fantasy oil painting, luminous colours, intricate world-building details, painterly textures",
 };
 
+function clampSceneCount(n: unknown): number {
+  if (typeof n !== "number" || !Number.isFinite(n)) return 0;
+  return Math.max(1, Math.min(5, Math.floor(n)));
+}
+
 const SPOILER_SYSTEM = `You are a visual story companion AI for a reading app. Generate spoiler-safe scene companion cards.
 
 STRICT SPOILER RULES — violations ruin the app:
@@ -53,8 +58,7 @@ OUTPUT: Return only valid JSON in this exact shape:
   ]
 }
 
-gradientColors: 2-3 hex colours that match the emotional palette of the scene.
-Generate 3-5 scenes that progress naturally through the chapter.`;
+gradientColors: 2-3 hex colours that match the emotional palette of the scene.`;
 
 interface GenerateBody {
   bookTitle: string;
@@ -65,6 +69,7 @@ interface GenerateBody {
   spoilerMode?: string;
   excerpt?: string;
   generateImage?: boolean;
+  sceneCount?: number;
 }
 
 router.post("/scenes/generate", async (req, res) => {
@@ -78,6 +83,7 @@ router.post("/scenes/generate", async (req, res) => {
       spoilerMode = "no-spoilers",
       excerpt,
       generateImage = false,
+      sceneCount: rawSceneCount,
     } = req.body as GenerateBody;
 
     if (!bookTitle || !author) {
@@ -85,6 +91,7 @@ router.post("/scenes/generate", async (req, res) => {
       return;
     }
 
+    const sceneCount = clampSceneCount(rawSceneCount);
     const bundleParams = {
       bookTitle,
       author,
@@ -93,6 +100,7 @@ router.post("/scenes/generate", async (req, res) => {
       visualStyle,
       spoilerMode,
       excerpt,
+      sceneCount: sceneCount || undefined,
     };
     const cacheKey = makeSceneCacheKey(bundleParams);
 
@@ -144,12 +152,16 @@ router.post("/scenes/generate", async (req, res) => {
     );
 
     // ── Generate scene text via GPT ──────────────────────────────────────────
+    const sceneCountInstruction = sceneCount
+      ? `Generate exactly ${sceneCount} scene${sceneCount === 1 ? "" : "s"}${sceneCount === 1 ? " — one strong cinematic moment that captures the heart of the passage" : ""}.`
+      : "Generate 3-5 scenes that progress naturally through the chapter.";
+
     const userPrompt = `Book: "${bookTitle}" by ${author}
 Chapter ${chapterNumber}: "${chapterTitle}"
 Spoiler strictness: ${spoilerMode}
-${excerpt ? `\nExcerpt from this chapter:\n---\n${excerpt.slice(0, 3000)}\n---` : ""}
+${excerpt ? `\nExcerpt from this chapter (this is the actual text the reader is on — base scenes on this, not your training memory of the book):\n---\n${excerpt.slice(0, 3000)}\n---` : ""}
 
-Generate visual scene companion cards for this chapter. Remember: atmosphere and setting only, no plot reveals.`;
+${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-5.4",

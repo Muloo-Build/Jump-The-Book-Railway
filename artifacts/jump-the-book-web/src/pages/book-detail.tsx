@@ -4,8 +4,10 @@ import { useLibrary } from "@/lib/library";
 import { DEMO_BOOKS, CHAPTERS } from "@/data/books";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Image as ImageIcon, Sparkles, Settings2, Clock, BookOpen } from "lucide-react";
+import { MapPin, Image as ImageIcon, Sparkles, Settings2, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
+import BookMetadata from "@/components/book-metadata";
+import PastePassage from "@/components/paste-passage";
 
 export default function BookDetail() {
   const { id } = useParams<{ id: string }>();
@@ -49,14 +51,22 @@ export default function BookDetail() {
                 background: `linear-gradient(to bottom right, ${book.coverGradient[0]}, ${book.coverGradient[1]})`,
               }}
             >
-              {book.heroImage && (
-                <img 
-                  src={`${import.meta.env.BASE_URL}images/${book.heroImage}.png`} 
-                  alt="" 
-                  className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
-                  onError={(e) => e.currentTarget.style.display = 'none'}
-                />
-              )}
+              {book.heroImage &&
+                (book.heroImage.startsWith("http") || book.heroImage.startsWith("/") ? (
+                  <img
+                    src={book.heroImage}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
+                ) : (
+                  <img
+                    src={`${import.meta.env.BASE_URL}images/${book.heroImage}.png`}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
+                ))}
             </motion.div>
           </div>
 
@@ -105,9 +115,16 @@ export default function BookDetail() {
               </Card>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="space-y-4">
+            <BookMetadata title={book.title} author={book.author} />
+
+            <PastePassage bookId={book.id} chapter={currentChapter} />
+
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-4">
               <h3 className="font-serif text-2xl font-semibold">Experience Chapter {currentChapter}</h3>
-              
+              <p className="text-sm text-muted-foreground">
+                Or generate scenes from the book itself — no passage needed.
+              </p>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Link href={`/generate?bookId=${book.id}&chapter=${currentChapter}`}>
                   <Button size="lg" className="w-full h-16 text-lg group bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30">
@@ -115,7 +132,7 @@ export default function BookDetail() {
                     Generate Scenes
                   </Button>
                 </Link>
-                
+
                 <Link href={`/experience/${book.id}?chapter=${currentChapter}`}>
                   <Button size="lg" variant="outline" className="w-full h-16 text-lg group">
                     <ImageIcon className="w-5 h-5 mr-3" />

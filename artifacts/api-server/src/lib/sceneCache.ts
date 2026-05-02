@@ -34,6 +34,7 @@ export interface SceneBundleParams {
   visualStyle: string;
   spoilerMode: string;
   excerpt?: string;
+  sceneCount?: number;
 }
 
 export interface ImageKeyParams {
@@ -62,6 +63,11 @@ export function makeSceneCacheKey(p: SceneBundleParams): string {
     String(p.chapterNumber),
     p.visualStyle,
     p.spoilerMode,
+    // Excerpt and scene count are part of the request identity — different
+    // excerpts or counts must not collide with cached results from a previous
+    // run on the same book/chapter.
+    `ex:${hashExcerpt(p.excerpt)}`,
+    `n:${typeof p.sceneCount === "number" ? p.sceneCount : "default"}`,
   ].join("|");
   return `scene_v${SCENE_CACHE_VERSION}_${sha(raw).slice(0, 32)}`;
 }

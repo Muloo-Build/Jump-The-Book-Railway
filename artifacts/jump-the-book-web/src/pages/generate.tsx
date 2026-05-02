@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import Layout from "@/components/layout";
 import {
@@ -10,8 +10,13 @@ import { useSaveRemoteScene } from "@/hooks/useApiLibrary";
 import { DEMO_BOOKS } from "@/data/books";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Sparkles, Image as ImageIcon, BookOpen } from "lucide-react";
+import { Loader2, Sparkles, Image as ImageIcon, BookOpen, Wand2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  readPendingPassage,
+  clearPendingPassage,
+  type PendingPassage,
+} from "@/components/paste-passage";
 
 export default function Generate() {
   const searchString = useSearch();
@@ -31,6 +36,25 @@ export default function Generate() {
     userLibrary.find((b) => b.id === bookId) ||
     DEMO_BOOKS.find((b) => b.id === bookId);
   const chapterNumber = parseInt(chapterStr || "1", 10);
+
+  // Read the handoff exactly once via lazy state init, then clear sessionStorage
+  // inside an effect so an in-flight render that throws can't lose the data.
+  const [pendingPassage] = useState<PendingPassage | null>(() => {
+    const pending = readPendingPassage();
+    if (
+      pending &&
+      pending.bookId === bookId &&
+      pending.chapter === chapterNumber &&
+      Date.now() - pending.savedAt < 5 * 60_000
+    ) {
+      return pending;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (pendingPassage) clearPendingPassage();
+  }, [pendingPassage]);
 
   useEffect(() => {
     if (!book) return;
@@ -101,6 +125,8 @@ export default function Generate() {
           visualStyle: book.visualStyle,
           spoilerMode:
             "spoilerMode" in book ? book.spoilerMode : "no-spoilers",
+          excerpt: pendingPassage?.excerpt,
+          sceneCount: pendingPassage?.sceneCount,
         },
         {
           onScenesReady: (scenes, cacheKey) => {
@@ -162,9 +188,18 @@ export default function Generate() {
           <div className="space-y-4">
             <Sparkles className="w-12 h-12 mx-auto text-primary animate-pulse" />
             <h1 className="font-serif text-3xl font-bold">
-              Visualizing Chapter {chapterNumber}
+              {pendingPassage
+                ? "Visualizing your passage"
+                : `Visualizing Chapter ${chapterNumber}`}
             </h1>
             <p className="text-muted-foreground">{book.title}</p>
+            {pendingPassage && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs px-3 py-1">
+                <Wand2 className="w-3 h-3" />
+                From your pasted passage · {pendingPassage.sceneCount}{" "}
+                scene{pendingPassage.sceneCount === 1 ? "" : "s"}
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">

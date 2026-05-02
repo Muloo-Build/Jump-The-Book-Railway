@@ -33,6 +33,7 @@ export interface GenerateSceneParams {
   visualStyle: string;
   spoilerMode?: string;
   excerpt?: string;
+  sceneCount?: number;
 }
 
 export interface SceneProgress {
@@ -54,13 +55,23 @@ export interface ProgressiveCallbacks {
   onProgress?: (p: SceneProgress) => void;
 }
 
+function djb2Hash(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
 function makeCacheKey(params: GenerateSceneParams) {
-  const { bookTitle, author, chapterNumber, visualStyle, spoilerMode } = params;
+  const { bookTitle, author, chapterNumber, visualStyle, spoilerMode, excerpt, sceneCount } = params;
+  // Different excerpts and scene counts must produce different cache keys —
+  // otherwise pasting a new passage returns the previous run.
+  const excerptKey = excerpt && excerpt.trim() ? djb2Hash(excerpt.trim()) : "noex";
+  const countKey = typeof sceneCount === "number" ? `n${sceneCount}` : "ndefault";
   return (
     CACHE_PREFIX +
-    `${bookTitle}_${author}_ch${chapterNumber}_${visualStyle}_${spoilerMode ?? "default"}`
+    `${bookTitle}_${author}_ch${chapterNumber}_${visualStyle}_${spoilerMode ?? "default"}_${countKey}_${excerptKey}`
       .replace(/[^a-zA-Z0-9_]+/g, "_")
-      .slice(0, 100)
+      .slice(0, 120)
   );
 }
 
