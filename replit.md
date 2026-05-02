@@ -104,72 +104,11 @@ Jump the Book — web reading companion. Reader uploads an EPUB (parsed entirely
 
 **Theme**: dark cinematic — Playfair Display (serif) + Plus Jakarta Sans, deep plums/oxbloods/dusty golds/midnight blues. Palette in `src/index.css` `:root` and `.dark` blocks (HSL tokens compatible with shadcn/ui).
 
-### `artifacts/jump-the-book` — Expo mobile app (route `/mobile`)
-Jump the Book — AI-powered visual reading companion. Drop an EPUB → choose Comic or Cinematic → watch the chapter as AI-generated panels. **Phase 1 (Clerk auth + shared lib), Phase 2 (remote library backed by `/api/me/books`), and Phases 3–6 (snap-cover, snap-page, Smart Setup wizard, edit-book, Now Reading hero + Scenes rail + Discover screen, Account screen + orphan recovery) are all shipped — feature parity with web.**
+### Mobile app — split out
+The Expo mobile app lives in its own repo: <https://github.com/Muloo-Build/jumptheboo_mobile>. It depends on this repo's deployed API at `https://${EXPO_PUBLIC_DOMAIN}/api/*` and uses the same Clerk publishable key. Two pieces of code are mirrored between the two repos and must be kept in sync when changed:
 
-**Mobile parity surfaces (Phases 3–6)**:
-- `components/SnapCoverButton.tsx` + `components/CoverPickerModal.tsx` — `expo-image-picker` (camera) → `expo-image-manipulator` (resize 1280px JPEG @0.85, base64) → `POST /api/books/cover/identify` → Open Library top-3 picker → `addBook({source:"manual"})`. Wired into the library tab as a tile.
-- `components/SnapPageButton.tsx` — `useSnapPageOcr` (in `hooks/useBookBible.ts`) calls `POST /api/passage/ocr` and appends extracted prose. Mounted in the bible editor's long-text fields.
-- `app/setup-book.tsx` — 3-step Smart Setup wizard (Identify → Build bible via `POST /api/books/context/search` → Review with `<BibleEditor>`). `?bookId=<uuid>` mode hydrates an existing bible and skips to Step 3 (used from book detail's "Edit story bible" button). Saves via `useBookBible.save()` then optionally pushes to `/generate` with `whatJustHappened` + `excerpt` stashed in AsyncStorage.
-- `components/EditBookModal.tsx` — title/author/tagline/heroImage/totalChapters editor that PATCHes `/api/me/books/:id`. Fed a canonical `RemoteBook` (imported from `@workspace/jump-the-book-shared`) so totalChapters etc. survive the round trip.
-- `components/NowReadingHero.tsx` — magazine-style "Continue reading" stage pinned above the library list. Uses the latest `RemoteScene.imageUrl` for the hero image (falls back to the book's cover gradient), italic narration blockquote, gold progress bar, and Resume + All scenes buttons.
-- `components/ScenesSection.tsx` — horizontal "recently generated" rail of the most recent six scenes from `useRemoteSceneLibrary`, plus per-book scene-count chips. Orphan groups are filtered out here — recovery lives on the Account screen.
-- `app/discover.tsx` — Non-tab screen mirroring web's `/discover`: hero, Bring-your-own duo (Smart Setup + Upload), "Most explored" tiles ranked by per-book scene counts (signed-in only, only when there are scenes), curated demo categories (Wonder & whimsy / Shadow & dread / Cases to crack), footer CTA. Linked from a "Discover" pill in the library tab header.
-- `app/account.tsx` — Identity card (name + email + sign-out via `@clerk/expo` `useUser`/`useAuth`), orphan recovery section (lists `useOrphanScenes()` groups with Recover/Forget actions), and a pointer to the Settings tab for visual/spoiler/reading prefs. Linked from the top of the Settings tab.
-- `components/ClaimOrphanModal.tsx` — Title + author capture used by Account → "Recover". Calls `useClaimOrphanScenes()` which `POST`s `/api/me/orphan-scenes/claim` and invalidates `me/books`, `me/scenes`, and `me/orphan-scenes`.
-- New hooks in `hooks/useRemoteLibrary.ts`: `useOrphanScenes`, `useClaimOrphanScenes`, `useDeleteOrphanScenes` (mirror the web counterparts in `useApiLibrary.ts`). Shared `RemoteScene` shape was tightened so `CoverIdentifyResult` matches the actual API response (`{title,author,confidence,note?}`).
+- `lib/jump-the-book-shared/src/*` (mobile path: `vendor/jump-the-book-shared/src/*`) — `RemoteUser`/`RemoteBook`/`RemoteScene`, `VisualStyle`/`SpoilerMode`, `searchOpenLibrary`, `remoteBookToUserLibraryItem`.
+- `lib/api-client-react/src/generated/*` (mobile path: `vendor/api-client-react/src/generated/*`) — Orval-generated React Query hooks + Zod schemas. After `pnpm --filter @workspace/api-spec run codegen` here, copy the regenerated files into the mobile repo.
 
-**Auth (Clerk via `@clerk/expo`)**:
-- `app/_layout.tsx` wraps the app in `<ClerkProvider tokenCache={tokenCache} proxyUrl={EXPO_PUBLIC_CLERK_PROXY_URL}>` + `<ClerkLoaded>`. The `<AuthGate>` component uses `useSegments`/`useRouter` to bounce signed-out users into `/(auth)/sign-in` and signed-in users out of the `(auth)` group into `/(tabs)`. It also calls `setAuthTokenGetter(() => getToken())` from `@workspace/api-client-react` so every generated API hook automatically attaches the Clerk session token. `setBaseUrl(\`https://${EXPO_PUBLIC_DOMAIN}\`)` is called once at module scope.
-- Custom email+password screens (no hosted UI): `app/(auth)/_layout.tsx`, `sign-in.tsx`, `sign-up.tsx`. Sign-up handles email-code verification (`signUp.verifications.sendEmailCode` / `verifyEmailCode`) and includes a `<View nativeID="clerk-captcha" />` for bot protection. All screens use the brand palette via `useColors` (amber `#c9974a` primary on midnight `#08081a`) and Inter fonts.
-- Env wiring: dev script forwards `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY`. Production `scripts/build.js` forwards the same plus `EXPO_PUBLIC_CLERK_PROXY_URL=https://<deployment-domain><CLERK_PROXY_URL>` so prod builds talk to the Clerk Frontend API proxy mounted at `/api/__clerk` on the API server.
-- Clerk-managed mode (no user secrets): `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` are auto-provisioned. Token cache is the official `@clerk/expo/token-cache` (`expo-secure-store`-backed).
+Mobile feature surfaces (snap-cover, snap-page, Smart Setup wizard, edit-book, Now Reading hero + Scenes rail + Discover, Account + orphan recovery) all consume the same `/api/me/*`, `/api/books/cover/identify`, `/api/passage/ocr`, `/api/me/orphan-scenes/*`, and `/api/books/context/search` endpoints documented in the API server section above.
 
-**Shared lib `@workspace/jump-the-book-shared`** (`lib/jump-the-book-shared/`):
-- Composite TS lib (declared in root `tsconfig.json` references). Houses code that must stay in lockstep between web and mobile so parity drift can't happen silently:
-  - `src/openLibrary.ts` — `searchOpenLibrary`, `getOpenLibraryCoversForBook`, edition lookups (verbatim copy of the web helper, single source of truth).
-  - `src/types.ts` — `VisualStyle`, `SpoilerMode`, label maps, `UserLibraryItem`, `CoverIdentifyResult`. Phase 2 added `RemoteUser`, `RemoteBook`, `RemoteScene`, `AddBookInput`, and the `remoteBookToUserLibraryItem(b)` mapper that both apps use to project an API row onto the in-app library shape (id = remote uuid, source = `demo` for `demoBookId !== null` else `user-added`, `progress` clamped 0–1, etc.).
-  - `src/index.ts` — barrel.
-- The web app's `src/lib/openLibrary.ts` is now `export * from "@workspace/jump-the-book-shared"` (root export — Vite couldn't resolve a `.ts` subpath export). Mobile imports the same barrel.
-
-**Phase 2 — Remote library wiring** (mobile parity with web's `/api/me/*` flow):
-- `hooks/useRemoteLibrary.ts` mirrors web's `useApiLibrary.ts`: `useRemoteUser`, `useRemoteBooks`, `useAddRemoteBook`, `useDeleteRemoteBook`, `usePatchRemoteBook` etc., implemented via `customFetch` from `@workspace/api-client-react` (auto-attaches the Clerk bearer token via `setAuthTokenGetter`) and Clerk Expo's `useAuth`.
-- `context/LibraryContext.tsx` — `userLibrary` is now derived from `useRemoteBooks()` mapped via the shared `remoteBookToUserLibraryItem`. `addBook` / `removeBook` / `updateProgress` POST/DELETE/PATCH to `/api/me/books`. Local UX state (settings, streak, sessions, positions, activeBookId) stays in AsyncStorage. The Context's public surface (`userLibrary`, `addBook` returning `Promise<string>` of the remote uuid, `removeBook`, `updateProgress`, etc.) is preserved so no consumer screen needed to change.
-- `_layout.tsx` mounts `<LibraryProvider>` **inside** `<AuthGate>`. AuthGate doesn't render its children until Clerk reports `isLoaded` AND `setAuthTokenGetter` has been installed AND the current route matches the auth state — which means the very first authed `/api/me/books` request can never fire without a bearer token. The gate also clears the React Query cache (`queryClient.clear()`) whenever the Clerk `userId` changes so a previous user's books can never briefly bleed through to a new session.
-- `useAddRemoteBook.onSuccess` seeds `['me','books']` with the returned row (`setQueryData`) before invalidating, so screens that immediately `router.push('/experience/' + bookId)` after `addBook` don't race the background refetch and hit "Book not found".
-
-**5-tab navigation**: Home, Library, Immersion, Characters, Settings
-
-**Core flow**:
-1. `app/upload.tsx` — Drop an EPUB → "We found 'X' by Y, N chapters" → pick Comic or Cinematic → progress bar ("Painting scene 2 of 4…") → push to `/experience/[id]`. Optional "Pick up at chapter X" toggle (off by default). One-line "Just enter a title & author" fallback. Tiny "Why no Kindle?" link with explanatory modal.
-2. `app/experience/[id].tsx` — Unified Comic + Cinematic player. `?mode=comic|cinematic` query, top toggle to flip mid-session.
-   - **Comic**: vertical scroll of full-bleed panels with narration below each.
-   - **Cinematic**: full-screen, swipe sideways, narration overlay.
-   - For demo books: pulls from `SCENE_IMAGES` (pre-baked AI art).
-   - For user books: calls `generateScenesWithImages` with live progress.
-3. `app/book/[id].tsx` — Two big tiles "Comic" and "Cinematic" → `/experience/[id]?mode=...`. Optional "Pick up at chapter X" chip (no position-gating). For user books with no scenes yet, both tiles show "Generate scenes".
-
-**Pre-baked demo art**:
-- `assets/images/scenes/<sceneId>.png` — 15 real AI-generated panels covering chapter 1 of all 4 demo books (Alice 6 scenes, Dracula 3, Frankenstein 3, Sherlock 3). Each is 1024×1024 PNG (1.2-2.5 MB).
-- `data/books.ts` exports `SCENE_IMAGES: Record<string, number>` mapping scene id → require()'d asset.
-- Regenerate via `node scripts/src/bake-demo-images.mjs` (sequential, ~33s/image, ~10 min total). Calls `/api/scenes/image` through `localhost:80`. Run as a workflow to survive bash sandboxing.
-
-**Key components**:
-- `components/BookCard.tsx`, `CharacterCard.tsx`, `StreakBadge.tsx`, `Badge.tsx`, `StyleSelector.tsx`, `ErrorBoundary.tsx`, `ErrorFallback.tsx`, `KeyboardAwareScrollViewCompat.tsx`
-
-**Key context / hooks**:
-- `context/LibraryContext.tsx` — Global state: library, positions, reading sessions, streak. `addBook` returns `Promise<string>` (the new id).
-- `hooks/useGenerateScene.ts` — `generateScenesWithImages(book, chapter, opts, onProgress)` returns `{ scenes }` with inline base64 images and a SceneProgress callback ("text" → "image i/n" → "done"). 7-day AsyncStorage cache via `readCachedScenes`/`writeCachedScenes`.
-- `hooks/useColors.ts` — Design token hook (single dark palette).
-
-**Design tokens** (cinematic dark theme):
-- Background: `#08081a`, Card: `#12122a`, Gold/primary: `#c9974a`, Accent/purple: `#9d7fe8`
-
-**Honesty about external services**:
-- No fake Kindle/Audible "connect" buttons. Removed from library, settings, home.
-- Single "Why no Kindle?" link in upload screen with a modal explaining DRM.
-- Position tracking is optional ("Pick up at chapter X"), never gates content.
-
-**AI backend** (`/api/scenes/*`):
-- `POST /api/scenes/generate` → GPT-5.4 with spoiler-safe prompt → `{ scenes: [...] }`
-- `POST /api/scenes/image` → gpt-image-1 at 1024×1024 → `{ b64 }`
