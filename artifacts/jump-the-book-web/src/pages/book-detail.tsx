@@ -25,7 +25,9 @@ import {
 } from "@/hooks/useOpenLibraryEnrichment";
 import { useToast } from "@/hooks/use-toast";
 import { useBookBible } from "@/hooks/useBookBible";
-import { useIsSignedIn } from "@/hooks/useApiLibrary";
+import { useIsSignedIn, useRemoteBooks } from "@/hooks/useApiLibrary";
+import EditBookDialog from "@/components/edit-book-dialog";
+import { useState } from "react";
 
 // User-book IDs from the remote API are UUIDs. Demo books use slugs ("alice").
 // Only call the bible endpoint for UUID-shaped IDs to avoid spurious 404s.
@@ -37,10 +39,26 @@ export default function BookDetail() {
   const { userLibrary, getPosition } = useLibrary();
   const isSignedIn = useIsSignedIn();
   const { toast } = useToast();
+  const [editOpen, setEditOpen] = useState(false);
+
+  // The remote book row (when signed in) is the source of truth for the
+  // server-side edit form. We look it up by remoteId so demo-mapped books
+  // (slug URL like "alice") still resolve to their server row.
+  const remoteBooks = useRemoteBooks();
 
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
   const book = userBook || demoBook;
+
+  // Find the matching server-side RemoteBook so the edit dialog can mutate
+  // the canonical row. The user-library item carries `remoteId` for
+  // demo-mapped books; for uploaded/manual books the URL `id` IS the UUID.
+  const remoteBookId =
+    userBook && (UUID_RE.test(id) ? id : userBook.remoteId ?? null);
+  const remoteBook =
+    remoteBookId && remoteBooks.data
+      ? remoteBooks.data.find((b) => b.id === remoteBookId)
+      : undefined;
 
   // Bibles are keyed by user_books.id (UUID). For uploaded/manual books the
   // URL `id` is already that UUID; for demo-mapped books (slug URL like
@@ -144,9 +162,24 @@ export default function BookDetail() {
           {/* Details Column */}
           <div className="flex-1 space-y-8">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-              <h1 className="font-serif text-4xl md:text-5xl font-bold tracking-tight mb-2">
-                {book.title}
-              </h1>
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <h1 className="font-serif text-4xl md:text-5xl font-bold tracking-tight">
+                  {book.title}
+                </h1>
+                {isSignedIn && remoteBook && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditOpen(true)}
+                    className="shrink-0 mt-1 text-muted-foreground hover:text-amber-300"
+                    title="Edit book details"
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                    Edit
+                  </Button>
+                )}
+              </div>
               <p className="text-xl text-muted-foreground font-medium mb-6">
                 by {book.author}
               </p>
@@ -333,6 +366,14 @@ export default function BookDetail() {
           </div>
         </div>
       </div>
+
+      {remoteBook && (
+        <EditBookDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          mode={{ kind: "edit", book: remoteBook }}
+        />
+      )}
     </Layout>
   );
 }

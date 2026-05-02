@@ -199,6 +199,75 @@ export interface SaveSceneInput {
   imageCacheKey?: string | null;
 }
 
+// ── Orphan scene recovery ────────────────────────────────────────────────────
+// "Orphan" scenes belong to a user_book_id that no longer has a row in
+// user_books for the current user. The client surfaces them as an "Unknown
+// book" group that the user can either claim (turn into a real book row) or
+// forget.
+
+export interface OrphanGroup {
+  userBookId: string;
+  sceneCount: number;
+  latestCreatedAt: string;
+}
+
+export function useOrphanSceneGroups() {
+  const enabled = useIsSignedIn();
+  return useQuery({
+    queryKey: ["me", "orphan-scenes"],
+    enabled,
+    queryFn: async () => {
+      const r = await apiFetch<{ groups: OrphanGroup[] }>("/me/orphan-scenes");
+      return r.groups;
+    },
+  });
+}
+
+export interface ClaimOrphanInput {
+  userBookId: string;
+  title: string;
+  author: string;
+  visualStyle?: VisualStyle;
+  spoilerMode?: SpoilerMode;
+  tagline?: string | null;
+  heroImage?: string | null;
+}
+
+export function useClaimOrphanScenes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ClaimOrphanInput) => {
+      const r = await apiFetch<{ book: RemoteBook; movedSceneCount: number }>(
+        "/me/orphan-scenes/claim",
+        { method: "POST", body: JSON.stringify(input) },
+      );
+      return r;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me", "books"] });
+      qc.invalidateQueries({ queryKey: ["me", "scenes"] });
+      qc.invalidateQueries({ queryKey: ["me", "orphan-scenes"] });
+    },
+  });
+}
+
+export function useDeleteOrphanScenes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userBookId: string) => {
+      const r = await apiFetch<{ ok: true; removedSceneCount: number }>(
+        `/me/orphan-scenes/${userBookId}`,
+        { method: "DELETE" },
+      );
+      return r;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me", "scenes"] });
+      qc.invalidateQueries({ queryKey: ["me", "orphan-scenes"] });
+    },
+  });
+}
+
 export function useSaveRemoteScene() {
   const qc = useQueryClient();
   return useMutation({

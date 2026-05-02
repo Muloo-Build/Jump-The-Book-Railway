@@ -67,9 +67,9 @@ function UserMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/onboarding">
+          <Link href="/account">
             <Settings className="w-4 h-4 mr-2" />
-            Reading preferences
+            Account &amp; preferences
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

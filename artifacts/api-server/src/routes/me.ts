@@ -526,6 +526,25 @@ router.patch("/me/books/:id", async (req, res) => {
       return;
     }
 
+    // Trim title/author when supplied so we never store padding whitespace and
+    // never let a blank value silently overwrite a real one.
+    if (body.title !== undefined) {
+      const t = typeof body.title === "string" ? body.title.trim() : "";
+      if (!t) {
+        res.status(400).json({ error: "title cannot be empty" });
+        return;
+      }
+      body.title = t;
+    }
+    if (body.author !== undefined) {
+      const a = typeof body.author === "string" ? body.author.trim() : "";
+      if (!a) {
+        res.status(400).json({ error: "author cannot be empty" });
+        return;
+      }
+      body.author = a;
+    }
+
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     const fields: (keyof PostBookBody)[] = [
       "title",
@@ -539,6 +558,9 @@ router.patch("/me/books/:id", async (req, res) => {
       "visualStyle",
       "spoilerMode",
       "totalChapters",
+      "tagline",
+      "heroImage",
+      "coverGradient",
     ];
     for (const f of fields) {
       if (body[f] !== undefined) updates[f] = body[f];
@@ -746,6 +768,196 @@ router.post("/me/books/:id/scenes", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "POST /me/books/:id/scenes failed");
     res.status(500).json({ error: "Failed to save scene" });
+  }
+});
+
+// ── Orphan scene recovery ────────────────────────────────────────────────────
+// Scenes whose `user_book_id` no longer matches any row in `user_books` for
+// this user can happen when a book row was deleted from somewhere other than
+// the cascading DELETE endpoint (manual cleanup, schema migration, etc.) or
+// when the user signed out, lost their library, and only the scene rows were
+// preserved by some other process. The two endpoints below let the client
+// either give those scenes a fresh book to belong to, or forget them.
+
+// List orphan scene groups for the current user.
+router.get("/me/orphan-scenes", async (req, res) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const rows = await db.execute<{
+      user_book_id: string;
+      scene_count: number;
+      latest_created_at: Date;
+    }>(sql`
+      SELECT s.user_book_id,
+             COUNT(*)::int AS scene_count,
+             MAX(s.created_at) AS latest_created_at
+      FROM ${userScenesTable} s
+      LEFT JOIN ${userBooksTable} b
+        ON b.id = s.user_book_id AND b.user_id = ${userId}
+      WHERE s.user_id = ${userId} AND b.id IS NULL
+      GROUP BY s.user_book_id
+      ORDER BY MAX(s.created_at) DESC
+    `);
+    res.json({
+      groups: rows.rows.map((r) => ({
+        userBookId: r.user_book_id,
+        sceneCount: r.scene_count,
+        latestCreatedAt: new Date(r.latest_created_at).toISOString(),
+      })),
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /me/orphan-scenes failed");
+    res.status(500).json({ error: "Failed to load orphan scenes" });
+  }
+});
+
+interface ClaimOrphanBody {
+  userBookId: string;
+  title: string;
+  author: string;
+  visualStyle?: string;
+  spoilerMode?: string;
+  tagline?: string | null;
+  heroImage?: string | null;
+}
+
+// Adopt a group of orphan scenes by creating a fresh book row and rewriting
+// the user_book_id of every matching scene to point at it. The original
+// orphan id is dropped — the client should refetch scenes after this call.
+router.post("/me/orphan-scenes/claim", async (req, res) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    await ensureUser(userId);
+    const body = (req.body ?? {}) as ClaimOrphanBody;
+    const orphanId = typeof body.userBookId === "string" ? body.userBookId.trim() : "";
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const author = typeof body.author === "string" ? body.author.trim() : "";
+    if (!orphanId || !title || !author) {
+      res.status(400).json({ error: "userBookId, title, author required" });
+      return;
+    }
+    const visualStyle = body.visualStyle ?? "fantasy-illustration";
+    if (!VISUAL_STYLES.has(visualStyle)) {
+      res.status(400).json({ error: "Invalid visualStyle" });
+      return;
+    }
+    const spoilerMode = body.spoilerMode ?? "no-spoilers";
+    if (!SPOILER_MODES.has(spoilerMode)) {
+      res.status(400).json({ error: "Invalid spoilerMode" });
+      return;
+    }
+
+    // Confirm the orphan id really is orphaned for THIS user — never let a
+    // request reach across to another user's data.
+    const [stillExists] = await db
+      .select({ id: userBooksTable.id })
+      .from(userBooksTable)
+      .where(
+        and(
+          eq(userBooksTable.id, orphanId),
+          eq(userBooksTable.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (stillExists) {
+      res
+        .status(409)
+        .json({ error: "Book row still exists. Use PATCH /me/books/:id." });
+      return;
+    }
+
+    // If the user already has a book with the same title+author, reuse that
+    // row; otherwise create a fresh one. Either way, point all matching
+    // orphan scenes at the canonical id.
+    let [target] = await db
+      .select()
+      .from(userBooksTable)
+      .where(
+        and(
+          eq(userBooksTable.userId, userId),
+          sql`lower(trim(${userBooksTable.title})) = ${title.toLowerCase()}`,
+          sql`lower(trim(${userBooksTable.author})) = ${author.toLowerCase()}`,
+        ),
+      )
+      .orderBy(desc(userBooksTable.updatedAt))
+      .limit(1);
+    if (!target) {
+      [target] = await db
+        .insert(userBooksTable)
+        .values({
+          userId,
+          title,
+          author,
+          format: "Paperback",
+          source: "manual",
+          coverGradient: [],
+          visualStyle,
+          spoilerMode,
+          tagline: body.tagline ?? null,
+          heroImage: body.heroImage ?? null,
+        })
+        .returning();
+    }
+
+    const moved = await db
+      .update(userScenesTable)
+      .set({ userBookId: target!.id })
+      .where(
+        and(
+          eq(userScenesTable.userId, userId),
+          eq(userScenesTable.userBookId, orphanId),
+        ),
+      )
+      .returning({ id: userScenesTable.id });
+
+    res.json({
+      book: serializeBook(target!),
+      movedSceneCount: moved.length,
+    });
+  } catch (err) {
+    req.log.error({ err }, "POST /me/orphan-scenes/claim failed");
+    res.status(500).json({ error: "Failed to claim orphan scenes" });
+  }
+});
+
+// Delete every orphan scene for a given (orphaned) user_book_id.
+router.delete("/me/orphan-scenes/:userBookId", async (req, res) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const orphanId = req.params.userBookId;
+
+    // Refuse to operate on ids that still have a live book row — the user
+    // should DELETE /me/books/:id (which cascades) for those.
+    const [stillExists] = await db
+      .select({ id: userBooksTable.id })
+      .from(userBooksTable)
+      .where(
+        and(
+          eq(userBooksTable.id, orphanId),
+          eq(userBooksTable.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (stillExists) {
+      res
+        .status(409)
+        .json({ error: "Book row still exists. Use DELETE /me/books/:id." });
+      return;
+    }
+
+    const removed = await db
+      .delete(userScenesTable)
+      .where(
+        and(
+          eq(userScenesTable.userId, userId),
+          eq(userScenesTable.userBookId, orphanId),
+        ),
+      )
+      .returning({ id: userScenesTable.id });
+    res.json({ ok: true, removedSceneCount: removed.length });
+  } catch (err) {
+    req.log.error({ err }, "DELETE /me/orphan-scenes/:userBookId failed");
+    res.status(500).json({ error: "Failed to delete orphan scenes" });
   }
 });
 

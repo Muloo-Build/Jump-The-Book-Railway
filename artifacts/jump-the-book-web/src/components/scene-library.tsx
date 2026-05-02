@@ -5,12 +5,32 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  HelpCircle,
   ImageIcon,
+  Loader2,
   PlayCircle,
   Search,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { RemoteScene } from "@/hooks/useApiLibrary";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import EditBookDialog from "@/components/edit-book-dialog";
+import {
+  useDeleteOrphanScenes,
+  type RemoteScene,
+} from "@/hooks/useApiLibrary";
 
 interface BookRef {
   displayId: string;
@@ -33,12 +53,23 @@ const RECENT_LIMIT = 6;
 
 /**
  * Scalable scene library: search bar, "recently generated" rail, then
- * collapsible per-book sections. Designed to stay legible at 200+ books and
- * thousands of scenes.
+ * collapsible per-book sections. Groups whose `userBookId` no longer
+ * matches a real book in the user's library (orphans) get a special
+ * "Recover" / "Forget" treatment so the user can restitch them.
  */
 export default function SceneLibrary({ scenes, bookIdMap }: Props) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [recoverFor, setRecoverFor] = useState<{
+    userBookId: string;
+    sceneCount: number;
+  } | null>(null);
+  const [forgetFor, setForgetFor] = useState<{
+    userBookId: string;
+    sceneCount: number;
+  } | null>(null);
+  const deleteOrphans = useDeleteOrphanScenes();
+  const { toast } = useToast();
 
   // Filter
   const q = query.trim().toLowerCase();
@@ -96,6 +127,11 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
     [filtered],
   );
 
+  const orphanGroupCount = useMemo(
+    () => groups.reduce((n, g) => (g.bookRef ? n : n + 1), 0),
+    [groups],
+  );
+
   const toggle = (id: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -103,6 +139,25 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
       else next.add(id);
       return next;
     });
+  };
+
+  const confirmForget = async () => {
+    if (!forgetFor) return;
+    try {
+      const r = await deleteOrphans.mutateAsync(forgetFor.userBookId);
+      toast({
+        title: "Scenes removed",
+        description: `Forgot ${r.removedSceneCount} scene${r.removedSceneCount === 1 ? "" : "s"}.`,
+      });
+      setForgetFor(null);
+    } catch (err) {
+      toast({
+        title: "Couldn't remove scenes",
+        description:
+          err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (scenes.length === 0) {
@@ -137,6 +192,23 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
         </div>
       )}
 
+      {orphanGroupCount > 0 && !q && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm flex items-start gap-3">
+          <HelpCircle className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <p className="text-amber-200 font-medium">
+              {orphanGroupCount === 1
+                ? "1 scene group is missing its book"
+                : `${orphanGroupCount} scene groups are missing their book`}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Recover them to put the book back on your shelf, or forget them
+              to clean up.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Recent rail */}
       {!q && recent.length > 0 && groups.length > 1 && (
         <div className="space-y-3">
@@ -162,7 +234,8 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
         {groups.map((group) => {
           const isCollapsed = collapsed.has(group.bookId);
           const ref = group.bookRef;
-          const bookLink = ref ? `/book/${ref.displayId}` : "/library";
+          const isOrphan = !ref;
+          const bookLink = ref ? `/book/${ref.displayId}` : null;
           // Group by chapter inside the book
           const byChapter = new Map<number, RemoteScene[]>();
           for (const s of group.scenes) {
@@ -175,20 +248,28 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
           return (
             <section
               key={group.bookId}
-              className="rounded-2xl border border-border/40 bg-card/30 overflow-hidden"
+              className={`rounded-2xl border overflow-hidden ${
+                isOrphan
+                  ? "border-amber-400/30 bg-amber-400/[0.03]"
+                  : "border-border/40 bg-card/30"
+              }`}
             >
-              <button
-                type="button"
-                onClick={() => toggle(group.bookId)}
-                className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors text-left"
-              >
-                <div className="flex items-center gap-3 min-w-0">
+              <div className="w-full px-5 py-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => toggle(group.bookId)}
+                  className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity text-left"
+                >
                   {isCollapsed ? (
                     <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                   ) : (
                     <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                   )}
-                  <h3 className="font-serif text-lg font-semibold truncate">
+                  <h3
+                    className={`font-serif text-lg font-semibold truncate ${
+                      isOrphan ? "text-amber-100/90" : ""
+                    }`}
+                  >
                     {ref?.title ?? "Unknown book"}
                   </h3>
                   <span className="text-xs text-muted-foreground shrink-0">
@@ -196,17 +277,52 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
                     {group.scenes.length === 1 ? "scene" : "scenes"} ·{" "}
                     {chapters.length} ch
                   </span>
+                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isOrphan ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setRecoverFor({
+                            userBookId: group.bookId,
+                            sceneCount: group.scenes.length,
+                          })
+                        }
+                        className="text-amber-300 hover:text-amber-200 hover:bg-amber-400/10 h-8"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        Recover
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setForgetFor({
+                            userBookId: group.bookId,
+                            sceneCount: group.scenes.length,
+                          })
+                        }
+                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    bookLink && (
+                      <Link
+                        href={bookLink}
+                        className="text-xs text-amber-300/80 hover:text-amber-300"
+                      >
+                        Open →
+                      </Link>
+                    )
+                  )}
                 </div>
-                {ref && (
-                  <Link
-                    href={bookLink}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs text-amber-300/80 hover:text-amber-300 shrink-0"
-                  >
-                    Open →
-                  </Link>
-                )}
-              </button>
+              </div>
 
               {!isCollapsed && (
                 <div className="px-5 pb-5 space-y-5">
@@ -246,6 +362,60 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
           );
         })}
       </div>
+
+      {recoverFor && (
+        <EditBookDialog
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setRecoverFor(null);
+          }}
+          mode={{
+            kind: "claim-orphan",
+            orphanUserBookId: recoverFor.userBookId,
+            sceneCount: recoverFor.sceneCount,
+          }}
+        />
+      )}
+
+      <AlertDialog
+        open={!!forgetFor}
+        onOpenChange={(open) => !open && setForgetFor(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Forget these scenes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {forgetFor?.sceneCount === 1
+                ? "1 scene"
+                : `${forgetFor?.sceneCount ?? 0} scenes`}{" "}
+              will be permanently removed from your library. This cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteOrphans.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmForget();
+              }}
+              disabled={deleteOrphans.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteOrphans.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Removing…
+                </>
+              ) : (
+                "Forget scenes"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -261,54 +431,60 @@ function SceneTile({
 }) {
   const link = bookRef
     ? `/experience/${bookRef.displayId}?chapter=${scene.chapterNumber}`
-    : "/library";
+    : null;
   const grad = scene.gradientColors;
   const bg =
     grad.length >= 2
       ? `linear-gradient(135deg, ${grad[0]}, ${grad[grad.length - 1]})`
       : `linear-gradient(135deg, #2a1a4e, #1a1a2e)`;
 
+  const tile = (
+    <div
+      className={`group relative aspect-square overflow-hidden rounded-xl border border-white/5 transition-all ${
+        link
+          ? "cursor-pointer hover:border-amber-400/40"
+          : "cursor-default opacity-90"
+      }`}
+      style={{ background: bg }}
+    >
+      {scene.imageUrl && (
+        <img
+          src={scene.imageUrl}
+          alt={scene.title}
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+      <div
+        className={`absolute bottom-0 left-0 right-0 ${
+          compact ? "p-2 space-y-0.5" : "p-3 space-y-1"
+        }`}
+      >
+        {compact && bookRef && (
+          <p className="text-[9px] text-amber-300/90 font-medium uppercase tracking-wider line-clamp-1">
+            {bookRef.title} · Ch {scene.chapterNumber}
+          </p>
+        )}
+        {!compact && bookRef && (
+          <p className="text-[10px] text-amber-300/90 font-medium uppercase tracking-wider">
+            Ch {scene.chapterNumber}
+          </p>
+        )}
+        <p
+          className={`text-white font-serif font-semibold line-clamp-2 leading-tight ${
+            compact ? "text-xs" : "text-sm"
+          }`}
+        >
+          {scene.title}
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Link href={link}>
-        <div
-          className="group relative aspect-square overflow-hidden rounded-xl cursor-pointer border border-white/5 hover:border-amber-400/40 transition-all"
-          style={{ background: bg }}
-        >
-          {scene.imageUrl && (
-            <img
-              src={scene.imageUrl}
-              alt={scene.title}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              loading="lazy"
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-          <div
-            className={`absolute bottom-0 left-0 right-0 ${
-              compact ? "p-2 space-y-0.5" : "p-3 space-y-1"
-            }`}
-          >
-            {compact && bookRef && (
-              <p className="text-[9px] text-amber-300/90 font-medium uppercase tracking-wider line-clamp-1">
-                {bookRef.title} · Ch {scene.chapterNumber}
-              </p>
-            )}
-            {!compact && bookRef && (
-              <p className="text-[10px] text-amber-300/90 font-medium uppercase tracking-wider">
-                Ch {scene.chapterNumber}
-              </p>
-            )}
-            <p
-              className={`text-white font-serif font-semibold line-clamp-2 leading-tight ${
-                compact ? "text-xs" : "text-sm"
-              }`}
-            >
-              {scene.title}
-            </p>
-          </div>
-        </div>
-      </Link>
+      {link ? <Link href={link}>{tile}</Link> : tile}
     </motion.div>
   );
 }
