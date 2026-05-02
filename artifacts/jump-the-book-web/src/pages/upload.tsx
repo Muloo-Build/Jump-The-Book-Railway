@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ export default function Upload() {
   const { addBook } = useLibrary();
   const { toast } = useToast();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [parsedData, setParsedData] = useState<{ title: string; author: string } | null>(null);
 
@@ -100,20 +101,25 @@ export default function Upload() {
                 <p className="text-xs text-muted-foreground/70 mb-6 max-w-sm">
                   Works on desktop, tablet, and mobile. Audiobooks aren't supported yet.
                 </p>
-                <div className="relative">
-                  <Input
-                    type="file"
-                    accept={ACCEPTED_EXTENSIONS}
-                    onChange={handleFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    disabled={isParsing}
-                    aria-label="Upload a book file"
-                  />
-                  <Button disabled={isParsing} type="button">
-                    {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
-                    {isParsing ? "Reading..." : "Choose File"}
-                  </Button>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_EXTENSIONS}
+                  onChange={handleFileChange}
+                  className="sr-only"
+                  disabled={isParsing}
+                  aria-label="Upload a book file"
+                  data-testid="file-input"
+                />
+                <Button
+                  type="button"
+                  disabled={isParsing}
+                  onClick={() => fileInputRef.current?.click()}
+                  data-testid="choose-file-button"
+                >
+                  {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
+                  {isParsing ? "Reading..." : "Choose File"}
+                </Button>
               </CardContent>
             </Card>
           ) : (
