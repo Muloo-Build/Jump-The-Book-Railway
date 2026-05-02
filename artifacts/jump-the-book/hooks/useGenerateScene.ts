@@ -7,8 +7,10 @@ const API_BASE =
     ? "/api"
     : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}/api`;
 
-const CACHE_PREFIX = "@jtb_scene_v1_";
+const CACHE_PREFIX = "@jtb_scene_v2_";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SCENE_TIMEOUT_MS = 45_000; // 45s for text generation
+const IMAGE_TIMEOUT_MS = 60_000; // 60s for image generation
 
 export interface GeneratedScene {
   title: string;
@@ -41,95 +43,140 @@ function makeCacheKey(params: GenerateSceneParams) {
   const { bookTitle, author, chapterNumber, visualStyle } = params;
   return (
     CACHE_PREFIX +
-    `${bookTitle}_${author}_ch${chapterNumber}_${visualStyle}`.replace(/\s+/g, "_").slice(0, 80)
+    `${bookTitle}_${author}_ch${chapterNumber}_${visualStyle}`
+      .replace(/\s+/g, "_")
+      .slice(0, 80)
   );
 }
 
-async function getCached(key: string): Promise<GenerateResult | null> {
+function makeImageCacheKey(prompt: string, style: string) {
+  return CACHE_PREFIX + "img_" + `${style}_${prompt}`.replace(/\s+/g, "_").slice(0, 60);
+}
+
+async function getCached<T>(key: string, ttl = CACHE_TTL_MS): Promise<T | null> {
   try {
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
-    const { data, timestamp } = JSON.parse(raw) as {
-      data: GenerateResult;
-      timestamp: number;
-    };
-    if (Date.now() - timestamp > CACHE_TTL_MS) return null;
+    const { data, timestamp } = JSON.parse(raw) as { data: T; timestamp: number };
+    if (Date.now() - timestamp > ttl) return null;
     return data;
   } catch {
     return null;
   }
 }
 
-async function setCache(key: string, data: GenerateResult) {
+async function setCache<T>(key: string, data: T) {
   try {
-    await AsyncStorage.setItem(
-      key,
-      JSON.stringify({ data, timestamp: Date.now() })
-    );
+    await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
   } catch {
-    // ignore storage errors
+    // ignore
   }
+}
+
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+    clearTimeout(timer)
+  );
 }
 
 export function useGenerateScene() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState("");
 
+  // Generate scene TEXT only (fast, ~10-15s). Never generates image inline.
   const generate = useCallback(
     async (params: GenerateSceneParams): Promise<GenerateResult | null> => {
+      // Always disable inline image generation — images are generated per-scene
+      const textParams = { ...params, generateImage: false };
+
       setIsLoading(true);
       setError(null);
-      const cacheKey = makeCacheKey(params);
+      setLoadingMessage("Asking the AI to write your scenes…");
+      const cacheKey = makeCacheKey(textParams);
 
       try {
-        const cached = await getCached(cacheKey);
+        const cached = await getCached<GenerateResult>(cacheKey);
         if (cached) {
           setIsLoading(false);
+          setLoadingMessage("");
           return cached;
         }
 
-        const res = await fetch(`${API_BASE}/scenes/generate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(params),
-        });
+        const res = await fetchWithTimeout(
+          `${API_BASE}/scenes/generate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(textParams),
+          },
+          SCENE_TIMEOUT_MS
+        );
 
-        if (!res.ok) throw new Error(`API error ${res.status}`);
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = (await res.json()) as GenerateResult;
         await setCache(cacheKey, data);
         return data;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Generation failed");
+        const msg =
+          err instanceof Error && err.name === "AbortError"
+            ? "Took too long — please try again"
+            : err instanceof Error
+            ? err.message
+            : "Generation failed";
+        setError(msg);
         return null;
       } finally {
         setIsLoading(false);
+        setLoadingMessage("");
       }
     },
     []
   );
 
+  // Generate image for a single scene (slower, ~30-45s). Called separately.
   const generateImage = useCallback(
     async (prompt: string, style: string): Promise<string | null> => {
-      setIsLoading(true);
+      setIsImageLoading(true);
       setError(null);
+      const cacheKey = makeImageCacheKey(prompt, style);
+
       try {
-        const res = await fetch(`${API_BASE}/scenes/image`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, style }),
-        });
-        if (!res.ok) throw new Error(`Image API error ${res.status}`);
+        const cached = await getCached<string>(cacheKey);
+        if (cached) return cached;
+
+        const res = await fetchWithTimeout(
+          `${API_BASE}/scenes/image`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt, style }),
+          },
+          IMAGE_TIMEOUT_MS
+        );
+
+        if (!res.ok) throw new Error(`Image server error ${res.status}`);
         const { b64 } = (await res.json()) as { b64: string };
+        await setCache(cacheKey, b64);
         return b64;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Image failed");
+        const msg =
+          err instanceof Error && err.name === "AbortError"
+            ? "Image took too long — try again"
+            : err instanceof Error
+            ? err.message
+            : "Image generation failed";
+        setError(msg);
         return null;
       } finally {
-        setIsLoading(false);
+        setIsImageLoading(false);
       }
     },
     []
   );
 
-  return { generate, generateImage, isLoading, error };
+  return { generate, generateImage, isLoading, isImageLoading, error, loadingMessage };
 }

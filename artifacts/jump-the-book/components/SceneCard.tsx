@@ -1,7 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import { Scene } from "@/data/books";
 import { GeneratedScene } from "@/hooks/useGenerateScene";
@@ -12,14 +19,49 @@ type AnyScene = Scene | GeneratedScene;
 interface SceneCardProps {
   scene: AnyScene;
   index: number;
+  visualStyle?: string;
   onImmersion?: () => void;
   onSave?: () => void;
   imageB64?: string | null;
+  onGenerateImage?: (prompt: string, style: string) => Promise<string | null>;
 }
 
-export function SceneCard({ scene, index, onImmersion, onSave, imageB64 }: SceneCardProps) {
+export function SceneCard({
+  scene,
+  index,
+  visualStyle = "fantasy-illustration",
+  onImmersion,
+  onSave,
+  imageB64: initialImageB64,
+  onGenerateImage,
+}: SceneCardProps) {
   const colors = useColors();
-  const gradient = ((scene as Scene).gradientColors ?? ["#1a1a4e", "#4a1a6e"]) as [string, string, ...string[]];
+  const [imageB64, setImageB64] = useState(initialImageB64 ?? null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  const gradient = (
+    (scene as Scene).gradientColors ?? ["#1a1a4e", "#4a1a6e"]
+  ) as [string, string, ...string[]];
+
+  const handleGenerateImage = async () => {
+    if (!onGenerateImage || imageLoading) return;
+    setImageLoading(true);
+    setImageError(false);
+    const prompt =
+      (scene as GeneratedScene).imagePrompt ??
+      (scene as Scene).imagePrompt ??
+      scene.title;
+    const result = await onGenerateImage(prompt, visualStyle);
+    if (result) {
+      setImageB64(result);
+    } else {
+      setImageError(true);
+    }
+    setImageLoading(false);
+  };
+
+  const hasImageSupport = !!onGenerateImage;
 
   return (
     <View style={[styles.card, { borderColor: colors.border }]}>
@@ -33,17 +75,50 @@ export function SceneCard({ scene, index, onImmersion, onSave, imageB64 }: Scene
               resizeMode="cover"
             />
             <View style={styles.visualOverlay} />
-            <View style={[styles.aiBadge, { backgroundColor: colors.accent + "30" }]}>
+            <View style={[styles.aiBadge, { backgroundColor: colors.accent + "40" }]}>
               <Feather name="sparkles" size={10} color={colors.accent} />
               <Text style={[styles.aiBadgeText, { color: colors.accent }]}>AI Art</Text>
             </View>
           </>
         ) : (
           <>
-            <LinearGradient colors={gradient} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+            <LinearGradient
+              colors={gradient}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
             <View style={styles.visualOverlay} />
+            {/* Generate image button — shown on gradient cards that support it */}
+            {hasImageSupport && !imageLoading && (
+              <TouchableOpacity
+                style={[styles.genImgBtn, { backgroundColor: "rgba(0,0,0,0.45)" }]}
+                onPress={handleGenerateImage}
+                activeOpacity={0.8}
+              >
+                <Feather name="image" size={12} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.genImgText}>Generate AI image</Text>
+              </TouchableOpacity>
+            )}
+            {imageLoading && (
+              <View style={[styles.genImgBtn, { backgroundColor: "rgba(0,0,0,0.55)" }]}>
+                <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
+                <Text style={styles.genImgText}>Painting… (~30s)</Text>
+              </View>
+            )}
+            {imageError && (
+              <TouchableOpacity
+                style={[styles.genImgBtn, { backgroundColor: "rgba(180,0,0,0.45)" }]}
+                onPress={handleGenerateImage}
+                activeOpacity={0.8}
+              >
+                <Feather name="refresh-cw" size={12} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.genImgText}>Failed — tap to retry</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
+
         <View style={styles.sceneNumBadge}>
           <Text style={styles.sceneNum}>Scene {index + 1}</Text>
         </View>
@@ -63,21 +138,28 @@ export function SceneCard({ scene, index, onImmersion, onSave, imageB64 }: Scene
         <View style={styles.metaGrid}>
           <View style={styles.metaItem}>
             <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{scene.location}</Text>
+            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+              {scene.location}
+            </Text>
           </View>
           <View style={styles.metaItem}>
             <Feather name="users" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]} numberOfLines={1}>
+            <Text
+              style={[styles.metaText, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
               {scene.characters.join(", ")}
             </Text>
           </View>
         </View>
 
-        <View style={[styles.narrationBox, { backgroundColor: colors.muted }]}>
-          <Text style={[styles.narration, { color: colors.dimText }]}>
-            "{(scene as Scene).narration}"
-          </Text>
-        </View>
+        {(scene as Scene).narration ? (
+          <View style={[styles.narrationBox, { backgroundColor: colors.muted }]}>
+            <Text style={[styles.narration, { color: colors.dimText }]}>
+              "{(scene as Scene).narration}"
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -89,7 +171,13 @@ export function SceneCard({ scene, index, onImmersion, onSave, imageB64 }: Scene
             <Text style={[styles.actionText, { color: colors.mutedForeground }]}>Save</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.accent + "20", borderColor: colors.accent + "40" }]}
+            style={[
+              styles.actionBtn,
+              {
+                backgroundColor: colors.accent + "20",
+                borderColor: colors.accent + "40",
+              },
+            ]}
             onPress={onImmersion}
             activeOpacity={0.8}
           >
@@ -104,25 +192,78 @@ export function SceneCard({ scene, index, onImmersion, onSave, imageB64 }: Scene
 
 const styles = StyleSheet.create({
   card: { borderRadius: 20, overflow: "hidden", borderWidth: 1, marginBottom: 4 },
-  visual: { height: 160, position: "relative", justifyContent: "space-between", padding: 16 },
+  visual: { height: 180, position: "relative", justifyContent: "space-between", padding: 14 },
   aiImage: { ...StyleSheet.absoluteFillObject },
-  visualOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.3)" },
-  aiBadge: { position: "absolute", top: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  visualOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.28)",
+  },
+  aiBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
   aiBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  sceneNumBadge: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  genImgBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  genImgText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.9)",
+  },
+  sceneNumBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
   sceneNum: { fontSize: 11, color: "rgba(255,255,255,0.9)", fontFamily: "Inter_600SemiBold" },
   visualContent: { gap: 4 },
   visualTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
   moodRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  moodText: { fontSize: 12, color: "rgba(255,255,255,0.7)", fontFamily: "Inter_400Regular" },
+  moodText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    fontFamily: "Inter_400Regular",
+  },
   body: { padding: 16, gap: 12 },
   summary: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
   metaGrid: { flexDirection: "row", gap: 16 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
   metaText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   narrationBox: { borderRadius: 12, padding: 12 },
-  narration: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, fontStyle: "italic" },
+  narration: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
+    fontStyle: "italic",
+  },
   actions: { flexDirection: "row", gap: 8 },
-  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 12, gap: 6, borderWidth: 1 },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
+    borderWidth: 1,
+  },
   actionText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });
