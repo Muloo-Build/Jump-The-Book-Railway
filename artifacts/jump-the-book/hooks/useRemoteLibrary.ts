@@ -185,6 +185,78 @@ export function useSaveRemoteScene() {
   });
 }
 
+// ── Orphan scenes (recovery flow) ────────────────────────────────────────────
+//
+// "Orphan" = scenes whose `userBookId` no longer maps to a real book in
+// the user's library (typically because the book was deleted while
+// scenes survived, or the device was reinstalled before sync).
+// The user can either CLAIM them — which spins up a fresh book and
+// re-points every matching scene at it — or FORGET them.
+export interface OrphanGroup {
+  userBookId: string;
+  sceneCount: number;
+  latestCreatedAt: string;
+}
+
+export function useOrphanScenes() {
+  const enabled = useIsSignedIn();
+  return useQuery({
+    queryKey: ["me", "orphan-scenes"],
+    enabled,
+    queryFn: async () => {
+      const r = await customFetch<{ groups: OrphanGroup[] }>(
+        `${API}/me/orphan-scenes`,
+      );
+      return r.groups;
+    },
+  });
+}
+
+export interface ClaimOrphanInput {
+  userBookId: string;
+  title: string;
+  author: string;
+  visualStyle?: string;
+  spoilerMode?: string;
+  tagline?: string | null;
+  heroImage?: string | null;
+}
+
+export function useClaimOrphanScenes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ClaimOrphanInput) => {
+      const r = await customFetch<{ book: RemoteBook; movedSceneCount: number }>(
+        `${API}/me/orphan-scenes/claim`,
+        { method: "POST", body: JSON.stringify(input) },
+      );
+      return r;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me", "books"] });
+      qc.invalidateQueries({ queryKey: ["me", "scenes"] });
+      qc.invalidateQueries({ queryKey: ["me", "orphan-scenes"] });
+    },
+  });
+}
+
+export function useDeleteOrphanScenes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userBookId: string) => {
+      const r = await customFetch<{ ok: true; removedSceneCount: number }>(
+        `${API}/me/orphan-scenes/${userBookId}`,
+        { method: "DELETE" },
+      );
+      return r;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me", "scenes"] });
+      qc.invalidateQueries({ queryKey: ["me", "orphan-scenes"] });
+    },
+  });
+}
+
 // ── Cover identification (Phase 3 will wire the UI) ──────────────────────────
 export function useIdentifyBookCover() {
   return useMutation({

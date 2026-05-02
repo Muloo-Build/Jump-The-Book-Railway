@@ -12,9 +12,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BookCard } from "@/components/BookCard";
+import NowReadingHero from "@/components/NowReadingHero";
+import ScenesSection from "@/components/ScenesSection";
+import SnapCoverButton from "@/components/SnapCoverButton";
 import { useLibrary } from "@/context/LibraryContext";
 import { DEMO_BOOKS } from "@/data/books";
 import { useColors } from "@/hooks/useColors";
+import { useRemoteSceneLibrary } from "@/hooks/useRemoteLibrary";
 
 export default function LibraryScreen() {
   const colors = useColors();
@@ -22,6 +26,25 @@ export default function LibraryScreen() {
   const { userLibrary, removeBook } = useLibrary();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
+
+  // Pick the most-recently active user book for the "Continue reading"
+  // hero. Falls back to the most-recently-added book.
+  const sceneLibQ = useRemoteSceneLibrary();
+  const continueBook = React.useMemo(() => {
+    if (userLibrary.length === 0) return null;
+    const withProgress = userLibrary.filter((b) => (b.progress ?? 0) > 0);
+    return (withProgress[0] ?? userLibrary[0]) as typeof userLibrary[number];
+  }, [userLibrary]);
+  const latestSceneForContinue = React.useMemo(() => {
+    if (!continueBook) return null;
+    const list = (sceneLibQ.data ?? [])
+      .filter((s) => s.userBookId === continueBook.id)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    return list[0] ?? null;
+  }, [sceneLibQ.data, continueBook]);
 
   return (
     <ScrollView
@@ -31,9 +54,31 @@ export default function LibraryScreen() {
     >
       <View style={styles.header}>
         <Text style={[styles.pageTitle, { color: colors.foreground }]}>Library</Text>
+        <TouchableOpacity
+          onPress={() => router.push("/discover")}
+          style={[styles.discoverPill, { borderColor: colors.border, backgroundColor: colors.card }]}
+          activeOpacity={0.85}
+        >
+          <Feather name="compass" size={13} color={colors.accent} />
+          <Text style={[styles.discoverPillText, { color: colors.foreground }]}>
+            Discover
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Single Upload CTA — primary entry point */}
+      {/* Continue reading hero — only when the user has a book in flight. */}
+      {continueBook && (
+        <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+          <NowReadingHero book={continueBook} latestScene={latestSceneForContinue} />
+        </View>
+      )}
+
+      {/* Recently generated scenes rail. */}
+      <View style={{ paddingTop: continueBook ? 18 : 8 }}>
+        <ScenesSection books={userLibrary.map((b) => ({ id: b.id, title: b.title }))} />
+      </View>
+
+      {/* Add-a-book duo: Upload EPUB + Snap a cover */}
       <View style={styles.heroWrap}>
         <TouchableOpacity
           style={[
@@ -55,6 +100,34 @@ export default function LibraryScreen() {
             </Text>
           </View>
           <Feather name="arrow-right" size={18} color={colors.accent} />
+        </TouchableOpacity>
+
+        {/* Snap a cover — point your camera at any physical book to add it. */}
+        <View style={{ marginTop: 12 }}>
+          <SnapCoverButton variant="tile" />
+        </View>
+
+        {/* Smart Setup — type it in and we'll build the bible. */}
+        <TouchableOpacity
+          style={[
+            styles.heroBtn,
+            { marginTop: 12, backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+          onPress={() => router.push("/setup-book")}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.heroIcon, { backgroundColor: colors.accent + "15" }]}>
+            <Feather name="zap" size={20} color={colors.accent} />
+          </View>
+          <View style={styles.heroText}>
+            <Text style={[styles.heroTitle, { color: colors.foreground }]}>
+              Smart Book Setup
+            </Text>
+            <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
+              Type in any book and we'll build a story bible to ground every scene.
+            </Text>
+          </View>
+          <Feather name="arrow-right" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
@@ -130,6 +203,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pageTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  discoverPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  discoverPillText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   heroWrap: { paddingHorizontal: 20, paddingTop: 16 },
   heroBtn: {
     flexDirection: "row",

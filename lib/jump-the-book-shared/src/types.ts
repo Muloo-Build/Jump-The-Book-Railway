@@ -54,15 +54,18 @@ export interface UserLibraryItem {
 }
 
 /**
- * Response shape from POST /api/books/cover/identify — the vision endpoint
- * that turns a phone photo of a book cover into title/author candidates.
+ * Response from `POST /api/books/cover/identify`.
+ *
+ * The endpoint 422s when the model can't make out title+author, so any
+ * `200` payload reaching the client has non-empty trimmed strings.
+ * `confidence` is the model's self-reported 0..1 score; below ~0.55 the
+ * UI should warn the user the read may be off.
  */
 export interface CoverIdentifyResult {
-  /** "found" → confident match. "uncertain" → low-confidence guess. "no-cover" → image isn't a book cover. */
-  status: "found" | "uncertain" | "no-cover";
-  title: string | null;
-  author: string | null;
-  notes?: string | null;
+  title: string;
+  author: string;
+  confidence: number;
+  note?: string;
 }
 
 // ─── Remote (server-backed) library types ─────────────────────────────────────

@@ -17,8 +17,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Badge } from "@/components/Badge";
+import EditBookModal from "@/components/EditBookModal";
 import { StreakBadge } from "@/components/StreakBadge";
 import { useLibrary } from "@/context/LibraryContext";
+import { useRemoteBooks } from "@/hooks/useRemoteLibrary";
 import {
   Book,
   CHAPTERS,
@@ -85,6 +87,13 @@ export default function BookDetailScreen() {
 
   const [chapterPickerVisible, setChapterPickerVisible] = useState(false);
   const [chapterDraft, setChapterDraft] = useState("");
+  const [editVisible, setEditVisible] = useState(false);
+
+  // The Edit modal needs the canonical RemoteBook (it carries fields like
+  // totalChapters that UserLibraryItem flattens). We pull it from the
+  // already-cached remote books list — no extra fetch.
+  const remoteBooksQ = useRemoteBooks();
+  const remoteBookForEdit = remoteBooksQ.data?.find((b) => b.id === id) ?? null;
 
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
@@ -257,6 +266,45 @@ export default function BookDetailScreen() {
       <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
         <StreakBadge streak={streak} />
       </View>
+
+      {/* ── Smart-setup / Edit row (user books only) ─────────── */}
+      {book.isUserBook && (
+        <View style={styles.userActionRow}>
+          <TouchableOpacity
+            style={[
+              styles.userActionBtn,
+              { borderColor: colors.accent + "60", backgroundColor: colors.accent + "10" },
+            ]}
+            onPress={() => router.push(`/setup-book?bookId=${encodeURIComponent(id!)}`)}
+            activeOpacity={0.85}
+          >
+            <Feather name="zap" size={13} color={colors.accent} />
+            <Text style={[styles.userActionText, { color: colors.accent }]}>
+              Edit story bible
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.userActionBtn,
+              { borderColor: colors.border, backgroundColor: colors.card },
+            ]}
+            onPress={() => setEditVisible(true)}
+            disabled={!remoteBookForEdit}
+            activeOpacity={0.85}
+          >
+            <Feather name="edit-2" size={13} color={colors.foreground} />
+            <Text style={[styles.userActionText, { color: colors.foreground }]}>
+              Edit details
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <EditBookModal
+        visible={editVisible}
+        book={remoteBookForEdit}
+        onClose={() => setEditVisible(false)}
+      />
 
       {/* ── Meta ─────────────────────────────────────────────── */}
       <View
@@ -460,6 +508,24 @@ const styles = StyleSheet.create({
   },
   pickupText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
 
+  userActionRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  userActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  userActionText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   metaCard: {
     marginHorizontal: 20,
     marginTop: 16,

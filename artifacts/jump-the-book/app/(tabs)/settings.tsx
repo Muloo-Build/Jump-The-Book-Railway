@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
   Platform,
@@ -40,6 +41,42 @@ export default function SettingsScreen() {
       <View style={styles.header}>
         <Text style={[styles.pageTitle, { color: colors.foreground }]}>Settings</Text>
       </View>
+
+      {/* Account entry — sign-in/out + orphan recovery live there. */}
+      <TouchableOpacity
+        onPress={() => router.push("/account")}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          marginHorizontal: 20,
+          marginTop: 8,
+          padding: 14,
+          borderRadius: 14,
+          borderWidth: 1,
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        }}
+        activeOpacity={0.85}
+      >
+        <Feather name="user" size={18} color={colors.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>
+            Account
+          </Text>
+          <Text
+            style={{
+              fontSize: 11,
+              fontFamily: "Inter_500Medium",
+              color: colors.mutedForeground,
+              marginTop: 2,
+            }}
+          >
+            Sign in/out and recover orphan scenes.
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </TouchableOpacity>
 
       {/* Visual Style */}
       <View style={styles.section}>
