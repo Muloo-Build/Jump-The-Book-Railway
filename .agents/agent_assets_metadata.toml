@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "NoL0UUvc79zozYHuKoeoD"
@@ -30,3 +29,81 @@ id = "3wG2VMNET3OFlyUncUmAx"
 uri = "file://artifacts/jump-the-book/assets/images/sherlock-hero.png"
 type = "image"
 title = "sherlock-hero-scene"
+
+[[generated]]
+id = "jgLviB3LldaiGTWfEKp3n"
+uri = "file://app-store/icon/icon-1024.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "MvoH4y8vnGxUSIsCR4Eu8"
+uri = "file://app-store/screenshots/01-hero.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "DJ-ejUXqisf2Nz_vVFYsb"
+uri = "file://app-store/screenshots/02-styles.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "b6LWsfA2aDD0hWc7iRtF8"
+uri = "file://app-store/screenshots/03-spoiler.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "CEOVBslPJnQbG87P8Gumm"
+uri = "file://app-store/screenshots/04-trailer.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "nmTNfWZykUsXqnJ44Kqg9"
+uri = "file://app-store/screenshots/05-library.png"
+type = "image"
+title = "generated_image"
+
+[[outputs]]
+id = "XieLZpR1-U_jKTnjGl8Y9"
+uri = "file://app-store/icon/icon-1024.png"
+type = "image"
+title = "App Icon (1024×1024)"
+
+[[outputs]]
+id = "lgJzmdri1RvQ-YtmVtR4W"
+uri = "file://app-store/screenshots/01-hero.png"
+type = "image"
+title = "Screenshot 1 — Hero"
+
+[[outputs]]
+id = "6BKkjHnNOBthvPXxtj9NT"
+uri = "file://app-store/screenshots/02-styles.png"
+type = "image"
+title = "Screenshot 2 — Six visual styles"
+
+[[outputs]]
+id = "Iq_ybsLbtoxl_EqD2Cm4s"
+uri = "file://app-store/screenshots/03-spoiler.png"
+type = "image"
+title = "Screenshot 3 — Spoiler-safe"
+
+[[outputs]]
+id = "K0baZmDjfHj5URt61Bnk4"
+uri = "file://app-store/screenshots/04-trailer.png"
+type = "image"
+title = "Screenshot 4 — Trailer playback"
+
+[[outputs]]
+id = "hhd36O26BUR6mMVlFbZ-Q"
+uri = "file://app-store/screenshots/05-library.png"
+type = "image"
+title = "Screenshot 5 — Library"
+
+[[outputs]]
+id = "I8OKToj8u4kxGzAg71GQO"
+uri = "file://app-store/APP_STORE_LISTING.md"
+type = "text"
+title = "App Store copy + checklist"
