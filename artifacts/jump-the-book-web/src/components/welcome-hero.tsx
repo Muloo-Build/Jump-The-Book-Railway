@@ -1,0 +1,107 @@
+import { useEffect, useState } from "react";
+import { Link } from "wouter";
+import { Show, useUser } from "@clerk/react";
+import { Upload as UploadIcon, BookOpen, Sparkles } from "lucide-react";
+import type { UserLibraryItem } from "@/data/books";
+
+interface Props {
+  nowReading: UserLibraryItem | null;
+  totalBooks: number;
+}
+
+function useNowPill() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const day = now
+    .toLocaleDateString(undefined, { weekday: "long" })
+    .toUpperCase();
+  const time = now
+    .toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    })
+    .toUpperCase();
+  return `${day}  ·  ${time}`;
+}
+
+function buildSubtext(nowReading: UserLibraryItem | null, total: number) {
+  if (!nowReading) {
+    if (total === 0) {
+      return "Your shelf is waiting. Add a book and we'll start painting the scenes.";
+    }
+    return "Pick a book to pick up where you left off.";
+  }
+  const ch = nowReading.currentChapter ?? 1;
+  if (ch <= 1) {
+    return `${nowReading.title} is queued. The first scene is moments away.`;
+  }
+  return `Chapter ${ch} of ${nowReading.title} is queued and waiting.`;
+}
+
+export default function WelcomeHero({ nowReading, totalBooks }: Props) {
+  const { user } = useUser();
+  const datePill = useNowPill();
+  const firstName = user?.firstName || user?.username || "Reader";
+  const sub = buildSubtext(nowReading, totalBooks);
+
+  const continueHref = nowReading
+    ? `/experience/${nowReading.id}?chapter=${nowReading.currentChapter ?? 1}`
+    : "/library";
+
+  return (
+    <section className="space-y-5">
+      <div className="inline-flex items-center gap-2 text-[10px] tracking-[0.25em] text-amber-300/90 font-medium">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-300/80" />
+        {datePill}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6 lg:items-end">
+        <div className="space-y-3">
+          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-tight">
+            <Show when="signed-in">
+              Welcome back,{" "}
+              <span className="italic text-amber-200">{firstName}</span>.
+            </Show>
+            <Show when="signed-out">
+              Welcome to{" "}
+              <span className="italic text-amber-200">Jump the Book</span>.
+            </Show>
+          </h1>
+          <p className="text-muted-foreground text-base md:text-lg max-w-xl">
+            {sub}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/upload"
+            className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] h-10 px-4 text-sm font-medium transition-colors"
+          >
+            <UploadIcon className="w-4 h-4" />
+            Upload
+          </Link>
+          {nowReading ? (
+            <Link
+              href={continueHref}
+              className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-10 px-4 text-sm font-semibold transition-colors"
+            >
+              <BookOpen className="w-4 h-4" />
+              Continue reading
+            </Link>
+          ) : (
+            <Link
+              href="/setup-book"
+              className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-10 px-4 text-sm font-semibold transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              Add a book
+            </Link>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}

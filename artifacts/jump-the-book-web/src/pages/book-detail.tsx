@@ -294,7 +294,7 @@ export default function BookDetail() {
 
             <PastePassage bookId={book.id} chapter={currentChapter} />
 
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-4">
+            <motion.div id="scenes" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-4 scroll-mt-24">
               <h3 className="font-serif text-2xl font-semibold">Experience Chapter {currentChapter}</h3>
               <p className="text-sm text-muted-foreground">
                 Or generate scenes from the book itself — no passage needed.

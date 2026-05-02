@@ -1,12 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Jump the Book">
   <defs>
     <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#f5d27c"/>
       <stop offset="100%" stop-color="#b8841f"/>
     </linearGradient>
+    <linearGradient id="gi" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7a4d10"/>
+      <stop offset="100%" stop-color="#3a2207"/>
+    </linearGradient>
   </defs>
-  <circle cx="32" cy="32" r="28" fill="none" stroke="url(#g)" stroke-width="2.5"/>
-  <path d="M32 12 L37 32 L32 52 L27 32 Z" fill="url(#g)"/>
-  <path d="M12 32 L32 27 L52 32 L32 37 Z" fill="url(#g)" opacity="0.45"/>
-  <circle cx="32" cy="32" r="3" fill="#0a0a0f"/>
+  <ellipse cx="22" cy="20" rx="5.5" ry="14" transform="rotate(-14 22 20)" fill="url(#g)"/>
+  <ellipse cx="22.5" cy="22" rx="2.2" ry="9" transform="rotate(-14 22.5 22)" fill="url(#gi)"/>
+  <ellipse cx="42" cy="20" rx="5.5" ry="14" transform="rotate(14 42 20)" fill="url(#g)"/>
+  <ellipse cx="41.5" cy="22" rx="2.2" ry="9" transform="rotate(14 41.5 22)" fill="url(#gi)"/>
+  <ellipse cx="32" cy="42" rx="16" ry="14" fill="url(#g)"/>
+  <circle cx="26" cy="40" r="1.6" fill="#0a0a0f"/>
+  <circle cx="38" cy="40" r="1.6" fill="#0a0a0f"/>
+  <path d="M30 46 Q32 48 34 46 L32 49 Z" fill="#0a0a0f"/>
+  <path d="M22 47 L18 46 M22 49 L18 50 M42 47 L46 46 M42 49 L46 50" stroke="#0a0a0f" stroke-width="0.6" stroke-linecap="round" opacity="0.6"/>
 </svg>

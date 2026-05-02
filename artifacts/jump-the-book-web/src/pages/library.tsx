@@ -6,6 +6,7 @@ import { useLibrary } from "@/lib/library";
 import {
   useRemoteSceneLibrary,
   useRemoteBooks,
+  type RemoteScene,
 } from "@/hooks/useApiLibrary";
 import { useUserBibleSummaries } from "@/hooks/useBookBible";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +17,9 @@ import ReadingStats from "@/components/reading-stats";
 import LibraryBookTile from "@/components/library-book-tile";
 import NowReadingHero from "@/components/now-reading-hero";
 import SceneLibrary from "@/components/scene-library";
+import WelcomeHero from "@/components/welcome-hero";
+
+const norm = (s: string) => s.trim().toLowerCase();
 
 export default function Library() {
   const { userLibrary, isSignedIn, activeBookId } = useLibrary();
@@ -61,21 +65,52 @@ export default function Library() {
     return userLibrary[0] ?? null;
   }, [userLibrary, activeBookId]);
 
+  // Resolve the canonical user_books UUID for the now-reading book so we can
+  // pull its latest generated scene out of sceneLib. We prefer the explicit
+  // remoteId (set after a server roundtrip), then demoBookId / direct id
+  // matches, and only fall back to title+author normalization as a last
+  // resort — that fallback can match the wrong row when a user has both an
+  // upload and a demo of the same book.
+  const latestSceneForNowReading = useMemo<RemoteScene | null>(() => {
+    if (!nowReading) return null;
+    const books = remoteBooks.data ?? [];
+    const remote =
+      (nowReading.remoteId &&
+        books.find((b) => b.id === nowReading.remoteId)) ||
+      books.find(
+        (b) => b.id === nowReading.id || b.demoBookId === nowReading.id,
+      ) ||
+      books.find(
+        (b) =>
+          norm(b.title) === norm(nowReading.title) &&
+          norm(b.author) === norm(nowReading.author),
+      );
+    if (!remote) return null;
+    const scenes = (sceneLib.data ?? []).filter(
+      (s) => s.userBookId === remote.id,
+    );
+    if (scenes.length === 0) return null;
+    return [...scenes].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    )[0];
+  }, [nowReading, remoteBooks.data, sceneLib.data]);
+
   const hasBooks = userLibrary.length > 0;
+  const totalScenes = sceneLib.data?.length ?? 0;
 
   return (
     <Layout>
-      <div className="container max-w-6xl mx-auto px-4 py-12 space-y-12">
-        <div>
-          <h1 className="font-serif text-4xl font-bold mb-4">Your Library</h1>
-          <p className="text-muted-foreground text-lg">
-            Pick up where you left off, or start a new journey.
-          </p>
-        </div>
+      <div className="container max-w-6xl mx-auto px-4 py-10 md:py-12 space-y-10 md:space-y-12">
+        <WelcomeHero nowReading={nowReading} totalBooks={userLibrary.length} />
 
-        {nowReading && <NowReadingHero book={nowReading} />}
+        {nowReading && (
+          <NowReadingHero
+            book={nowReading}
+            latestScene={latestSceneForNowReading}
+          />
+        )}
 
-        <ReadingStats />
+        <ReadingStats nowReading={nowReading} />
 
         <Show when="signed-in">
           {hasBooks ? (
@@ -153,10 +188,28 @@ export default function Library() {
           </div>
         </Show>
 
-        <div className="space-y-6">
-          <h2 className="font-serif text-2xl font-semibold border-b border-border/40 pb-2">
-            My Books
-          </h2>
+        <div className="space-y-5">
+          <div className="flex items-end justify-between border-b border-border/40 pb-2 gap-3">
+            <div>
+              <h2 className="font-serif text-2xl font-semibold leading-tight">
+                My books
+              </h2>
+              {hasBooks && (
+                <p className="text-xs text-muted-foreground/80 mt-1">
+                  Your shelf · {userLibrary.length}{" "}
+                  {userLibrary.length === 1 ? "book" : "books"}
+                </p>
+              )}
+            </div>
+            {hasBooks && userLibrary.length > 6 && (
+              <Link
+                href="#my-books"
+                className="text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
+              >
+                Browse all →
+              </Link>
+            )}
+          </div>
           {!hasBooks ? (
             <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center gap-3">
               <p className="text-muted-foreground mb-2">
@@ -176,7 +229,10 @@ export default function Library() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div
+              id="my-books"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5"
+            >
               {userLibrary.map((book, i) => (
                 <LibraryBookTile
                   key={book.id}
@@ -191,21 +247,23 @@ export default function Library() {
 
         {/* Personal scene gallery — only for signed-in users */}
         {isSignedIn && (
-          <div className="space-y-6">
-            <div className="flex items-end justify-between border-b border-border/40 pb-2">
+          <div className="space-y-5">
+            <div className="flex items-end justify-between border-b border-border/40 pb-2 gap-3">
               <div>
-                <h2 className="font-serif text-2xl font-semibold">
-                  Your Scene Library
+                <h2 className="font-serif text-2xl font-semibold leading-tight">
+                  Scene library
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Every cinematic moment you've unlocked, grouped by book.
+                <p className="text-xs text-muted-foreground/80 mt-1">
+                  Recently visualized · {totalScenes} total
                 </p>
               </div>
-              {sceneLib.data && sceneLib.data.length > 0 && (
-                <span className="text-sm text-muted-foreground">
-                  {sceneLib.data.length}{" "}
-                  {sceneLib.data.length === 1 ? "scene" : "scenes"}
-                </span>
+              {totalScenes > 8 && (
+                <Link
+                  href="#scenes"
+                  className="text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
+                >
+                  Browse all →
+                </Link>
               )}
             </div>
 
@@ -215,18 +273,25 @@ export default function Library() {
                 Loading your scenes…
               </div>
             ) : (
-              <SceneLibrary
-                scenes={sceneLib.data ?? []}
-                bookIdMap={bookIdMap}
-              />
+              <div id="scenes">
+                <SceneLibrary
+                  scenes={sceneLib.data ?? []}
+                  bookIdMap={bookIdMap}
+                />
+              </div>
             )}
           </div>
         )}
 
-        <div className="space-y-6">
-          <h2 className="font-serif text-2xl font-semibold border-b border-border/40 pb-2">
-            Classics
-          </h2>
+        <div className="space-y-5">
+          <div className="border-b border-border/40 pb-2">
+            <h2 className="font-serif text-2xl font-semibold leading-tight">
+              Classics
+            </h2>
+            <p className="text-xs text-muted-foreground/80 mt-1">
+              Curated demo books · ready to visualize
+            </p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {DEMO_BOOKS.map((book, i) => (
               <motion.div

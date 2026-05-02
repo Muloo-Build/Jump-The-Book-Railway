@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Compass, LogOut, User as UserIcon, Settings } from "lucide-react";
+import { LogOut, User as UserIcon, Settings } from "lucide-react";
 import { Show, useUser, useClerk } from "@clerk/react";
 import {
   DropdownMenu,
@@ -95,10 +95,14 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground dark font-sans">
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur">
         <div className="container flex h-14 max-w-screen-2xl items-center px-4">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <Compass className="h-6 w-6 text-primary" />
-            <span className="hidden font-serif text-lg font-bold sm:inline-block">
-              Jump the Book
+          <Link href="/" className="mr-6 flex items-center gap-2 group">
+            <img
+              src={`${import.meta.env.BASE_URL}logo.svg`}
+              alt="Jump the Book"
+              className="h-7 w-7 transition-transform group-hover:rotate-[-6deg]"
+            />
+            <span className="hidden font-serif text-lg sm:inline-block">
+              Jump <span className="italic text-amber-200">the</span> Book
             </span>
           </Link>
           <nav className="flex items-center space-x-6 text-sm font-medium">
