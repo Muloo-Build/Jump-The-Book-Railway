@@ -18,6 +18,7 @@ import LibraryBookTile from "@/components/library-book-tile";
 import NowReadingHero from "@/components/now-reading-hero";
 import SceneLibrary from "@/components/scene-library";
 import WelcomeHero from "@/components/welcome-hero";
+import SnapCoverButton from "@/components/snap-cover-button";
 
 const norm = (s: string) => s.trim().toLowerCase();
 
@@ -139,12 +140,15 @@ export default function Library() {
                   Reading something new? Add it with Smart Setup.
                 </p>
               </div>
-              <Link
-                href="/setup-book"
-                className="inline-flex items-center justify-center rounded-md border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 h-8 px-3 text-xs font-medium transition-colors shrink-0"
-              >
-                Add a book
-              </Link>
+              <div className="flex items-center gap-2 shrink-0">
+                <SnapCoverButton className="h-8 px-3 text-xs" />
+                <Link
+                  href="/setup-book"
+                  className="inline-flex items-center justify-center rounded-md border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 h-8 px-3 text-xs font-medium transition-colors"
+                >
+                  Add a book
+                </Link>
+              </div>
             </div>
           ) : (
             // Bigger banner only when the library is empty
@@ -163,7 +167,7 @@ export default function Library() {
                   your reading position spoiler-free.
                 </p>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
                 <Link
                   href="/setup-book"
                   className="inline-flex items-center justify-center rounded-md bg-amber-400 text-black h-10 px-4 py-2 font-medium hover:bg-amber-300 transition-colors"
@@ -171,6 +175,7 @@ export default function Library() {
                   <Sparkles className="w-4 h-4 mr-2" />
                   Add a book
                 </Link>
+                <SnapCoverButton className="h-10 px-4 text-sm" />
               </div>
             </div>
           )}
@@ -257,6 +262,7 @@ export default function Library() {
                     <Sparkles className="mr-2 h-4 w-4" /> Smart Setup
                   </div>
                 </Link>
+                <SnapCoverButton className="h-10 px-4 text-sm" />
                 <Link href="/upload">
                   <div className="inline-flex items-center justify-center rounded-md border border-border h-10 px-4 py-2 font-medium hover:bg-card transition-colors">
                     <Plus className="mr-2 h-4 w-4" /> Upload a file

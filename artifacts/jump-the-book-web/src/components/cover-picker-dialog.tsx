@@ -39,7 +39,7 @@ interface Props {
 
 const RESULT_LIMIT = 3;
 
-const FALLBACK_GRADIENT: [string, string] = ["#3a1a6e", "#9d7fe8"];
+const FALLBACK_GRADIENT: string[] = ["#3a1a6e", "#9d7fe8"];
 
 /**
  * After a cover snap, ask Open Library for the top matches of the
@@ -105,6 +105,8 @@ export default function CoverPickerDialog({
     if (adding) return;
     setAdding(true);
     try {
+      const heroImage =
+        match.coverUrlLarge ?? match.coverUrl ?? undefined;
       const newId = await addBook(
         {
           title: match.title,
@@ -118,9 +120,7 @@ export default function CoverPickerDialog({
           currentAudioTimestamp: "00:00:00",
           progress: 0,
           userNote: "",
-          tagline: null,
-          heroImage: match.coverUrlLarge ?? match.coverUrl ?? null,
-          totalChapters: null,
+          ...(heroImage ? { heroImage } : {}),
         },
         { source: "manual" },
       );
@@ -230,21 +230,51 @@ export default function CoverPickerDialog({
             candidates.length === 0 && (
               <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/50 px-4 py-8 text-center">
                 <BookOpen className="w-6 h-6 text-muted-foreground" />
-                <p className="text-sm font-medium">No matches found</p>
+                <p className="text-sm font-medium">No matches on Open Library</p>
                 <p className="text-xs text-muted-foreground max-w-xs">
-                  Try editing the title or author, or add the book manually
-                  from Smart Setup.
+                  We couldn't find an exact match. Add the book using what
+                  we read off the cover, or edit the search.
                 </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setEditing(true)}
-                  className="mt-2"
-                >
-                  <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                  Edit search
-                </Button>
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() =>
+                      void handleAdd({
+                        key: `read:${titleQ}:${authorQ}`,
+                        workKey: "",
+                        title: titleQ.trim(),
+                        author: authorQ.trim(),
+                        firstPublishYear: null,
+                        pageCount: null,
+                        coverUrl: null,
+                        coverUrlLarge: null,
+                      })
+                    }
+                    disabled={
+                      adding || !titleQ.trim() || !authorQ.trim()
+                    }
+                    className="bg-amber-400 text-black hover:bg-amber-300"
+                  >
+                    {adding ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        Adding…
+                      </>
+                    ) : (
+                      <>Add “{titleQ.trim() || "—"}” as-is</>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                    Edit search
+                  </Button>
+                </div>
               </div>
             )}
 
