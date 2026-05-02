@@ -1,0 +1,495 @@
+Build a mobile-first web app called Jump the Book.
+
+Jump the Book is an immersive visual reading companion that lets users step inside the book they are reading or listening to. It does not replace Kindle, Audible or physical books. Instead, it acts as a companion layer that helps users experience a story visually through scenes, characters, locations, mood, comic-style panels, chapter summaries and spoiler-safe visual guidance.
+
+The app should be designed for a Replit Build Marathon MVP. It must be polished, demo-ready, mobile-first and visually impressive, but it should not try to build every future feature at once.
+
+Important product principle:
+The MVP must not directly extract or process full Kindle or Audible content. Instead, it should support public domain demo books, manually added current reads, and user-owned writing or pasted excerpts. Add placeholder “Connect Kindle” and “Connect Audible” buttons as Coming Soon features.
+
+The core concept:
+Users can select a public domain demo book, add a book they are currently reading, or upload/paste their own writing. The app then creates a visual story companion with chapter summaries, scene cards, character tracking, location moodboards and immersion mode.
+
+App name:
+Jump the Book
+
+Tagline:
+Step inside the story.
+
+Primary landing page headline:
+Don’t just read the story. Step inside it.
+
+Overall style:
+Create a dark, cinematic, magical interface.
+Use a premium reading app feel, not a generic dashboard.
+Mobile-first design.
+Use large cards, soft gradients, rounded corners, atmospheric backgrounds and smooth transitions.
+The UI should feel like a mix between Audible, Kindle, Netflix and a graphic novel reader.
+Avoid a plain admin-panel look.
+Make it feel exciting enough for a hackathon demo.
+
+Suggested tech stack:
+Use React for the frontend.
+Use Node.js and Express for the backend.
+Use a simple file-based mock database or in-memory data for the MVP.
+Structure the code so it can later be connected to Supabase, Firebase or PostgreSQL.
+Use clean reusable components.
+Make sure the app runs successfully in Replit.
+
+Core navigation:
+Create a bottom mobile navigation with:
+1. Home
+2. Library
+3. Immersion
+4. Characters
+5. Settings
+
+Main screens:
+
+1. Home screen
+The home screen should introduce the product.
+Include:
+- Hero headline: “Don’t just read the story. Step inside it.”
+- Subheading: “Turn your current read into visual scenes, character guides and immersive story moments.”
+- Primary CTA: “Start Demo”
+- Secondary CTA: “Add My Current Read”
+- A preview carousel of visual story cards
+- A section called “How it works”
+  - Choose or add a book
+  - Tell us where you are
+  - Generate spoiler-safe story scenes
+  - Swipe through the visual companion
+
+2. Library screen
+The Library screen should have three main sections:
+
+A. Demo Library
+Use public domain books as demo options:
+- Alice in Wonderland
+- Dracula
+- Frankenstein
+- Sherlock Holmes
+
+B. My Current Reads
+Allow the user to manually add a book they are reading or listening to.
+
+C. My Own Writing
+Allow the user to paste or upload their own chapter or excerpt.
+
+Each book card should show:
+- Title
+- Author
+- Format
+- Progress
+- Visual style
+- Button: “Open Companion”
+
+3. Add Current Read screen
+Create a form where the user can manually add a book.
+
+Fields:
+- Book title
+- Author
+- Format dropdown:
+  - Kindle
+  - Audible
+  - Physical Book
+  - PDF
+  - EPUB
+  - Other
+- Current chapter
+- Current page
+- Current audiobook timestamp
+- Spoiler mode dropdown:
+  - No spoilers
+  - Light guidance
+  - Full chapter companion
+- Optional user note
+- Optional pasted excerpt
+
+After submitting, add the book to “My Current Reads” and generate a mock companion experience.
+
+Important:
+If the user selects Kindle or Audible, show helpful text:
+“Direct Kindle and Audible syncing is planned, but for the MVP you can manually add your current chapter, page or timestamp.”
+
+4. Connect Library screen or modal
+Add placeholder buttons:
+- Connect Kindle
+- Connect Audible
+
+When clicked, show a modal:
+“Direct Kindle and Audible syncing depends on available platform permissions. For now, add your current read manually and Jump the Book will create a spoiler-safe visual companion based on your chapter, timestamp or notes.”
+
+Do not build actual Kindle or Audible extraction.
+
+5. Upload My Own Writing screen
+Allow the user to paste a chapter or excerpt.
+
+Fields:
+- Story title
+- Author name
+- Chapter title
+- Text area for chapter/excerpt
+- Visual style selector
+- Generate Companion button
+
+On submit, generate mock scenes using the same structure as demo books.
+
+6. Book Detail screen
+When a user opens a book, show:
+- Book title
+- Author
+- Format
+- Progress bar
+- Current chapter
+- Selected visual style
+- Button: Continue Journey
+- Button: View Chapters
+- Button: Character Tracker
+- Button: Immersion Mode
+
+Also show a chapter list.
+
+7. Chapter screen
+When opening a chapter, show:
+- Chapter title
+- Short chapter summary
+- Scene cards
+- Characters appearing in this chapter
+- Locations
+- Mood
+- Button: Enter Immersion Mode
+
+Each scene card should include:
+- Scene title
+- Short summary
+- Characters
+- Location
+- Mood
+- Image prompt
+- Placeholder visual panel with styled gradient or AI-art-style placeholder
+- Button: Save Scene
+- Button: Open in Immersion
+
+8. Immersion Mode screen
+Create a full-screen swipe-style visual experience.
+
+Each scene should appear as a large cinematic card with:
+- Visual panel placeholder
+- Scene title
+- Short narration
+- Characters
+- Location
+- Mood
+- Previous and Next controls
+- Progress dots
+- Exit button
+
+This should feel like watching a comic, visual novel or animated storyboard.
+
+9. Character Tracker screen
+Show character cards for the selected book.
+
+Each character card should include:
+- Name
+- Role
+- Short description
+- First appearance
+- Current status
+- Relationship notes
+- Visual description
+
+For Alice in Wonderland, include:
+- Alice
+- White Rabbit
+- Cheshire Cat
+- Mad Hatter
+- Queen of Hearts
+
+10. Settings screen
+Include:
+- Default visual style
+- Spoiler preference
+- Reading mode:
+  - Reading
+  - Listening
+  - Both
+- Coming soon toggles:
+  - Kindle Sync
+  - Audible Sync
+  - Real Image Generation
+  - Voice Narration
+  - Book Club Mode
+
+Visual styles:
+Allow the user to select from:
+- Comic Book
+- Watercolour
+- Dark Cinematic
+- Animated Storybook
+- Manga Inspired
+- Fantasy Illustration
+
+The selected style should affect the mock image prompt wording and the UI label.
+
+Demo data:
+Use Alice in Wonderland as the main polished demo.
+
+Alice in Wonderland, Chapter 1 scenes:
+1. Alice spots the White Rabbit
+Summary:
+Alice sits bored beside her sister when a nervous White Rabbit rushes past, checking his watch and muttering that he is late.
+Characters:
+Alice, White Rabbit
+Location:
+Riverbank
+Mood:
+Curious, strange, dreamlike
+Image prompt:
+A cinematic storybook illustration of a young girl noticing a white rabbit in a waistcoat checking a pocket watch beside a quiet riverbank, magical atmosphere, soft golden light, whimsical details.
+
+2. Alice follows the Rabbit
+Summary:
+Alice follows the rabbit across the field and reaches the rabbit hole, her curiosity pulling her into the unknown.
+Characters:
+Alice, White Rabbit
+Location:
+Field and rabbit hole
+Mood:
+Curious, adventurous, mysterious
+Image prompt:
+A whimsical fantasy scene of a young girl chasing a white rabbit toward a dark rabbit hole under twisted roots, cinematic composition, magical storybook style.
+
+3. Alice falls down the rabbit hole
+Summary:
+Alice tumbles slowly through a deep rabbit hole filled with cupboards, books, maps and impossible objects floating around her.
+Characters:
+Alice
+Location:
+Rabbit hole
+Mood:
+Surreal, floating, magical
+Image prompt:
+A surreal vertical tunnel filled with floating books, jars, maps and furniture as a young girl falls slowly through glowing darkness, cinematic fantasy illustration.
+
+4. Alice lands in the strange hall
+Summary:
+Alice lands safely in a hall full of locked doors and begins searching for a way into the beautiful garden.
+Characters:
+Alice
+Location:
+Hall of doors
+Mood:
+Mysterious, quiet, puzzling
+Image prompt:
+A magical hallway lined with many tiny locked doors, a young girl standing in wonder beneath warm lantern light, dreamlike cinematic storybook style.
+
+5. Alice finds the tiny door
+Summary:
+Alice discovers a tiny golden key and a small door leading to a beautiful garden, but she is too large to enter.
+Characters:
+Alice
+Location:
+Hall of doors
+Mood:
+Wonder, frustration, enchantment
+Image prompt:
+A young girl kneeling beside a tiny glowing door that opens into a beautiful garden, golden key on a glass table, magical cinematic lighting.
+
+6. Alice drinks from the bottle
+Summary:
+Alice finds a mysterious bottle labelled “Drink Me” and drinks it, beginning her strange transformation.
+Characters:
+Alice
+Location:
+Hall of doors
+Mood:
+Magical, risky, playful
+Image prompt:
+A mysterious glass bottle labelled Drink Me sitting on a small table in a magical hallway, a curious young girl reaching toward it, whimsical fantasy illustration.
+
+Also create mock data for:
+Dracula
+Frankenstein
+Sherlock Holmes
+
+These can have fewer scenes, but enough to show the app structure.
+
+Backend API:
+Create Express endpoints:
+
+GET /api/books
+Returns all books.
+
+GET /api/books/:id
+Returns one book with details.
+
+GET /api/books/:id/chapters
+Returns chapters for a book.
+
+GET /api/chapters/:id/scenes
+Returns scenes for a chapter.
+
+GET /api/books/:id/characters
+Returns characters for a book.
+
+POST /api/library
+Adds a manually entered current read.
+
+POST /api/generate-scenes
+Accepts:
+- title
+- author
+- chapterTitle
+- text
+- visualStyle
+- spoilerMode
+
+Returns structured JSON:
+{
+  chapterSummary,
+  scenes: [
+    {
+      title,
+      summary,
+      characters,
+      location,
+      mood,
+      imagePrompt,
+      narration
+    }
+  ],
+  characters,
+  locations
+}
+
+For now, mock the AI response. Add clear comments showing where OpenAI API integration can be added later using process.env.OPENAI_API_KEY.
+
+Data models:
+Book:
+- id
+- title
+- author
+- sourceType
+- format
+- publicDomain
+- coverGradient
+- progress
+- currentChapter
+- visualStyle
+
+Chapter:
+- id
+- bookId
+- title
+- chapterNumber
+- summary
+
+Scene:
+- id
+- chapterId
+- title
+- summary
+- characters
+- location
+- mood
+- imagePrompt
+- narration
+
+Character:
+- id
+- bookId
+- name
+- role
+- description
+- firstAppearance
+- currentStatus
+- relationshipNotes
+- visualDescription
+
+UserLibraryItem:
+- id
+- title
+- author
+- format
+- currentChapter
+- currentPage
+- currentAudioTimestamp
+- spoilerMode
+- userNote
+- visualStyle
+- progress
+
+Components:
+Create reusable components:
+- Layout
+- BottomNav
+- BookCard
+- SceneCard
+- CharacterCard
+- ProgressBar
+- StyleSelector
+- SpoilerModeSelector
+- LibraryConnectModal
+- ImmersionScene
+- EmptyState
+- Button
+- Badge
+
+Pages:
+- Home
+- Library
+- AddCurrentRead
+- UploadWriting
+- BookDetail
+- Chapter
+- ImmersionMode
+- Characters
+- Settings
+
+UX requirements:
+- The app should work well on mobile.
+- Cards should be large and easy to tap.
+- Use smooth page transitions where possible.
+- Use loading states for generation actions.
+- Use mock delay for “Generating companion...” so the demo feels real.
+- After generating, show “Your story companion is ready.”
+- Avoid clutter.
+- Make the product feel magical and premium.
+
+Important copy to include:
+On Kindle/Audible modal:
+“Jump the Book is designed to work beside the platforms you already use. Direct Kindle and Audible syncing is planned, but for now you can add your current chapter, page or timestamp manually.”
+
+On Upload Writing screen:
+“Paste your own writing and turn it into an immersive visual companion. Perfect for authors, creators and storytellers.”
+
+On Demo Library:
+“Explore public domain classics without copyright restrictions.”
+
+On Spoiler Mode:
+“No spoilers keeps the companion limited to where you are in the story.”
+
+Future roadmap section:
+Add a section on the home page or settings page called “Coming Soon”.
+Include:
+- Kindle and Audible progress sync
+- Real image generation
+- Voice narration
+- Author manuscript mode
+- Book club rooms
+- Classroom mode
+- Export as storyboard
+- Interactive character maps
+
+Important constraints:
+Do not build actual Kindle login.
+Do not build actual Audible login.
+Do not scrape Amazon.
+Do not imply the app can access full copyrighted books.
+Keep the MVP legally safer by using public domain demo content, user-entered reading progress and user-owned writing.
+
+Make the app look finished enough for a Replit Build Marathon demo.
+Prioritise the Alice in Wonderland demo experience.
+The final result should run in Replit without errors.

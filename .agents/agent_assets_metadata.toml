@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "NoL0UUvc79zozYHuKoeoD"
+uri = "file://artifacts/jump-the-book/assets/images/icon.png"
+type = "image"
+title = "jump-the-book-icon"
+
+[[generated]]
+id = "N22rek8CT5ulH6IjPdZZ0"
+uri = "file://artifacts/jump-the-book/assets/images/alice-hero.png"
+type = "image"
+title = "alice-hero-scene"
+
+[[generated]]
+id = "XWsSCAoqetVyayw1JiiPx"
+uri = "file://artifacts/jump-the-book/assets/images/dracula-hero.png"
+type = "image"
+title = "dracula-hero-scene"
+
+[[generated]]
+id = "MrlMGiiLqCRzFuqM-rH94"
+uri = "file://artifacts/jump-the-book/assets/images/frankenstein-hero.png"
+type = "image"
+title = "frankenstein-hero-scene"
+
+[[generated]]
+id = "3wG2VMNET3OFlyUncUmAx"
+uri = "file://artifacts/jump-the-book/assets/images/sherlock-hero.png"
+type = "image"
+title = "sherlock-hero-scene"
