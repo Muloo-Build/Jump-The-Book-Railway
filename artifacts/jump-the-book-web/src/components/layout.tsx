@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LogOut, User as UserIcon, Settings } from "lucide-react";
+import { LogOut, User as UserIcon, Settings, Search } from "lucide-react";
 import { Show, useUser, useClerk } from "@clerk/react";
 import {
   DropdownMenu,
@@ -84,6 +85,37 @@ function UserMenu() {
   );
 }
 
+function HeaderSearch() {
+  const [, setLocation] = useLocation();
+  const [q, setQ] = useState("");
+  return (
+    <form
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const trimmed = q.trim();
+        setLocation(
+          trimmed ? `/library?q=${encodeURIComponent(trimmed)}` : "/library",
+        );
+      }}
+      className="hidden md:flex relative items-center"
+    >
+      <Search
+        className="w-3.5 h-3.5 absolute left-3 text-muted-foreground/70 pointer-events-none"
+        aria-hidden
+      />
+      <input
+        type="search"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search library…"
+        aria-label="Search your library"
+        className="h-9 w-56 lg:w-64 rounded-md border border-border/40 bg-card/30 pl-8 pr-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-amber-400/40 focus:border-amber-400/40 transition-colors"
+      />
+    </form>
+  );
+}
+
 export default function Layout({ children, hideNav = false }: LayoutProps) {
   const [location] = useLocation();
 
@@ -118,6 +150,17 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               Library
             </Link>
             <Link
+              href="/discover"
+              className={cn(
+                "transition-colors hover:text-foreground/80",
+                location?.startsWith("/discover")
+                  ? "text-foreground"
+                  : "text-foreground/60",
+              )}
+            >
+              Discover
+            </Link>
+            <Link
               href="/upload"
               className={cn(
                 "transition-colors hover:text-foreground/80",
@@ -141,6 +184,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
             </Link>
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            <HeaderSearch />
             <Show when="signed-out">
               <Link href="/sign-in">
                 <Button variant="ghost" size="sm">

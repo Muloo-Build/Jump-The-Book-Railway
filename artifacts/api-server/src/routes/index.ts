@@ -4,6 +4,7 @@ import scenesRouter from "./scenes";
 import storageRouter from "./storage";
 import meRouter from "./me";
 import biblesRouter from "./bibles";
+import passageRouter from "./passage";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(scenesRouter);
 router.use(storageRouter);
 router.use(meRouter);
 router.use(biblesRouter);
+router.use(passageRouter);
 
 export default router;

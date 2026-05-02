@@ -5,6 +5,7 @@ import { Sparkles, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import SnapPageButton from "@/components/snap-page-button";
 
 const PENDING_KEY = "@jtb_pending_passage";
 
@@ -93,19 +94,28 @@ export default function PastePassage({ bookId, chapter }: PastePassageProps) {
           <Wand2 className="w-3.5 h-3.5" />
           Paste a passage
         </div>
-        <h3 className="font-serif text-xl font-semibold">
-          Visualize this exact moment
-        </h3>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <h3 className="font-serif text-xl font-semibold">
+            Visualize this exact moment
+          </h3>
+          <SnapPageButton
+            onText={(t) =>
+              setText((prev) =>
+                prev ? `${prev.replace(/\s+$/, "")}\n\n${t}` : t,
+              )
+            }
+          />
+        </div>
         <p className="text-sm text-muted-foreground">
-          Reading on Kindle or anywhere else? Paste 1–3 paragraphs from what
-          you're reading right now and we'll paint it. No file needed.
+          Reading on Kindle or paper? Paste a paragraph, dictate it, or snap
+          a photo of the page — we'll paint what's happening. No file needed.
         </p>
       </div>
 
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS + 100))}
-        placeholder="Paste a passage from the chapter you're reading…"
+        placeholder="Paste a passage, or tap “Snap the page” above to capture it from a photo…"
         rows={6}
         className="resize-y min-h-[140px] text-sm leading-relaxed bg-background/40"
         aria-label="Paste a passage from your book"

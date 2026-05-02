@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import Layout from "@/components/layout";
 import { DEMO_BOOKS } from "@/data/books";
 import { useLibrary } from "@/lib/library";
@@ -26,6 +26,23 @@ export default function Library() {
   const sceneLib = useRemoteSceneLibrary();
   const remoteBooks = useRemoteBooks();
   const bibleSummariesQ = useUserBibleSummaries();
+  // wouter's useSearch returns the live query string (without the leading "?")
+  // and re-renders on EVERY navigation, including query-string-only changes —
+  // useLocation alone misses those when the path is unchanged.
+  const search = useSearch();
+  const q = useMemo(
+    () => new URLSearchParams(search).get("q")?.trim() ?? "",
+    [search],
+  );
+  const filteredLibrary = useMemo(() => {
+    if (!q) return userLibrary;
+    const needle = q.toLowerCase();
+    return userLibrary.filter(
+      (b) =>
+        b.title.toLowerCase().includes(needle) ||
+        b.author.toLowerCase().includes(needle),
+    );
+  }, [userLibrary, q]);
 
   // Build a lookup from remote book uuid → display id (demoBookId or uuid)
   const bookIdMap = useMemo(() => {
@@ -196,18 +213,37 @@ export default function Library() {
               </h2>
               {hasBooks && (
                 <p className="text-xs text-muted-foreground/80 mt-1">
-                  Your shelf · {userLibrary.length}{" "}
-                  {userLibrary.length === 1 ? "book" : "books"}
+                  {q ? (
+                    <>
+                      Showing {filteredLibrary.length} of {userLibrary.length}{" "}
+                      for “{q}”
+                    </>
+                  ) : (
+                    <>
+                      Your shelf · {userLibrary.length}{" "}
+                      {userLibrary.length === 1 ? "book" : "books"}
+                    </>
+                  )}
                 </p>
               )}
             </div>
-            {hasBooks && userLibrary.length > 6 && (
+            {q ? (
               <Link
-                href="#my-books"
+                href="/library"
                 className="text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
               >
-                Browse all →
+                Clear search ✕
               </Link>
+            ) : (
+              hasBooks &&
+              userLibrary.length > 6 && (
+                <Link
+                  href="#my-books"
+                  className="text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
+                >
+                  Browse all →
+                </Link>
+              )
             )}
           </div>
           {!hasBooks ? (
@@ -228,12 +264,30 @@ export default function Library() {
                 </Link>
               </div>
             </div>
+          ) : filteredLibrary.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/50 p-10 text-center text-sm text-muted-foreground">
+              No books match “{q}”.{" "}
+              <Link
+                href="/library"
+                className="text-amber-300 hover:text-amber-200 underline underline-offset-2"
+              >
+                Clear search
+              </Link>{" "}
+              or{" "}
+              <Link
+                href="/setup-book"
+                className="text-amber-300 hover:text-amber-200 underline underline-offset-2"
+              >
+                add a new book
+              </Link>
+              .
+            </div>
           ) : (
             <div
               id="my-books"
               className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5"
             >
-              {userLibrary.map((book, i) => (
+              {filteredLibrary.map((book, i) => (
                 <LibraryBookTile
                   key={book.id}
                   book={book}
