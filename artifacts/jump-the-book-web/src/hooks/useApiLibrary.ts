@@ -199,6 +199,29 @@ export interface SaveSceneInput {
   imageCacheKey?: string | null;
 }
 
+// ── Cover identification ─────────────────────────────────────────────────────
+// "Snap a cover" sends a phone photo to the server's vision endpoint, which
+// returns the model's best read of (title, author, confidence). The client
+// then runs that through Open Library to find candidate matches.
+
+export interface CoverIdentifyResult {
+  title: string;
+  author: string;
+  confidence: number;
+  note?: string;
+}
+
+export function useIdentifyBookCover() {
+  return useMutation({
+    mutationFn: async (dataUrl: string) => {
+      return await apiFetch<CoverIdentifyResult>("/books/cover/identify", {
+        method: "POST",
+        body: JSON.stringify({ dataUrl }),
+      });
+    },
+  });
+}
+
 // ── Orphan scene recovery ────────────────────────────────────────────────────
 // "Orphan" scenes belong to a user_book_id that no longer has a row in
 // user_books for the current user. The client surfaces them as an "Unknown

@@ -5,6 +5,7 @@ import storageRouter from "./storage";
 import meRouter from "./me";
 import biblesRouter from "./bibles";
 import passageRouter from "./passage";
+import coverRouter from "./cover";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(storageRouter);
 router.use(meRouter);
 router.use(biblesRouter);
 router.use(passageRouter);
+router.use(coverRouter);
 
 export default router;
