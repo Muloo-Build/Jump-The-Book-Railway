@@ -29,15 +29,13 @@ const HERO_IMAGES: Record<string, any> = {
 };
 
 const HOW_IT_WORKS = [
-  { icon: "book", step: "01", title: "Choose or add a book", desc: "Pick from our demo classics or add your own current read." },
-  { icon: "map-pin", step: "02", title: "Tell us where you are", desc: "Set your chapter, page or timestamp — no spoilers ever." },
-  { icon: "image", step: "03", title: "AI generates visual scenes", desc: "Real AI-painted scene cards appear for your exact place in the story." },
-  { icon: "layers", step: "04", title: "Ambient companion mode", desc: "A cinematic visual layer runs quietly beside your reading session." },
+  { icon: "upload-cloud", step: "01", title: "Drop in an EPUB", desc: "Upload any book file — we read the chapters automatically." },
+  { icon: "image", step: "02", title: "AI paints your scenes", desc: "Real AI-generated scene art for every chapter, in your chosen visual style." },
+  { icon: "grid", step: "03", title: "Read it as a comic", desc: "Scroll through full-bleed panels with the narration sitting under each one." },
+  { icon: "film", step: "04", title: "Or watch it as a movie", desc: "Swipe through full-screen cinematic scenes with overlay narration." },
 ];
 
 const COMING_SOON = [
-  "Kindle progress sync",
-  "Audible progress sync",
   "Voice narration",
   "Book club rooms",
   "Classroom mode",
@@ -71,7 +69,7 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.heroHeadline}>Don't just read the story.{"\n"}Step inside it.</Text>
         <Text style={[styles.heroSub, { color: "rgba(240,230,211,0.7)" }]}>
-          Turn your Kindle read or Audible listen into a live visual companion — spoiler-safe, scene by scene.
+          Drop in any EPUB. We turn it into a real AI-painted comic or full-screen cinematic experience — chapter by chapter.
         </Text>
         <View style={styles.heroBtns}>
           <TouchableOpacity
@@ -86,11 +84,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.secondaryBtn, { borderColor: colors.border }]}
-            onPress={() => router.push("/add-book")}
+            onPress={() => router.push("/upload")}
             activeOpacity={0.85}
           >
             <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
-              Add My Current Read
+              Upload your own book
             </Text>
           </TouchableOpacity>
         </View>
@@ -106,7 +104,7 @@ export default function HomeScreen() {
               Last read: <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>{recentSession.bookTitle}</Text>
               {recentSession.endChapter ? ` · Ch ${recentSession.startChapter}–${recentSession.endChapter}` : ""}
             </Text>
-            <TouchableOpacity onPress={() => router.push("/book/" + recentSession.bookId)}>
+            <TouchableOpacity onPress={() => router.push(`/book/${recentSession.bookId}` as any)}>
               <Feather name="arrow-right" size={14} color={colors.primary} />
             </TouchableOpacity>
           </View>

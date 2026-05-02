@@ -4,20 +4,21 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   Image,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Badge } from "@/components/Badge";
-import { PositionEntry } from "@/components/PositionEntry";
-import { SessionRecap } from "@/components/SessionRecap";
 import { StreakBadge } from "@/components/StreakBadge";
-import { useLibrary, BookPosition } from "@/context/LibraryContext";
+import { useLibrary } from "@/context/LibraryContext";
 import {
   Book,
   CHAPTERS,
@@ -78,22 +79,13 @@ export default function BookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const {
-    getPosition,
-    updatePosition,
-    startSession,
-    streak,
-    sessions,
-    userLibrary,
-  } = useLibrary();
+  const { getPosition, updatePosition, startSession, streak, userLibrary } = useLibrary();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 80 : insets.bottom + 24;
 
-  const [positionVisible, setPositionVisible] = useState(false);
-  const [recapVisible, setRecapVisible] = useState(false);
-  const [showAllChapters, setShowAllChapters] = useState(false);
+  const [chapterPickerVisible, setChapterPickerVisible] = useState(false);
+  const [chapterDraft, setChapterDraft] = useState("");
 
-  // Look up in BOTH demo books and user library
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
   const book: NormalizedBook | null = demoBook
@@ -106,7 +98,6 @@ export default function BookDetailScreen() {
   const characters = CHARACTERS[id ?? ""] ?? [];
   const firstChapter = chapters[0];
   const savedPos = getPosition(id ?? "");
-  const lastSession = sessions.find((s) => s.bookId === id && s.endedAt);
 
   const currentChapter = savedPos
     ? chapters.find((c) => c.chapterNumber === savedPos.chapter) ?? firstChapter
@@ -120,21 +111,32 @@ export default function BookDetailScreen() {
     );
   }
 
-  const handleSavePosition = async (pos: Omit<BookPosition, "lastUpdated">) => {
-    await updatePosition(pos);
-  };
-
-  const handleStartSession = async () => {
+  const launchExperience = async (mode: "comic" | "cinematic") => {
     const ch = currentChapter ?? firstChapter;
-    if (!ch) return;
-    await startSession(id!, book.title, ch.chapterNumber);
-    router.push(`/chapter/${ch.id}`);
+    if (ch) {
+      await startSession(id!, book.title, ch.chapterNumber);
+      router.push(`/experience/${id}?mode=${mode}&chapterId=${ch.id}`);
+    } else {
+      router.push(`/experience/${id}?mode=${mode}`);
+    }
   };
 
-  // Show first 5 chapters by default; expand to all
-  const visibleChapters = showAllChapters ? chapters : chapters.slice(0, 5);
-  const hasMoreChapters = chapters.length > 5;
-  const hasChapters = chapters.length > 0;
+  const saveChapter = async () => {
+    const n = parseInt(chapterDraft, 10);
+    if (!Number.isFinite(n) || n < 1) return;
+    await updatePosition({
+      bookId: id!,
+      bookFormat: book.format,
+      chapter: n,
+      page: 1,
+      timestamp: "00:00:00",
+      percentComplete: chapters.length ? Math.round((n / chapters.length) * 100) : 0,
+    });
+    setChapterPickerVisible(false);
+    setChapterDraft("");
+  };
+
+  const hasChapters = chapters.length > 0 || book.isUserBook;
 
   return (
     <ScrollView
@@ -167,141 +169,96 @@ export default function BookDetailScreen() {
         </View>
       </View>
 
-      {/* Position widget */}
-      <TouchableOpacity
-        style={[
-          styles.positionWidget,
-          {
-            backgroundColor: colors.card,
-            borderColor: savedPos ? colors.primary + "50" : colors.border,
-          },
-        ]}
-        onPress={() => setPositionVisible(true)}
-        activeOpacity={0.85}
-      >
-        <View
-          style={[
-            styles.posIconWrap,
-            { backgroundColor: savedPos ? colors.primary + "20" : colors.muted },
-          ]}
-        >
-          <Feather
-            name="map-pin"
-            size={18}
-            color={savedPos ? colors.primary : colors.mutedForeground}
-          />
+      {/* ── Mode tiles ───────────────────────────────────────── */}
+      <View style={styles.modeBlock}>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+          STEP INSIDE THE STORY
+        </Text>
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modeTile, { opacity: hasChapters ? 1 : 0.5 }]}
+            onPress={() => hasChapters && launchExperience("comic")}
+            disabled={!hasChapters}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={["#1a1a4e", "#4a1a6e"]}
+              style={styles.modeTileBg}
+            >
+              <View style={styles.modeTileIcon}>
+                <Feather name="grid" size={24} color="#fff" />
+              </View>
+              <Text style={styles.modeTileTitle}>Comic</Text>
+              <Text style={styles.modeTileDesc}>
+                Vertical scroll of full-bleed AI-painted panels.
+              </Text>
+              <View style={styles.modeTileBtn}>
+                <Text style={styles.modeTileBtnText}>
+                  {book.isUserBook && !chapters.length ? "Generate" : "Open"}
+                </Text>
+                <Feather name="arrow-right" size={13} color="#fff" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeTile, { opacity: hasChapters ? 1 : 0.5 }]}
+            onPress={() => hasChapters && launchExperience("cinematic")}
+            disabled={!hasChapters}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={["#0a0a1a", "#1a1a3a"]}
+              style={styles.modeTileBg}
+            >
+              <View style={styles.modeTileIcon}>
+                <Feather name="film" size={24} color="#fff" />
+              </View>
+              <Text style={styles.modeTileTitle}>Cinematic</Text>
+              <Text style={styles.modeTileDesc}>
+                Full-screen swipe-through with overlay narration.
+              </Text>
+              <View style={styles.modeTileBtn}>
+                <Text style={styles.modeTileBtnText}>
+                  {book.isUserBook && !chapters.length ? "Generate" : "Open"}
+                </Text>
+                <Feather name="arrow-right" size={13} color="#fff" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
-        <View style={styles.posInfo}>
-          {savedPos ? (
-            <>
-              <Text style={[styles.posTitle, { color: colors.foreground }]}>
-                {book.format === "Audible"
-                  ? `Timestamp: ${savedPos.timestamp}`
-                  : `Chapter ${savedPos.chapter}, Page ${savedPos.page}`}
-              </Text>
-              <Text style={[styles.posSub, { color: colors.mutedForeground }]}>
-                ~{savedPos.percentComplete}% through · tap to update
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.posTitle, { color: colors.foreground }]}>
-                Where are you?
-              </Text>
-              <Text style={[styles.posSub, { color: colors.mutedForeground }]}>
-                Set your position to unlock spoiler-safe scenes
-              </Text>
-            </>
-          )}
-        </View>
-        <Feather name="edit-2" size={16} color={colors.mutedForeground} />
-      </TouchableOpacity>
+      </View>
 
-      {/* Progress bar */}
-      {savedPos && savedPos.percentComplete > 0 && (
-        <View style={[styles.progressRow, { paddingHorizontal: 20 }]}>
-          <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-            <View
-              style={[
-                styles.progressFill,
-                { backgroundColor: colors.primary, width: `${savedPos.percentComplete}%` as any },
-              ]}
-            />
-          </View>
-          <Text style={[styles.progressText, { color: colors.mutedForeground }]}>
-            {savedPos.percentComplete}%
-          </Text>
+      {/* ── Pick up at chapter chip ────────────────────────────── */}
+      {chapters.length > 0 && (
+        <View style={styles.pickupRow}>
+          <TouchableOpacity
+            style={[
+              styles.pickupChip,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            onPress={() => {
+              setChapterDraft(String(savedPos?.chapter ?? 1));
+              setChapterPickerVisible(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="bookmark" size={14} color={colors.mutedForeground} />
+            <Text style={[styles.pickupText, { color: colors.foreground }]}>
+              {savedPos
+                ? `Continuing from chapter ${savedPos.chapter}`
+                : "Pick up at chapter…"}
+            </Text>
+            <Feather name="edit-2" size={12} color={colors.mutedForeground} />
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Quick actions */}
-      <View
-        style={[styles.quickActions, { backgroundColor: colors.card, borderColor: colors.border }]}
-      >
-        <TouchableOpacity
-          style={[
-            styles.quickBtnPrimary,
-            { backgroundColor: colors.primary, opacity: hasChapters ? 1 : 0.5 },
-          ]}
-          onPress={handleStartSession}
-          disabled={!hasChapters}
-          activeOpacity={0.85}
-        >
-          <Feather name="play" size={16} color={colors.primaryForeground} />
-          <Text style={[styles.quickBtnText, { color: colors.primaryForeground }]}>
-            {!hasChapters
-              ? "Scenes coming soon"
-              : savedPos
-              ? `Continue reading · Ch ${savedPos.chapter}`
-              : "Start reading"}
-          </Text>
-        </TouchableOpacity>
-        {hasChapters && (
-          <View style={styles.quickSecondary}>
-            <TouchableOpacity
-              style={[styles.quickBtnSmall, { backgroundColor: colors.muted }]}
-              onPress={() =>
-                firstChapter &&
-                router.push(
-                  `/ambient-companion?bookId=${book.id}&chapterId=${currentChapter?.id ?? firstChapter.id}`
-                )
-              }
-              activeOpacity={0.85}
-            >
-              <Feather name="eye" size={14} color={colors.foreground} />
-              <Text style={[styles.quickBtnTextSm, { color: colors.foreground }]}>Ambient</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.quickBtnSmall, { backgroundColor: colors.muted }]}
-              onPress={() =>
-                firstChapter &&
-                router.push(
-                  `/immersion-mode?bookId=${book.id}&chapterId=${currentChapter?.id ?? firstChapter.id}`
-                )
-              }
-              activeOpacity={0.85}
-            >
-              <Feather name="maximize" size={14} color={colors.foreground} />
-              <Text style={[styles.quickBtnTextSm, { color: colors.foreground }]}>Immersion</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.quickBtnSmall, { backgroundColor: colors.muted }]}
-              onPress={() => router.push("/(tabs)/characters")}
-              activeOpacity={0.85}
-            >
-              <Feather name="users" size={14} color={colors.foreground} />
-              <Text style={[styles.quickBtnTextSm, { color: colors.foreground }]}>Characters</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Streak */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+      {/* ── Streak ───────────────────────────────────────────── */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
         <StreakBadge streak={streak} />
       </View>
 
-      {/* Meta */}
+      {/* ── Meta ─────────────────────────────────────────────── */}
       <View
         style={[styles.metaCard, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
@@ -312,12 +269,14 @@ export default function BookDetailScreen() {
           </View>
           <View style={styles.metaItem}>
             <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Chapters</Text>
-            <Text style={[styles.metaValue, { color: colors.foreground }]}>{chapters.length}</Text>
+            <Text style={[styles.metaValue, { color: colors.foreground }]}>
+              {chapters.length || (book.isUserBook ? "1+" : "—")}
+            </Text>
           </View>
           <View style={styles.metaItem}>
             <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Characters</Text>
             <Text style={[styles.metaValue, { color: colors.foreground }]}>
-              {characters.length}
+              {characters.length || "—"}
             </Text>
           </View>
           <View style={styles.metaItem}>
@@ -329,142 +288,103 @@ export default function BookDetailScreen() {
         </View>
       </View>
 
-      {/* Chapters */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Chapters</Text>
+      {/* ── Chapter list (read-only navigation) ──────────────── */}
+      {chapters.length > 0 && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Chapters</Text>
+          {chapters.slice(0, 8).map((chapter) => (
+            <TouchableOpacity
+              key={chapter.id}
+              style={[
+                styles.chapterItem,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => router.push(`/experience/${id}?mode=comic&chapterId=${chapter.id}`)}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.chapterNum, { backgroundColor: colors.primary + "20" }]}>
+                <Text style={[styles.chapterNumText, { color: colors.primary }]}>
+                  {chapter.chapterNumber}
+                </Text>
+              </View>
+              <View style={styles.chapterInfo}>
+                <Text style={[styles.chapterTitle, { color: colors.foreground }]}>
+                  {chapter.title}
+                </Text>
+                <Text
+                  style={[styles.chapterSummary, { color: colors.mutedForeground }]}
+                  numberOfLines={2}
+                >
+                  {chapter.summary}
+                </Text>
+                <Text style={[styles.sceneCount, { color: colors.accent }]}>
+                  {chapter.scenes.length} scene{chapter.scenes.length === 1 ? "" : "s"}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
-        {!hasChapters ? (
-          <View
-            style={[
-              styles.emptyChapters,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
+      {/* ── User-book empty state for chapter list ─────────────── */}
+      {book.isUserBook && chapters.length === 0 && (
+        <View style={styles.section}>
+          <View style={[styles.emptyChapters, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.emptyChaptersIcon, { backgroundColor: colors.accent + "20" }]}>
               <Feather name="zap" size={20} color={colors.accent} />
             </View>
             <Text style={[styles.emptyChaptersTitle, { color: colors.foreground }]}>
-              Scenes are being prepared
+              First chapter ready to generate
             </Text>
             <Text style={[styles.emptyChaptersDesc, { color: colors.mutedForeground }]}>
-              We're generating your visual companion. Set your reading position above so the first
-              scenes match where you are.
+              Pick Comic or Cinematic above and we'll paint chapter 1 in about a minute.
             </Text>
           </View>
-        ) : (
-          <>
-            {!savedPos && (
-              <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
-                Tap "Where are you?" above to unlock chapters as you read.
-              </Text>
-            )}
-            {visibleChapters.map((chapter) => {
-              const isUnlocked = !savedPos || chapter.chapterNumber <= savedPos.chapter + 1;
-              const isCurrent = savedPos?.chapter === chapter.chapterNumber;
-              return (
-                <TouchableOpacity
-                  key={chapter.id}
-                  style={[
-                    styles.chapterItem,
-                    {
-                      backgroundColor: isCurrent ? colors.primary + "12" : colors.card,
-                      borderColor: isCurrent ? colors.primary + "50" : colors.border,
-                      opacity: isUnlocked ? 1 : 0.55,
-                    },
-                  ]}
-                  onPress={() => isUnlocked && router.push(`/chapter/${chapter.id}`)}
-                  activeOpacity={isUnlocked ? 0.85 : 1}
-                >
-                  <View
-                    style={[
-                      styles.chapterNum,
-                      { backgroundColor: isCurrent ? colors.primary : colors.primary + "20" },
-                    ]}
-                  >
-                    {isUnlocked ? (
-                      <Text
-                        style={[
-                          styles.chapterNumText,
-                          { color: isCurrent ? colors.primaryForeground : colors.primary },
-                        ]}
-                      >
-                        {chapter.chapterNumber}
-                      </Text>
-                    ) : (
-                      <Feather name="lock" size={16} color={colors.mutedForeground} />
-                    )}
-                  </View>
-                  <View style={styles.chapterInfo}>
-                    <View style={styles.chapterTitleRow}>
-                      <Text style={[styles.chapterTitle, { color: colors.foreground }]}>
-                        {chapter.title}
-                      </Text>
-                      {isCurrent && (
-                        <View style={[styles.currentBadge, { backgroundColor: colors.primary }]}>
-                          <Text
-                            style={[styles.currentBadgeText, { color: colors.primaryForeground }]}
-                          >
-                            Here
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text
-                      style={[styles.chapterSummary, { color: colors.mutedForeground }]}
-                      numberOfLines={2}
-                    >
-                      {isUnlocked ? chapter.summary : "Read more to unlock this chapter"}
-                    </Text>
-                    <Text style={[styles.sceneCount, { color: colors.accent }]}>
-                      {chapter.scenes.length} scene{chapter.scenes.length === 1 ? "" : "s"}
-                    </Text>
-                  </View>
-                  {/* Single trailing affordance — chevron when unlocked, otherwise lock icon
-                      already lives in the number badge so we just show a muted spacer. */}
-                  {isUnlocked && (
-                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-            {hasMoreChapters && (
+        </View>
+      )}
+
+      {/* ── Pick chapter modal ───────────────────────────────── */}
+      <Modal
+        visible={chapterPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setChapterPickerVisible(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setChapterPickerVisible(false)}>
+          <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Pick up at chapter…</Text>
+            <Text style={[styles.modalBody, { color: colors.mutedForeground }]}>
+              Set where you are in the book. Optional — we'll show you the start of the chapter.
+            </Text>
+            <TextInput
+              style={[
+                styles.modalInput,
+                { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground },
+              ]}
+              placeholder="Chapter number"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="number-pad"
+              value={chapterDraft}
+              onChangeText={setChapterDraft}
+            />
+            <View style={styles.modalRow}>
               <TouchableOpacity
-                style={[styles.expandBtn, { borderColor: colors.border }]}
-                onPress={() => setShowAllChapters(!showAllChapters)}
-                activeOpacity={0.7}
+                style={[styles.modalBtnGhost, { borderColor: colors.border }]}
+                onPress={() => setChapterPickerVisible(false)}
               >
-                <Feather
-                  name={showAllChapters ? "chevron-up" : "chevron-down"}
-                  size={14}
-                  color={colors.mutedForeground}
-                />
-                <Text style={[styles.expandText, { color: colors.mutedForeground }]}>
-                  {showAllChapters
-                    ? "Show fewer"
-                    : `Show all ${chapters.length} chapters`}
-                </Text>
+                <Text style={[styles.modalBtnGhostText, { color: colors.foreground }]}>Cancel</Text>
               </TouchableOpacity>
-            )}
-          </>
-        )}
-      </View>
-
-      <PositionEntry
-        visible={positionVisible}
-        bookId={id ?? ""}
-        bookTitle={book.title}
-        bookFormat={book.format}
-        totalChapters={chapters.length}
-        onClose={() => setPositionVisible(false)}
-        onSave={handleSavePosition}
-      />
-
-      <SessionRecap
-        visible={recapVisible}
-        session={lastSession ?? null}
-        streak={streak}
-        onClose={() => setRecapVisible(false)}
-      />
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.primary }]}
+                onPress={saveChapter}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.primaryForeground }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -494,57 +414,52 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.55)",
     fontStyle: "italic",
   },
-  positionWidget: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    margin: 20,
-    marginBottom: 8,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  posIconWrap: {
+
+  modeBlock: { paddingHorizontal: 20, paddingTop: 20, gap: 10 },
+  sectionLabel: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1.5 },
+  modeRow: { flexDirection: "row", gap: 10 },
+  modeTile: { flex: 1, borderRadius: 18, overflow: "hidden" },
+  modeTileBg: { padding: 16, gap: 8, minHeight: 175 },
+  modeTileIcon: {
     width: 40,
     height: 40,
     borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
-  posInfo: { flex: 1, gap: 2 },
-  posTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  posSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  progressRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  progressTrack: { flex: 1, height: 4, borderRadius: 2, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 2 },
-  progressText: { fontSize: 11, fontFamily: "Inter_500Medium", width: 32, textAlign: "right" },
-  quickActions: {
-    marginHorizontal: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 12,
-    gap: 10,
-  },
-  quickBtnPrimary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 13,
-    borderRadius: 12,
-    gap: 8,
-  },
-  quickSecondary: { flexDirection: "row", gap: 8 },
-  quickBtnSmall: {
+  modeTileTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff" },
+  modeTileDesc: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 17,
     flex: 1,
+  },
+  modeTileBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 10,
     gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignSelf: "flex-start",
   },
-  quickBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  quickBtnTextSm: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  modeTileBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
+
+  pickupRow: { paddingHorizontal: 20, paddingTop: 14 },
+  pickupChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  pickupText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+
   metaCard: {
     marginHorizontal: 20,
     marginTop: 16,
@@ -561,9 +476,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   metaValue: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  section: { paddingHorizontal: 20, paddingTop: 20, gap: 10 },
+
+  section: { paddingHorizontal: 20, paddingTop: 22, gap: 10 },
   sectionTitle: { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  sectionHint: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, marginBottom: 4 },
   chapterItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -581,24 +496,10 @@ const styles = StyleSheet.create({
   },
   chapterNumText: { fontSize: 16, fontFamily: "Inter_700Bold" },
   chapterInfo: { flex: 1, gap: 2 },
-  chapterTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  chapterTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", flex: 1 },
-  currentBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  currentBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  chapterTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   chapterSummary: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
   sceneCount: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  expandBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    marginTop: 4,
-  },
-  expandText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
   emptyChapters: {
     borderRadius: 18,
     borderWidth: 1,
@@ -620,4 +521,40 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
   },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalCard: { borderRadius: 20, borderWidth: 1, padding: 24, gap: 12, maxWidth: 400, width: "100%" },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modalBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontFamily: "Inter_500Medium",
+    marginTop: 4,
+  },
+  modalRow: { flexDirection: "row", gap: 10, marginTop: 6 },
+  modalBtnGhost: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  modalBtnGhostText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  modalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

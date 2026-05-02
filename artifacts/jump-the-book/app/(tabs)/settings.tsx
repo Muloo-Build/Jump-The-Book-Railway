@@ -123,11 +123,10 @@ export default function SettingsScreen() {
           <Text style={[styles.comingTitle, { color: colors.accent }]}>Coming Soon</Text>
         </View>
         {[
-          { label: "Kindle Sync", icon: "book" },
-          { label: "Audible Sync", icon: "headphones" },
-          { label: "Real Image Generation", icon: "image" },
           { label: "Voice Narration", icon: "mic" },
           { label: "Book Club Mode", icon: "users" },
+          { label: "Export as Storyboard", icon: "download" },
+          { label: "Interactive Character Maps", icon: "users" },
         ].map((item) => (
           <View
             key={item.label}

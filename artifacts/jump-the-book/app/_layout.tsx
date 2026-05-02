@@ -25,17 +25,11 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerBackTitle: "Back", headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="book/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="chapter/[id]" options={{ headerShown: false }} />
       <Stack.Screen
-        name="immersion-mode"
+        name="experience/[id]"
         options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
-      <Stack.Screen name="add-book" options={{ headerShown: false }} />
-      <Stack.Screen name="upload-writing" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="ambient-companion"
-        options={{ headerShown: false, presentation: "fullScreenModal" }}
-      />
+      <Stack.Screen name="upload" options={{ headerShown: false }} />
     </Stack>
   );
 }

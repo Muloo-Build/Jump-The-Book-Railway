@@ -35,44 +35,40 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - Env vars: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY` (auto-provisioned)
 
 ### `artifacts/jump-the-book` — Expo mobile app (React Native / web)
-Jump the Book — AI-powered visual reading companion.
+Jump the Book — AI-powered visual reading companion. Drop an EPUB → choose Comic or Cinematic → watch the chapter as AI-generated panels.
 
 **5-tab navigation**: Home, Library, Immersion, Characters, Settings
 
-**Key screens**:
-- `app/(tabs)/index.tsx` — Home with streak badge, demo library carousel, how-it-works
-- `app/book/[id].tsx` — Book detail with position entry, quick actions, chapter list
-- `app/chapter/[id].tsx` — Chapter with Scenes/Characters/Ambient tabs, progressive unlock, AI Generate
-- `app/ambient-companion.tsx` — Full-screen ambient companion mode (gradient + scene cycling)
-- `app/immersion-mode.tsx` — Full-screen immersion mode
-- `app/upload.tsx` — **Unified "Upload or Add" flow** (replaces add-book + upload-writing): drag-or-tap EPUB picker (web HTML input + native expo-document-picker), cross-platform JSZip parser, auto-fills title/author/chapter count, auto-kicks-off scene generation for chapter 1 after add. Falls back to manual entry. Inline validation for title/author/chapter/page (positive integers); submit wrapped in try/catch/finally with surfaced `errors.submit`. After `addBook` returns the new id, calls `updatePosition` so the book detail screen immediately reflects the entered chapter/page.
-- `app/book/[id].tsx` — Resolves books from BOTH `DEMO_BOOKS` and `userLibrary` via a `NormalizedBook` adapter. User books with no pre-baked chapters render a "Scenes are being prepared" empty state, hide Ambient/Immersion/Characters quick actions, and disable the primary button with "Scenes coming soon". The "Public Domain" gold badge only renders for demo books.
-- `LibraryContext.addBook` returns the new book id (`Promise<string>`) so callers can immediately reference the created book (e.g. to seed positions).
-- `app/add-book.tsx`, `app/upload-writing.tsx` — Legacy routes (kept for back-compat, no longer linked from library)
+**Core flow**:
+1. `app/upload.tsx` — Drop an EPUB → "We found 'X' by Y, N chapters" → pick Comic or Cinematic → progress bar ("Painting scene 2 of 4…") → push to `/experience/[id]`. Optional "Pick up at chapter X" toggle (off by default). One-line "Just enter a title & author" fallback. Tiny "Why no Kindle?" link with explanatory modal.
+2. `app/experience/[id].tsx` — Unified Comic + Cinematic player. `?mode=comic|cinematic` query, top toggle to flip mid-session.
+   - **Comic**: vertical scroll of full-bleed panels with narration below each.
+   - **Cinematic**: full-screen, swipe sideways, narration overlay.
+   - For demo books: pulls from `SCENE_IMAGES` (pre-baked AI art).
+   - For user books: calls `generateScenesWithImages` with live progress.
+3. `app/book/[id].tsx` — Two big tiles "Comic" and "Cinematic" → `/experience/[id]?mode=...`. Optional "Pick up at chapter X" chip (no position-gating). For user books with no scenes yet, both tiles show "Generate scenes".
+
+**Pre-baked demo art**:
+- `assets/images/scenes/<sceneId>.png` — 15 real AI-generated panels covering chapter 1 of all 4 demo books (Alice 6 scenes, Dracula 3, Frankenstein 3, Sherlock 3). Each is 1024×1024 PNG (1.2-2.5 MB).
+- `data/books.ts` exports `SCENE_IMAGES: Record<string, number>` mapping scene id → require()'d asset.
+- Regenerate via `node scripts/src/bake-demo-images.mjs` (sequential, ~33s/image, ~10 min total). Calls `/api/scenes/image` through `localhost:80`. Run as a workflow to survive bash sandboxing.
 
 **Key components**:
-- `components/AmbientCompanion.tsx` — Swipeable scene player, soundscape labels, auto-hide UI
-- `components/ContextualCharacters.tsx` — Character cards filtered to current scene, relationship web
-- `components/PositionEntry.tsx` — Smart position picker (chapter/page or HH:MM:SS timestamp)
-- `components/SceneCard.tsx` — Scene card with AI image support (base64) and gradient fallback
-- `components/SessionRecap.tsx` — End-of-session modal with stats and streak
-- `components/StreakBadge.tsx` — Streak display (compact and full variants)
+- `components/BookCard.tsx`, `CharacterCard.tsx`, `StreakBadge.tsx`, `Badge.tsx`, `StyleSelector.tsx`, `ErrorBoundary.tsx`, `ErrorFallback.tsx`, `KeyboardAwareScrollViewCompat.tsx`
 
 **Key context / hooks**:
-- `context/LibraryContext.tsx` — Global state: library, positions, reading sessions, streak
-- `hooks/useGenerateScene.ts` — Calls `/api/scenes/generate`, caches in AsyncStorage (24h TTL)
-- `hooks/useColors.ts` — Design token hook (single dark palette)
+- `context/LibraryContext.tsx` — Global state: library, positions, reading sessions, streak. `addBook` returns `Promise<string>` (the new id).
+- `hooks/useGenerateScene.ts` — `generateScenesWithImages(book, chapter, opts, onProgress)` returns `{ scenes }` with inline base64 images and a SceneProgress callback ("text" → "image i/n" → "done"). 7-day AsyncStorage cache via `readCachedScenes`/`writeCachedScenes`.
+- `hooks/useColors.ts` — Design token hook (single dark palette).
 
 **Design tokens** (cinematic dark theme):
-- Background: `#08081a`
-- Gold/primary: `#c9974a`
-- Accent/purple: `#9d7fe8`
-- Card: `#12122a`
+- Background: `#08081a`, Card: `#12122a`, Gold/primary: `#c9974a`, Accent/purple: `#9d7fe8`
 
-**AI features**:
-- Scene generation: GPT-5.4 with strict spoiler-safe system prompt → 3-5 scene cards per chapter
-- Scene image: gpt-image-1 at 1024×1024 → base64 returned and rendered inline
-- 6 visual styles: comic-book, watercolour, dark-cinematic, animated-storybook, manga-inspired, fantasy-illustration
-- Progressive unlock: scenes filtered by user's saved chapter/page/timestamp position
-- Reading sessions: start/end tracked, streak computed from consecutive reading days
-- EPUB upload: JSZip parses .epub on web, extracts text + OPF metadata
+**Honesty about external services**:
+- No fake Kindle/Audible "connect" buttons. Removed from library, settings, home.
+- Single "Why no Kindle?" link in upload screen with a modal explaining DRM.
+- Position tracking is optional ("Pick up at chapter X"), never gates content.
+
+**AI backend** (`/api/scenes/*`):
+- `POST /api/scenes/generate` → GPT-5.4 with spoiler-safe prompt → `{ scenes: [...] }`
+- `POST /api/scenes/image` → gpt-image-1 at 1024×1024 → `{ b64 }`

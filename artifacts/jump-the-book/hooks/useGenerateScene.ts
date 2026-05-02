@@ -1,16 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 const API_BASE =
   Platform.OS === "web"
     ? "/api"
     : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}/api`;
 
-const CACHE_PREFIX = "@jtb_scene_v2_";
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const SCENE_TIMEOUT_MS = 45_000; // 45s for text generation
-const IMAGE_TIMEOUT_MS = 60_000; // 60s for image generation
+const CACHE_PREFIX = "@jtb_scene_v3_";
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const SCENE_TIMEOUT_MS = 60_000;
+const IMAGE_TIMEOUT_MS = 90_000;
 
 export interface GeneratedScene {
   title: string;
@@ -21,6 +21,7 @@ export interface GeneratedScene {
   characters: string[];
   gradientColors: string[];
   imagePrompt: string;
+  imageB64?: string | null;
 }
 
 export interface GenerateSceneParams {
@@ -31,12 +32,18 @@ export interface GenerateSceneParams {
   visualStyle: string;
   spoilerMode?: string;
   excerpt?: string;
-  generateImage?: boolean;
 }
 
-interface GenerateResult {
+export interface SceneProgress {
+  stage: "writing" | "painting" | "done";
+  current: number;
+  total: number;
+  message: string;
+}
+
+export interface ScenesWithImagesResult {
   scenes: GeneratedScene[];
-  imageB64: string | null;
+  cacheKey: string;
 }
 
 function makeCacheKey(params: GenerateSceneParams) {
@@ -44,21 +51,17 @@ function makeCacheKey(params: GenerateSceneParams) {
   return (
     CACHE_PREFIX +
     `${bookTitle}_${author}_ch${chapterNumber}_${visualStyle}`
-      .replace(/\s+/g, "_")
-      .slice(0, 80)
+      .replace(/[^a-zA-Z0-9_]+/g, "_")
+      .slice(0, 100)
   );
 }
 
-function makeImageCacheKey(prompt: string, style: string) {
-  return CACHE_PREFIX + "img_" + `${style}_${prompt}`.replace(/\s+/g, "_").slice(0, 60);
-}
-
-async function getCached<T>(key: string, ttl = CACHE_TTL_MS): Promise<T | null> {
+async function getCached<T>(key: string): Promise<T | null> {
   try {
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
     const { data, timestamp } = JSON.parse(raw) as { data: T; timestamp: number };
-    if (Date.now() - timestamp > ttl) return null;
+    if (Date.now() - timestamp > CACHE_TTL_MS) return null;
     return data;
   } catch {
     return null;
@@ -69,7 +72,7 @@ async function setCache<T>(key: string, data: T) {
   try {
     await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
   } catch {
-    // ignore
+    // ignore quota / io errors — caching is best-effort
   }
 }
 
@@ -82,101 +85,139 @@ function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number):
 }
 
 export function useGenerateScene() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isImageLoading, setIsImageLoading] = useState(false);
+  const [isWorking, setIsWorking] = useState(false);
+  const [progress, setProgress] = useState<SceneProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState("");
+  const cancelledRef = useRef(false);
 
-  // Generate scene TEXT only (fast, ~10-15s). Never generates image inline.
-  const generate = useCallback(
-    async (params: GenerateSceneParams): Promise<GenerateResult | null> => {
-      // Always disable inline image generation — images are generated per-scene
-      const textParams = { ...params, generateImage: false };
+  const cancel = useCallback(() => {
+    cancelledRef.current = true;
+  }, []);
 
-      setIsLoading(true);
+  /**
+   * Generate scene text + ALL scene images for a chapter.
+   * Reports progress at every stage. Caches the entire bundle so reopens are instant.
+   */
+  const generateScenesWithImages = useCallback(
+    async (
+      params: GenerateSceneParams,
+      onProgress?: (p: SceneProgress) => void
+    ): Promise<ScenesWithImagesResult | null> => {
+      cancelledRef.current = false;
+      setIsWorking(true);
       setError(null);
-      setLoadingMessage("Asking the AI to write your scenes…");
-      const cacheKey = makeCacheKey(textParams);
+
+      const cacheKey = makeCacheKey(params);
+      const report = (p: SceneProgress) => {
+        setProgress(p);
+        onProgress?.(p);
+      };
 
       try {
-        const cached = await getCached<GenerateResult>(cacheKey);
-        if (cached) {
-          setIsLoading(false);
-          setLoadingMessage("");
-          return cached;
+        // 1) cache hit fast-path
+        const cached = await getCached<GeneratedScene[]>(cacheKey);
+        if (cached && cached.length > 0 && cached.every((s) => s.imageB64)) {
+          report({ stage: "done", current: cached.length, total: cached.length, message: "Ready" });
+          return { scenes: cached, cacheKey };
         }
 
-        const res = await fetchWithTimeout(
+        // 2) generate text scenes
+        report({ stage: "writing", current: 0, total: 0, message: "Reading the chapter…" });
+        const textRes = await fetchWithTimeout(
           `${API_BASE}/scenes/generate`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(textParams),
+            body: JSON.stringify({ ...params, generateImage: false }),
           },
           SCENE_TIMEOUT_MS
         );
+        if (!textRes.ok) throw new Error(`Scene server error ${textRes.status}`);
+        const { scenes: rawScenes } = (await textRes.json()) as {
+          scenes: GeneratedScene[];
+        };
+        if (!Array.isArray(rawScenes) || rawScenes.length === 0) {
+          throw new Error("No scenes generated for this chapter");
+        }
 
-        if (!res.ok) throw new Error(`Server error ${res.status}`);
-        const data = (await res.json()) as GenerateResult;
-        await setCache(cacheKey, data);
-        return data;
+        if (cancelledRef.current) return null;
+
+        // 3) paint each image sequentially (server can only handle a few in parallel,
+        //    and sequential gives a clear "painting scene N of M" UX)
+        const total = rawScenes.length;
+        const finalScenes: GeneratedScene[] = [];
+        for (let i = 0; i < total; i++) {
+          if (cancelledRef.current) return null;
+          const scene = rawScenes[i];
+          report({
+            stage: "painting",
+            current: i + 1,
+            total,
+            message: `Painting scene ${i + 1} of ${total}: ${scene.title}`,
+          });
+          try {
+            const imgRes = await fetchWithTimeout(
+              `${API_BASE}/scenes/image`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  prompt: scene.imagePrompt,
+                  style: params.visualStyle,
+                }),
+              },
+              IMAGE_TIMEOUT_MS
+            );
+            if (imgRes.ok) {
+              const { b64 } = (await imgRes.json()) as { b64: string };
+              finalScenes.push({ ...scene, imageB64: b64 });
+            } else {
+              finalScenes.push({ ...scene, imageB64: null });
+            }
+          } catch {
+            finalScenes.push({ ...scene, imageB64: null });
+          }
+        }
+
+        if (cancelledRef.current) return null;
+
+        await setCache(cacheKey, finalScenes);
+        report({ stage: "done", current: total, total, message: "Ready" });
+        return { scenes: finalScenes, cacheKey };
       } catch (err) {
         const msg =
           err instanceof Error && err.name === "AbortError"
-            ? "Took too long — please try again"
+            ? "That took too long — please try again"
             : err instanceof Error
             ? err.message
             : "Generation failed";
         setError(msg);
         return null;
       } finally {
-        setIsLoading(false);
-        setLoadingMessage("");
+        setIsWorking(false);
       }
     },
     []
   );
 
-  // Generate image for a single scene (slower, ~30-45s). Called separately.
-  const generateImage = useCallback(
-    async (prompt: string, style: string): Promise<string | null> => {
-      setIsImageLoading(true);
-      setError(null);
-      const cacheKey = makeImageCacheKey(prompt, style);
-
-      try {
-        const cached = await getCached<string>(cacheKey);
-        if (cached) return cached;
-
-        const res = await fetchWithTimeout(
-          `${API_BASE}/scenes/image`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt, style }),
-          },
-          IMAGE_TIMEOUT_MS
-        );
-
-        if (!res.ok) throw new Error(`Image server error ${res.status}`);
-        const { b64 } = (await res.json()) as { b64: string };
-        await setCache(cacheKey, b64);
-        return b64;
-      } catch (err) {
-        const msg =
-          err instanceof Error && err.name === "AbortError"
-            ? "Image took too long — try again"
-            : err instanceof Error
-            ? err.message
-            : "Image generation failed";
-        setError(msg);
-        return null;
-      } finally {
-        setIsImageLoading(false);
-      }
+  /**
+   * Read a previously generated scene bundle from cache without regenerating.
+   */
+  const readCachedScenes = useCallback(
+    async (params: GenerateSceneParams): Promise<GeneratedScene[] | null> => {
+      const key = makeCacheKey(params);
+      const cached = await getCached<GeneratedScene[]>(key);
+      return cached;
     },
     []
   );
 
-  return { generate, generateImage, isLoading, isImageLoading, error, loadingMessage };
+  return {
+    generateScenesWithImages,
+    readCachedScenes,
+    cancel,
+    isWorking,
+    progress,
+    error,
+  };
 }

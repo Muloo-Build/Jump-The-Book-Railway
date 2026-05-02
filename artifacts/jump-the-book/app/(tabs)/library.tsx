@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import {
   Platform,
   ScrollView,
@@ -12,7 +12,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BookCard } from "@/components/BookCard";
-import { LibraryConnectModal } from "@/components/LibraryConnectModal";
 import { useLibrary } from "@/context/LibraryContext";
 import { DEMO_BOOKS } from "@/data/books";
 import { useColors } from "@/hooks/useColors";
@@ -23,7 +22,6 @@ export default function LibraryScreen() {
   const { userLibrary, removeBook } = useLibrary();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
-  const [modal, setModal] = useState<"kindle" | "audible" | null>(null);
 
   return (
     <ScrollView
@@ -33,24 +31,6 @@ export default function LibraryScreen() {
     >
       <View style={styles.header}>
         <Text style={[styles.pageTitle, { color: colors.foreground }]}>Library</Text>
-        <View style={styles.connectBtns}>
-          <TouchableOpacity
-            style={[styles.connectBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => setModal("kindle")}
-            activeOpacity={0.8}
-          >
-            <Feather name="book" size={14} color={colors.mutedForeground} />
-            <Text style={[styles.connectText, { color: colors.mutedForeground }]}>Kindle</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.connectBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => setModal("audible")}
-            activeOpacity={0.8}
-          >
-            <Feather name="headphones" size={14} color={colors.mutedForeground} />
-            <Text style={[styles.connectText, { color: colors.mutedForeground }]}>Audible</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Single Upload CTA — primary entry point */}
@@ -68,10 +48,10 @@ export default function LibraryScreen() {
           </View>
           <View style={styles.heroText}>
             <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-              Upload or add a book
+              Upload an EPUB
             </Text>
             <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
-              Drop in an EPUB or enter the details — we'll create your visual companion.
+              Drop in a book and we'll turn it into a comic or a movie.
             </Text>
           </View>
           <Feather name="arrow-right" size={18} color={colors.accent} />
@@ -136,12 +116,6 @@ export default function LibraryScreen() {
           ))
         )}
       </View>
-
-      <LibraryConnectModal
-        visible={modal !== null}
-        onClose={() => setModal(null)}
-        platform={modal}
-      />
     </ScrollView>
   );
 }
@@ -156,17 +130,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pageTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
-  connectBtns: { flexDirection: "row", gap: 8 },
-  connectBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  connectText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   heroWrap: { paddingHorizontal: 20, paddingTop: 16 },
   heroBtn: {
     flexDirection: "row",
