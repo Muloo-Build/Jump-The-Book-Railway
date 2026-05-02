@@ -244,7 +244,20 @@ export default function UploadScreen() {
         }
       }
 
-      // Generate scenes + images for the chosen chapter, with live progress
+      // Generate scenes + images for the chosen chapter. As soon as scene
+      // text is available we navigate the user into the experience screen
+      // so they can start reading while images stream in behind the scenes.
+      let navigated = false;
+      const finalBookId = bookId;
+      const navigateOnce = () => {
+        if (navigated) return;
+        navigated = true;
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        }
+        router.replace(`/experience/${finalBookId}?mode=${mode}`);
+      };
+
       const result = await generateScenesWithImages(
         {
           bookTitle: finalTitle,
@@ -255,19 +268,21 @@ export default function UploadScreen() {
           spoilerMode: settings.spoilerMode,
           excerpt: chapterMeta?.text,
         },
-        (p) => setProgress(p)
+        {
+          onProgress: (p) => setProgress(p),
+          onScenesReady: () => {
+            // Scene text is ready — let the user start reading immediately.
+            navigateOnce();
+          },
+        }
       );
 
-      if (!result) {
+      if (!result && !navigated) {
         setErrorMsg("Generation failed. Your book is saved — open it from your library to retry.");
         setStage("error");
         return;
       }
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      }
-      router.replace(`/experience/${bookId}?mode=${mode}`);
+      navigateOnce();
     },
     [stage, parsedEpub, manualTitle, manualAuthor, chapterChoice, createdBookId, addBook, updatePosition, settings, generateScenesWithImages]
   );
@@ -287,14 +302,16 @@ export default function UploadScreen() {
             <ActivityIndicator size="large" color={colors.accent} />
           </View>
           <Text style={[styles.fsTitle, { color: colors.foreground }]}>
-            {progress?.stage === "writing"
-              ? "Reading your chapter…"
+            {progress?.stage === "loading-text"
+              ? "Loading saved scenes…"
+              : progress?.stage === "checking"
+              ? "Checking image library…"
               : progress?.stage === "painting"
-              ? "Painting your scenes…"
+              ? "Generating visual story…"
               : "Getting started…"}
           </Text>
           <Text style={[styles.fsSub, { color: colors.mutedForeground }]}>
-            {progress?.message ?? "This usually takes about a minute."}
+            {progress?.message ?? "Scene text loads first — images stream in after."}
           </Text>
           {progress && progress.total > 0 && (
             <View style={styles.fsProgressBlock}>

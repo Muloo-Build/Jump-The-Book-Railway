@@ -1,0 +1,203 @@
+We need to fix the image generation architecture in Jump the Book.
+
+Current problem:
+Image generation is taking too long because the app generates images on demand every time a chapter is opened. The client currently generates scene text first, then loops through each scene and calls /api/scenes/image one by one. Images are only cached in client AsyncStorage for 7 days, which means they are not shared across devices or users and can be regenerated unnecessarily.
+
+The goal:
+Books and their generated scenes/images should become reusable assets in our library. If a book/chapter/scene has already been generated before, the app should load the existing stored scene and image instead of generating a new one.
+
+Please implement a server-side scene and image cache/store.
+
+Core requirements:
+
+1. Add persistent server-side scene storage
+
+Create a simple persistent storage layer for generated scene data.
+
+For now, use the simplest reliable option that fits the current project architecture:
+- file-based JSON storage if no DB exists yet
+- or database tables if there is already a DB layer available
+
+Store generated scene bundles by a stable key made from:
+- book title
+- author
+- chapter number
+- chapter title
+- visual style
+- spoiler mode
+- optional excerpt/content hash
+
+Each stored scene bundle should include:
+- scene title
+- summary
+- narration
+- location
+- mood
+- characters
+- gradient colours
+- image prompt
+- image cache key
+- image URL or base64 reference
+- generatedAt timestamp
+- source metadata
+
+2. Add persistent server-side image storage
+
+Create an image cache for generated scene images.
+
+Use a stable image key based on:
+- book title
+- author
+- chapter number
+- scene index
+- visual style
+- hash of imagePrompt
+
+Before calling gpt-image-1, check whether the image already exists.
+
+If it exists:
+- return the existing image immediately
+
+If it does not exist:
+- generate the image
+- save it to persistent storage
+- return the saved image reference
+
+Do not rely only on AsyncStorage for images.
+
+3. Update /api/scenes/generate
+
+The endpoint should first check whether a scene bundle already exists for that book/chapter/style/spoiler/excerpt hash.
+
+If a cached scene bundle exists:
+- return it immediately
+- do not call GPT for text generation
+- do not call image generation
+
+If it does not exist:
+- generate scene text using the existing GPT prompt
+- save the scene bundle to server storage
+- return the scene bundle
+
+Keep image generation optional.
+
+4. Update /api/scenes/image
+
+The image endpoint should check server-side image cache before calling gpt-image-1.
+
+Request body should include enough metadata to create a stable image key:
+- bookTitle
+- author
+- chapterNumber
+- sceneIndex
+- style
+- prompt
+
+If cached image exists:
+- return the cached image
+
+If not:
+- generate image
+- save it
+- return the saved image
+
+5. Move image generation orchestration away from the client
+
+The client should not be responsible for painting every scene one by one if the server can manage this better.
+
+Update useGenerateScene so it:
+- requests scene text first
+- shows scenes immediately with gradient fallback
+- requests images only when needed
+- uses returned cached image references where available
+- does not regenerate images if imageB64 or imageUrl already exists
+
+The user should be able to start viewing the visual story quickly, even if images are still being generated.
+
+6. Improve loading UX
+
+Do not make the user stare at a long “painting scene 1 of 5” process before they can use the app.
+
+New flow:
+- Generate/load scene text quickly
+- Show scene cards immediately
+- Show gradients while images are loading
+- Load or generate images in the background
+- Replace gradients with images as they become available
+
+Add clear loading labels:
+- “Loading saved scenes…”
+- “Generating visual story…”
+- “Checking image library…”
+- “Creating image…”
+- “Image ready”
+
+7. Add reusable public/library logic
+
+If two users upload or open the same public-domain/demo/library book and the same chapter/style already exists, they should reuse the stored generated scenes/images.
+
+Do not duplicate image generation for the same book/chapter/style.
+
+For user-uploaded private books, still cache by content hash so the same user/device does not regenerate unnecessarily.
+
+8. Add cache invalidation/versioning
+
+Add a simple cache version field, for example:
+
+sceneCacheVersion: 1
+imageCacheVersion: 1
+
+Include the version in the cache key so we can safely invalidate old generations later if the prompt changes.
+
+9. Add basic admin/debug visibility
+
+Add simple server logs for:
+- scene cache hit
+- scene cache miss
+- image cache hit
+- image cache miss
+- image generated and saved
+- image generation failed
+
+Optional but useful:
+Add a dev-only endpoint or simple file listing to inspect cached scene/image entries.
+
+10. Acceptance tests
+
+Please verify these flows:
+
+A. First generation
+- Open a book/chapter that has no cache
+- Scene text is generated
+- Scenes are saved server-side
+- Images are generated and saved server-side
+- Client displays scenes and images
+
+B. Second generation same book/chapter/style
+- Open the same book/chapter/style again
+- Scene bundle loads from cache
+- Images load from cache
+- No GPT text generation call
+- No gpt-image-1 call
+
+C. Different visual style
+- Change visual style
+- App treats it as a different cache entry
+- New scenes/images can be generated
+
+D. Image failure
+- If image generation fails, scene still displays with gradient fallback
+- Failed image does not break the whole chapter
+
+E. Existing client cache
+- Existing AsyncStorage cache can remain as a quick local cache
+- But server cache should be the source of truth for reusable generated assets
+
+Important:
+Do not add unrelated features.
+Do not redesign the whole app.
+Focus only on making generated scenes and images reusable, faster to load, cheaper to run, and shared across the library when appropriate.
+
+This is the key line I’d hammer into Replit:
+
+The client cache is not enough. We need server-side generated asset storage so books in the library become reusable visual story assets.

@@ -118,7 +118,7 @@ export default function ExperienceScreen() {
     setScenes(chapter.scenes.map(demoToResolved));
   }, [demoBook, chapterIdParam]);
 
-  // ── User path: try cache first, then generate on first visit ──────────
+  // ── User path: try local cache first, then progressively load from server ─
   useEffect(() => {
     if (!userBook || hasTriggered) return;
     let cancelled = false;
@@ -144,13 +144,26 @@ export default function ExperienceScreen() {
         return;
       }
 
-      const result = await generateScenesWithImages(params, (p) => {
-        if (!cancelled) setLocalProgress(p);
+      // Progressive: render scenes the moment text is ready, then swap each
+      // gradient for its painted image as soon as the server delivers it.
+      await generateScenesWithImages(params, {
+        onProgress: (p) => {
+          if (!cancelled) setLocalProgress(p);
+        },
+        onScenesReady: (ready) => {
+          if (cancelled) return;
+          setScenes(ready.map(genToResolved));
+        },
+        onImageReady: (idx, b64) => {
+          if (cancelled) return;
+          setScenes((prev) => {
+            if (prev.length <= idx) return prev;
+            const next = prev.slice();
+            next[idx] = { ...next[idx], imageB64: b64 };
+            return next;
+          });
+        },
       });
-      if (cancelled) return;
-      if (result) {
-        setScenes(result.scenes.map(genToResolved));
-      }
     };
 
     load();
@@ -194,10 +207,12 @@ export default function ExperienceScreen() {
           <Text style={[styles.loadingTitle, { color: colors.foreground }]}>
             {error
               ? "Something went wrong"
-              : localProgress?.stage === "writing"
-              ? "Reading your chapter…"
+              : localProgress?.stage === "loading-text"
+              ? "Loading saved scenes…"
+              : localProgress?.stage === "checking"
+              ? "Checking image library…"
               : localProgress?.stage === "painting"
-              ? "Painting your scenes…"
+              ? "Generating visual story…"
               : "Preparing your book…"}
           </Text>
           <Text style={[styles.loadingSub, { color: colors.mutedForeground }]}>
