@@ -12,6 +12,8 @@ import { VISUAL_STYLE_LABELS, SPOILER_MODE_LABELS, VisualStyle, SpoilerMode } fr
 import { UploadCloud, BookOpen, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import BookSearch from "@/components/book-search";
 
 export default function Upload() {
   const [, setLocation] = useLocation();
@@ -86,11 +88,29 @@ export default function Upload() {
     <Layout>
       <div className="container max-w-2xl mx-auto px-4 py-12">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-4xl font-bold mb-8">Upload Book</h1>
-          
+          <h1 className="font-serif text-4xl font-bold mb-2">Add a book</h1>
+          <p className="text-muted-foreground mb-6">
+            Upload a file from your device, or search the Open Library catalog.
+          </p>
+
           {!parsedData ? (
-            <Card className="border-dashed border-2 border-border/50 bg-card/30">
-              <CardContent className="flex flex-col items-center justify-center py-24 text-center">
+            <Tabs defaultValue="upload" className="w-full">
+              <TabsList className="grid grid-cols-2 w-full mb-4">
+                <TabsTrigger value="upload">Upload file</TabsTrigger>
+                <TabsTrigger value="search">Search & track</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="search" className="mt-2">
+                <Card className="border-border/40 bg-card/30">
+                  <CardContent className="py-6">
+                    <BookSearch />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="upload" className="mt-2">
+                <Card className="border-dashed border-2 border-border/50 bg-card/30">
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="rounded-full bg-primary/10 p-4 mb-4">
                   <UploadCloud className="h-8 w-8 text-primary" />
                 </div>
@@ -120,8 +140,10 @@ export default function Upload() {
                   {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
                   {isParsing ? "Reading..." : "Choose File"}
                 </Button>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           ) : (
             <Card className="bg-card/50 border-border/40">
               <CardHeader>
