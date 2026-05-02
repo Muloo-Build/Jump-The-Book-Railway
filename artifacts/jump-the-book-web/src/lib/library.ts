@@ -256,13 +256,21 @@ export function useLibrary() {
   const addBook = useCallback(
     async (
       item: Omit<UserLibraryItem, "id" | "createdAt">,
+      options?: { source?: "upload" | "manual" },
     ): Promise<string> => {
+      // Normalize whitespace so " Foo  " and "Foo" hit the same dedup key.
+      const title = item.title.trim();
+      const author = item.author.trim();
+      const source = options?.source ?? "upload";
       if (signedIn) {
+        // Server enforces dedup by (userId, lower(title), lower(author)) for
+        // upload/manual sources, so re-saving the same book just returns its
+        // existing id.
         const created = await addRemoteBook.mutateAsync({
-          title: item.title,
-          author: item.author,
+          title,
+          author,
           format: item.format,
-          source: "upload",
+          source,
           coverGradient: item.coverGradient,
           visualStyle: item.visualStyle,
           spoilerMode: item.spoilerMode,
@@ -276,8 +284,20 @@ export function useLibrary() {
         });
         return created.id;
       }
+      // Local (signed-out) dedup: if we already have a row with the same
+      // (lowered title, lowered author), reuse it instead of pushing another.
+      const lowerT = title.toLowerCase();
+      const lowerA = author.toLowerCase();
+      const dup = localLibrary.find(
+        (b) =>
+          b.title.trim().toLowerCase() === lowerT &&
+          b.author.trim().toLowerCase() === lowerA,
+      );
+      if (dup) return dup.id;
       const newItem: UserLibraryItem = {
         ...item,
+        title,
+        author,
         id: Date.now().toString() + Math.random().toString(36).slice(2, 11),
         createdAt: new Date().toISOString(),
       };
@@ -288,7 +308,7 @@ export function useLibrary() {
       });
       return newItem.id;
     },
-    [signedIn, addRemoteBook],
+    [signedIn, addRemoteBook, localLibrary],
   );
 
   const removeBook = useCallback(

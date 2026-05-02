@@ -200,22 +200,28 @@ export default function SetupBook() {
     try {
       let bookId = editingBookId;
 
-      // Create the user_book if we're in new-book mode
+      // Create the user_book if we're in new-book mode. Smart Setup is the
+      // "manual" source (user typed it in); the API dedupes by case-insensitive
+      // (title, author) so re-running setup for an existing book updates it
+      // in place rather than creating a duplicate row.
       if (!bookId) {
-        bookId = await addBook({
-          title: title.trim(),
-          author: author.trim(),
-          format,
-          currentChapter: parseInt(chapter, 10) || 1,
-          currentPage: 0,
-          currentAudioTimestamp: "00:00:00",
-          spoilerMode: settings.spoilerMode,
-          userNote: "",
-          visualStyle: settings.defaultVisualStyle,
-          progress: 0,
-          coverGradient: ["#1a1525", "#2d2440", "#453560"],
-          heroImage: pickedCoverUrl ?? undefined,
-        });
+        bookId = await addBook(
+          {
+            title: title.trim(),
+            author: author.trim(),
+            format,
+            currentChapter: parseInt(chapter, 10) || 1,
+            currentPage: 0,
+            currentAudioTimestamp: "00:00:00",
+            spoilerMode: settings.spoilerMode,
+            userNote: "",
+            visualStyle: settings.defaultVisualStyle,
+            progress: 0,
+            coverGradient: ["#1a1525", "#2d2440", "#453560"],
+            heroImage: pickedCoverUrl ?? undefined,
+          },
+          { source: "manual" },
+        );
       }
 
       await saveBible.mutateAsync({

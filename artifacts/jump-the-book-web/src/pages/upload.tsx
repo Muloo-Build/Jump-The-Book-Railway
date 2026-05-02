@@ -60,19 +60,22 @@ export default function Upload() {
     if (!parsedData) return;
     setIsSaving(true);
     try {
-      const newBookId = await addBook({
-        title: parsedData.title,
-        author: parsedData.author,
-        format,
-        currentChapter: parseInt(chapter, 10) || 1,
-        currentPage: 1,
-        currentAudioTimestamp: "00:00:00",
-        spoilerMode: spoiler,
-        userNote: "",
-        visualStyle: style,
-        progress: 0,
-        coverGradient: ["#1a1525", "#2d2440", "#453560"],
-      });
+      const newBookId = await addBook(
+        {
+          title: parsedData.title,
+          author: parsedData.author,
+          format,
+          currentChapter: parseInt(chapter, 10) || 1,
+          currentPage: 1,
+          currentAudioTimestamp: "00:00:00",
+          spoilerMode: spoiler,
+          userNote: "",
+          visualStyle: style,
+          progress: 0,
+          coverGradient: ["#1a1525", "#2d2440", "#453560"],
+        },
+        { source: "upload" },
+      );
       setLocation(`/book/${newBookId}`);
     } catch (err) {
       toast({

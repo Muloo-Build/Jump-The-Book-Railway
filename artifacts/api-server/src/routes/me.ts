@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
   appUsersTable,
+  bookBiblesTable,
   userBooksTable,
   userScenesTable,
 } from "@workspace/db/schema";
@@ -148,14 +149,189 @@ function serializeBook(b: typeof userBooksTable.$inferSelect) {
   };
 }
 
+// Dedup key for a stored book row. Demo books group by their canonical
+// demo id; everything else groups by case-insensitive (title, author).
+function bookGroupKey(b: typeof userBooksTable.$inferSelect): string {
+  if (b.source === "demo" && b.demoBookId) return `demo:${b.demoBookId}`;
+  const t = (b.title ?? "").trim().toLowerCase();
+  const a = (b.author ?? "").trim().toLowerCase();
+  return `book:${t}|${a}`;
+}
+
+// Group rows that represent the same logical book. Within each group the
+// most-recently-updated row is kept as the canonical row; the rest are
+// duplicates that should be merged into it.
+function groupDuplicateBooks(
+  rows: (typeof userBooksTable.$inferSelect)[],
+): {
+  canonical: typeof userBooksTable.$inferSelect;
+  duplicates: (typeof userBooksTable.$inferSelect)[];
+}[] {
+  const groups = new Map<string, (typeof userBooksTable.$inferSelect)[]>();
+  for (const r of rows) {
+    const k = bookGroupKey(r);
+    const list = groups.get(k);
+    if (list) list.push(r);
+    else groups.set(k, [r]);
+  }
+  const out: {
+    canonical: typeof userBooksTable.$inferSelect;
+    duplicates: (typeof userBooksTable.$inferSelect)[];
+  }[] = [];
+  for (const group of groups.values()) {
+    group.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    out.push({ canonical: group[0], duplicates: group.slice(1) });
+  }
+  return out;
+}
+
+// Merge duplicate book rows for one user inside a transaction:
+//   • move scenes from each duplicate to the canonical row, dropping any that
+//     would collide with an existing (chapterNumber, sceneIndex) on canonical
+//   • move the duplicate's bible to the canonical row only if canonical has
+//     no bible yet, otherwise drop the duplicate's bible
+//   • patch the canonical row with the best progress/chapter/cover/etc from
+//     the discarded rows so nothing the user had is lost
+//   • delete the duplicate user_books rows
+// Returns true if any merging happened (so the caller knows to re-read).
+async function mergeDuplicateBooksForUser(
+  userId: string,
+  rows: (typeof userBooksTable.$inferSelect)[],
+  log: { info: (...a: unknown[]) => void; error: (...a: unknown[]) => void },
+): Promise<boolean> {
+  const groups = groupDuplicateBooks(rows);
+  const groupsWithDups = groups.filter((g) => g.duplicates.length > 0);
+  if (groupsWithDups.length === 0) return false;
+
+  await db.transaction(async (tx) => {
+    for (const { canonical, duplicates } of groupsWithDups) {
+      // Compute the merged metadata across canonical + duplicates so we keep
+      // the best of each field (largest progress, latest chapter, any cover).
+      const all = [canonical, ...duplicates];
+      const mergedProgress = all.reduce((m, g) => Math.max(m, g.progress ?? 0), 0);
+      const mergedChapter = all.reduce(
+        (m, g) => Math.max(m, g.currentChapter ?? 0),
+        0,
+      );
+      const heroImage =
+        all.find((g) => g.heroImage && g.heroImage.trim().length > 0)
+          ?.heroImage ?? canonical.heroImage;
+      const totalChapters =
+        all.find((g) => g.totalChapters != null)?.totalChapters ??
+        canonical.totalChapters;
+      const tagline =
+        all.find((g) => g.tagline && g.tagline.trim().length > 0)?.tagline ??
+        canonical.tagline;
+      const coverGradient =
+        canonical.coverGradient && (canonical.coverGradient as string[]).length > 0
+          ? canonical.coverGradient
+          : (all.find(
+              (g) => g.coverGradient && (g.coverGradient as string[]).length > 0,
+            )?.coverGradient ?? canonical.coverGradient);
+
+      for (const dup of duplicates) {
+        // Move scenes that don't collide with an existing canonical scene at
+        // the same (chapterNumber, sceneIndex). The user_scenes table has a
+        // uniqueIndex on (userBookId, chapterNumber, sceneIndex) so a blind
+        // UPDATE could fail; this NOT EXISTS guard skips conflicts.
+        // user_scenes has no updated_at column; only the user_book_id moves.
+        await tx.execute(sql`
+          UPDATE ${userScenesTable}
+          SET ${userScenesTable.userBookId} = ${canonical.id}
+          WHERE ${userScenesTable.userBookId} = ${dup.id}
+            AND NOT EXISTS (
+              SELECT 1 FROM ${userScenesTable} c
+              WHERE c.user_book_id = ${canonical.id}
+                AND c.chapter_number = ${userScenesTable.chapterNumber}
+                AND c.scene_index = ${userScenesTable.sceneIndex}
+            )
+        `);
+        // Drop any leftover duplicate scenes that collided. Canonical's
+        // existing scene wins (it's the most recently updated row's scene).
+        await tx
+          .delete(userScenesTable)
+          .where(eq(userScenesTable.userBookId, dup.id));
+
+        // Move the bible only if canonical has none; otherwise delete the
+        // duplicate's bible (uniqueIndex on userBookId means we can't have
+        // two pointing at canonical).
+        await tx.execute(sql`
+          UPDATE ${bookBiblesTable}
+          SET ${bookBiblesTable.userBookId} = ${canonical.id},
+              ${bookBiblesTable.updatedAt} = NOW()
+          WHERE ${bookBiblesTable.userBookId} = ${dup.id}
+            AND NOT EXISTS (
+              SELECT 1 FROM ${bookBiblesTable} c
+              WHERE c.user_book_id = ${canonical.id}
+            )
+        `);
+        await tx
+          .delete(bookBiblesTable)
+          .where(eq(bookBiblesTable.userBookId, dup.id));
+
+        // Finally, drop the duplicate book row.
+        await tx
+          .delete(userBooksTable)
+          .where(
+            and(
+              eq(userBooksTable.id, dup.id),
+              eq(userBooksTable.userId, userId),
+            ),
+          );
+      }
+
+      // Patch the canonical row with merged metadata.
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+      if (mergedProgress !== canonical.progress) patch.progress = mergedProgress;
+      if (mergedChapter !== canonical.currentChapter)
+        patch.currentChapter = mergedChapter;
+      if (heroImage !== canonical.heroImage) patch.heroImage = heroImage;
+      if (totalChapters !== canonical.totalChapters)
+        patch.totalChapters = totalChapters;
+      if (tagline !== canonical.tagline) patch.tagline = tagline;
+      if (coverGradient !== canonical.coverGradient)
+        patch.coverGradient = coverGradient;
+      await tx
+        .update(userBooksTable)
+        .set(patch)
+        .where(eq(userBooksTable.id, canonical.id));
+    }
+  });
+
+  log.info(
+    {
+      userId,
+      mergedGroups: groupsWithDups.length,
+      removedRows: groupsWithDups.reduce((n, g) => n + g.duplicates.length, 0),
+    },
+    "merged duplicate user_books rows",
+  );
+  return true;
+}
+
 router.get("/me/books", async (req, res) => {
   try {
-    await ensureUser((req as unknown as AuthedRequest).userId);
-    const rows = await db
+    const userId = (req as unknown as AuthedRequest).userId;
+    await ensureUser(userId);
+    let rows = await db
       .select()
       .from(userBooksTable)
-      .where(eq(userBooksTable.userId, (req as unknown as AuthedRequest).userId))
+      .where(eq(userBooksTable.userId, userId))
       .orderBy(desc(userBooksTable.updatedAt));
+
+    // Self-healing merge: if historical duplicates exist (the API used to
+    // always insert), merge them in a transaction and re-read. The merge is
+    // idempotent and only writes when duplicates are actually present, so
+    // the steady-state path is just SELECT.
+    const merged = await mergeDuplicateBooksForUser(userId, rows, req.log);
+    if (merged) {
+      rows = await db
+        .select()
+        .from(userBooksTable)
+        .where(eq(userBooksTable.userId, userId))
+        .orderBy(desc(userBooksTable.updatedAt));
+    }
+
     res.json({ books: rows.map(serializeBook) });
   } catch (err) {
     req.log.error({ err }, "GET /me/books failed");
@@ -184,9 +360,16 @@ interface PostBookBody {
 
 router.post("/me/books", async (req, res) => {
   try {
-    await ensureUser((req as unknown as AuthedRequest).userId);
+    const userId = (req as unknown as AuthedRequest).userId;
+    await ensureUser(userId);
     const body = req.body as PostBookBody;
-    if (!body?.title || !body?.author || !body?.source || !body?.visualStyle) {
+
+    // Trim title/author up front so " Foo " and "Foo" are treated as the
+    // same book and rows never store padding whitespace.
+    const title = typeof body?.title === "string" ? body.title.trim() : "";
+    const author = typeof body?.author === "string" ? body.author.trim() : "";
+
+    if (!title || !author || !body?.source || !body?.visualStyle) {
       res.status(400).json({
         error: "title, author, source, visualStyle required",
       });
@@ -213,29 +396,70 @@ router.post("/me/books", async (req, res) => {
       return;
     }
 
+    // ── Dedup: never create a second row for the same logical book ────────
+    // 1) Demo books: match by (userId, demoBookId) (existing behavior).
+    // 2) Upload/manual books: match by (userId, lower(title), lower(author)).
+    // In either case, when we find an existing row we patch in any newly
+    // supplied non-empty metadata (cover, format, chapter, etc.) and return
+    // the existing id so the client doesn't navigate to a freshly-created
+    // duplicate.
+    let existing: typeof userBooksTable.$inferSelect | undefined;
     if (body.source === "demo" && body.demoBookId) {
-      const [existing] = await db
+      [existing] = await db
         .select()
         .from(userBooksTable)
         .where(
           and(
-            eq(userBooksTable.userId, (req as unknown as AuthedRequest).userId),
+            eq(userBooksTable.userId, userId),
             eq(userBooksTable.demoBookId, body.demoBookId),
           ),
         )
         .limit(1);
-      if (existing) {
-        res.json({ book: serializeBook(existing) });
-        return;
+    } else {
+      [existing] = await db
+        .select()
+        .from(userBooksTable)
+        .where(
+          and(
+            eq(userBooksTable.userId, userId),
+            sql`lower(trim(${userBooksTable.title})) = ${title.toLowerCase()}`,
+            sql`lower(trim(${userBooksTable.author})) = ${author.toLowerCase()}`,
+          ),
+        )
+        .orderBy(desc(userBooksTable.updatedAt))
+        .limit(1);
+    }
+
+    if (existing) {
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+      // Only overwrite when the caller provided meaningful new data — never
+      // clobber existing values with a blank.
+      if (body.format && body.format !== existing.format) patch.format = body.format;
+      if (body.heroImage && body.heroImage.trim()) patch.heroImage = body.heroImage;
+      if (body.tagline && body.tagline.trim()) patch.tagline = body.tagline;
+      if (body.coverGradient && body.coverGradient.length > 0) patch.coverGradient = body.coverGradient;
+      if (body.totalChapters != null && body.totalChapters !== existing.totalChapters) patch.totalChapters = body.totalChapters;
+      if (
+        body.currentChapter != null &&
+        body.currentChapter > (existing.currentChapter ?? 0)
+      ) {
+        patch.currentChapter = body.currentChapter;
       }
+      const [refreshed] = await db
+        .update(userBooksTable)
+        .set(patch)
+        .where(eq(userBooksTable.id, existing.id))
+        .returning();
+      res.json({ book: serializeBook(refreshed ?? existing), deduped: true });
+      return;
     }
 
     const [created] = await db
       .insert(userBooksTable)
       .values({
-        userId: (req as unknown as AuthedRequest).userId,
-        title: body.title,
-        author: body.author,
+        userId,
+        title,
+        author,
         format: body.format ?? "Paperback",
         source: body.source,
         demoBookId: body.demoBookId ?? null,
