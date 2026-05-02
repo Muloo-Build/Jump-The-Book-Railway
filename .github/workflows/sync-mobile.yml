@@ -1,0 +1,50 @@
+name: Sync shared code to mobile repo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lib/api-client-react/src/**"
+      - "lib/jump-the-book-shared/src/**"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout web/API monorepo
+        uses: actions/checkout@v4
+        with:
+          path: monorepo
+
+      - name: Checkout mobile repo
+        uses: actions/checkout@v4
+        with:
+          repository: Muloo-Build/jumptheboo_mobile
+          token: ${{ secrets.MOBILE_REPO_TOKEN }}
+          path: mobile
+
+      - name: Copy shared files into mobile/vendor
+        run: |
+          set -e
+          rsync -a --delete \
+            monorepo/lib/api-client-react/src/ \
+            mobile/vendor/api-client-react/src/
+          rsync -a --delete \
+            monorepo/lib/jump-the-book-shared/src/ \
+            mobile/vendor/jump-the-book-shared/src/
+
+      - name: Commit & push if changed
+        working-directory: mobile
+        run: |
+          set -e
+          git config user.name  "jumptheboo-sync-bot"
+          git config user.email "sync-bot@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to sync."
+            exit 0
+          fi
+          SHORT_SHA="${GITHUB_SHA::7}"
+          git add vendor
+          git commit -m "Sync shared code from web/API monorepo @ ${SHORT_SHA}"
+          git push
