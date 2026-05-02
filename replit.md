@@ -108,7 +108,9 @@ Jump the Book — web reading companion. Reader uploads an EPUB (parsed entirely
 The Expo mobile app lives in its own repo: <https://github.com/Muloo-Build/jumptheboo_mobile>. It depends on this repo's deployed API at `https://${EXPO_PUBLIC_DOMAIN}/api/*` and uses the same Clerk publishable key. Two pieces of code are mirrored between the two repos and must be kept in sync when changed:
 
 - `lib/jump-the-book-shared/src/*` (mobile path: `vendor/jump-the-book-shared/src/*`) — `RemoteUser`/`RemoteBook`/`RemoteScene`, `VisualStyle`/`SpoilerMode`, `searchOpenLibrary`, `remoteBookToUserLibraryItem`.
-- `lib/api-client-react/src/generated/*` (mobile path: `vendor/api-client-react/src/generated/*`) — Orval-generated React Query hooks + Zod schemas. After `pnpm --filter @workspace/api-spec run codegen` here, copy the regenerated files into the mobile repo.
+- `lib/api-client-react/src/*` (mobile path: `vendor/api-client-react/src/*`) — Orval-generated React Query hooks + Zod schemas + `customFetch`.
+
+**Auto-sync**: `.github/workflows/sync-mobile.yml` watches both directories on every push to `main`. When either changes, it rsyncs them into the mobile repo's `vendor/` folder and commits with message `Sync shared code from web/API monorepo @ <sha>`. Requires repo secret `MOBILE_REPO_TOKEN` (fine-grained PAT scoped to `Muloo-Build/jumptheboo_mobile` with `Contents: Read and write`). Manually triggerable from the Actions tab via `workflow_dispatch`.
 
 Mobile feature surfaces (snap-cover, snap-page, Smart Setup wizard, edit-book, Now Reading hero + Scenes rail + Discover, Account + orphan recovery) all consume the same `/api/me/*`, `/api/books/cover/identify`, `/api/passage/ocr`, `/api/me/orphan-scenes/*`, and `/api/books/context/search` endpoints documented in the API server section above.
 
