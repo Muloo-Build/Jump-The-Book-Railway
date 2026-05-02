@@ -104,8 +104,21 @@ Jump the Book — web reading companion. Reader uploads an EPUB (parsed entirely
 
 **Theme**: dark cinematic — Playfair Display (serif) + Plus Jakarta Sans, deep plums/oxbloods/dusty golds/midnight blues. Palette in `src/index.css` `:root` and `.dark` blocks (HSL tokens compatible with shadcn/ui).
 
-### `artifacts/jump-the-book` — Expo mobile app (legacy, route `/mobile`)
-Jump the Book — AI-powered visual reading companion. Drop an EPUB → choose Comic or Cinematic → watch the chapter as AI-generated panels.
+### `artifacts/jump-the-book` — Expo mobile app (route `/mobile`)
+Jump the Book — AI-powered visual reading companion. Drop an EPUB → choose Comic or Cinematic → watch the chapter as AI-generated panels. **Phase 1 of web→mobile parity (auth + shared lib) is in progress; remote library, snap-page, snap-cover, Smart Setup, and orphan recovery are still web-only.**
+
+**Auth (Clerk via `@clerk/expo`)**:
+- `app/_layout.tsx` wraps the app in `<ClerkProvider tokenCache={tokenCache} proxyUrl={EXPO_PUBLIC_CLERK_PROXY_URL}>` + `<ClerkLoaded>`. The `<AuthGate>` component uses `useSegments`/`useRouter` to bounce signed-out users into `/(auth)/sign-in` and signed-in users out of the `(auth)` group into `/(tabs)`. It also calls `setAuthTokenGetter(() => getToken())` from `@workspace/api-client-react` so every generated API hook automatically attaches the Clerk session token. `setBaseUrl(\`https://${EXPO_PUBLIC_DOMAIN}\`)` is called once at module scope.
+- Custom email+password screens (no hosted UI): `app/(auth)/_layout.tsx`, `sign-in.tsx`, `sign-up.tsx`. Sign-up handles email-code verification (`signUp.verifications.sendEmailCode` / `verifyEmailCode`) and includes a `<View nativeID="clerk-captcha" />` for bot protection. All screens use the brand palette via `useColors` (amber `#c9974a` primary on midnight `#08081a`) and Inter fonts.
+- Env wiring: dev script forwards `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY`. Production `scripts/build.js` forwards the same plus `EXPO_PUBLIC_CLERK_PROXY_URL=https://<deployment-domain><CLERK_PROXY_URL>` so prod builds talk to the Clerk Frontend API proxy mounted at `/api/__clerk` on the API server.
+- Clerk-managed mode (no user secrets): `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` are auto-provisioned. Token cache is the official `@clerk/expo/token-cache` (`expo-secure-store`-backed).
+
+**Shared lib `@workspace/jump-the-book-shared`** (`lib/jump-the-book-shared/`):
+- Composite TS lib (declared in root `tsconfig.json` references). Houses code that must stay in lockstep between web and mobile so parity drift can't happen silently:
+  - `src/openLibrary.ts` — `searchOpenLibrary`, `getOpenLibraryCoversForBook`, edition lookups (verbatim copy of the web helper, single source of truth).
+  - `src/types.ts` — `VisualStyle`, `SpoilerMode`, label maps, `UserLibraryItem`, `CoverIdentifyResult`.
+  - `src/index.ts` — barrel.
+- The web app's `src/lib/openLibrary.ts` is now `export * from "@workspace/jump-the-book-shared"` (root export — Vite couldn't resolve a `.ts` subpath export). Mobile will consume the same barrel as `@workspace/jump-the-book-shared` once Phase 2 (remote library + snap-cover) lands.
 
 **5-tab navigation**: Home, Library, Immersion, Characters, Settings
 

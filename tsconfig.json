@@ -13,6 +13,9 @@
       "path": "./lib/api-zod"
     },
     {
+      "path": "./lib/jump-the-book-shared"
+    },
+    {
       "path": "./lib/integrations-openai-ai-server"
     },
     {
