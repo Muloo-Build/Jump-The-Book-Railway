@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { parseEpubFromArrayBuffer } from "@/lib/epub";
+import { parseBookFile, ACCEPTED_EXTENSIONS, ACCEPTED_LABEL } from "@/lib/parseBook";
 import { useLibrary } from "@/lib/library";
 import { VISUAL_STYLE_LABELS, SPOILER_MODE_LABELS, VisualStyle, SpoilerMode } from "@/data/books";
 import { UploadCloud, BookOpen, Loader2 } from "lucide-react";
@@ -17,10 +17,10 @@ export default function Upload() {
   const [, setLocation] = useLocation();
   const { addBook } = useLibrary();
   const { toast } = useToast();
-  
+
   const [isParsing, setIsParsing] = useState(false);
   const [parsedData, setParsedData] = useState<{ title: string; author: string } | null>(null);
-  
+
   const [style, setStyle] = useState<VisualStyle>("dark-cinematic");
   const [spoiler, setSpoiler] = useState<SpoilerMode>("no-spoilers");
   const [chapter, setChapter] = useState("1");
@@ -32,14 +32,22 @@ export default function Upload() {
 
     setIsParsing(true);
     try {
-      const buffer = await file.arrayBuffer();
-      const result = await parseEpubFromArrayBuffer(buffer, file.name);
+      const result = await parseBookFile(file);
       setParsedData({ title: result.title, author: result.author || "Unknown Author" });
-      toast({ title: "Book parsed successfully", description: "Ready to set up your reading experience." });
+      setFormat(result.format);
+      toast({
+        title: `${result.format} parsed`,
+        description: `Found ${result.chapters.length} chapter${result.chapters.length === 1 ? "" : "s"}. Ready to set up your reading experience.`,
+      });
     } catch (err) {
-      toast({ title: "Failed to parse EPUB", description: "Please try a different file.", variant: "destructive" });
+      const message =
+        err instanceof Error
+          ? err.message
+          : "We couldn't read that file. Try an EPUB, PDF, or TXT.";
+      toast({ title: "Couldn't read that file", description: message, variant: "destructive" });
     } finally {
       setIsParsing(false);
+      e.target.value = "";
     }
   };
 
@@ -85,21 +93,25 @@ export default function Upload() {
                 <div className="rounded-full bg-primary/10 p-4 mb-4">
                   <UploadCloud className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-serif font-semibold mb-2">Select an EPUB file</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm">
-                  We parse your book directly in the browser. Your file is never uploaded to any server.
+                <h3 className="text-xl font-serif font-semibold mb-2">Drop in your book</h3>
+                <p className="text-muted-foreground mb-2 max-w-sm">
+                  Supports {ACCEPTED_LABEL}. We read it right in your browser — the file never leaves your device.
+                </p>
+                <p className="text-xs text-muted-foreground/70 mb-6 max-w-sm">
+                  Works on desktop, tablet, and mobile. Audiobooks aren't supported yet.
                 </p>
                 <div className="relative">
-                  <Input 
-                    type="file" 
-                    accept=".epub" 
-                    onChange={handleFileChange} 
+                  <Input
+                    type="file"
+                    accept={ACCEPTED_EXTENSIONS}
+                    onChange={handleFileChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     disabled={isParsing}
+                    aria-label="Upload a book file"
                   />
-                  <Button disabled={isParsing}>
+                  <Button disabled={isParsing} type="button">
                     {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
-                    {isParsing ? "Parsing..." : "Choose File"}
+                    {isParsing ? "Reading..." : "Choose File"}
                   </Button>
                 </div>
               </CardContent>
