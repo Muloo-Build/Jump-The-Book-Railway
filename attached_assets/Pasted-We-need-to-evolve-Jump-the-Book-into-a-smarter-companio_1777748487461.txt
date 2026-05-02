@@ -1,0 +1,587 @@
+We need to evolve Jump the Book into a smarter companion for real books people are actually reading now, not just public-domain demo books.
+
+Core product direction:
+A user is reading or listening to a modern book (for example sci-fi, fantasy, thriller, space opera, etc). They may not have an EPUB. They may be using Kindle or Audible. Since we cannot rely on official Kindle/Audible APIs or direct access to protected book files, the app should support a new workflow:
+
+1. User enters a real book title and author
+2. The app searches the public web for metadata and world context
+3. The app builds a reusable “book bible” / “story profile”
+4. The user confirms or edits the important details
+5. The app uses that context plus the user’s reading position and optional excerpt/notes to generate a spoiler-safe visual companion
+6. Generated scenes and images are stored and reused
+
+This is not meant to be a piracy tool or an unofficial Kindle/Audible importer.
+It is a companion experience builder using:
+- user input
+- public web metadata
+- search-supported book context
+- optional user-pasted excerpts
+- generated original visuals
+
+We need to implement this as a proper feature in the web app.
+
+==================================================
+MAIN PRODUCT GOAL
+==================================================
+
+A user should be able to do this:
+
+- Open the app
+- Search for or add a real book
+- Enter title + author + optional series
+- Let the app search and build a book profile
+- Confirm important context
+- Enter where they are in the book
+- Optionally paste a short excerpt or describe what just happened
+- Generate a spoiler-safe visual story companion
+- Reopen later and continue from the same book using saved context
+
+==================================================
+FEATURE TO BUILD
+==================================================
+
+Create a new feature called:
+
+“Smart Book Setup”
+
+This should include:
+- book search / manual book entry
+- public metadata lookup
+- book bible generation
+- user confirmation/edit step
+- scene generation based on that stored context
+- reusable image and scene storage
+
+==================================================
+1. ADD A NEW SMART BOOK SETUP FLOW
+==================================================
+
+Create a new top-level flow/page:
+
+/setup-book
+or
+/books/new
+
+This flow should guide the user through 4 steps:
+
+Step 1: Identify the book
+Step 2: Build the book bible
+Step 3: Confirm / edit the context
+Step 4: Generate the visual companion
+
+Do not make this feel technical.
+It should feel simple, guided, and conversational.
+
+==================================================
+2. STEP 1 – IDENTIFY THE BOOK
+==================================================
+
+Create a page/form where the user can enter:
+
+Required:
+- Book title
+- Author
+
+Optional:
+- Series name
+- Book number in series
+- Format being used:
+  - EPUB
+  - Kindle
+  - Audible
+  - Paperback / Hardcover
+  - Other
+
+Optional reading progress inputs:
+- Current chapter
+- Current %
+- Current page/location
+- Current audiobook timestamp
+
+Optional context inputs:
+- Paste an excerpt from the current section
+- Describe what just happened
+- Name key characters in the current scene
+
+Buttons:
+- “Search Book Context”
+- “Skip search and set up manually”
+
+If the user chooses search:
+- call a backend endpoint that searches the public web for book context
+
+==================================================
+3. PUBLIC SEARCH-POWERED BOOK CONTEXT
+==================================================
+
+Implement backend search support for real books.
+
+Goal:
+Given title + author (+ optional series), gather public, non-pirated context to help build a usable book profile.
+
+Use public search sources where possible, such as:
+- publisher blurbs
+- bookstore descriptions
+- public book metadata
+- author pages
+- fan wikis
+- series wikis
+- spoiler-safe summaries
+- public reviews
+- discussion sources where helpful
+
+Do NOT:
+- scrape or ingest full copyrighted book text unlawfully
+- pretend to have access to Kindle/Audible private libraries
+- rely on pirated sources
+- copy large copyrighted passages
+
+The search result should be distilled into a structured “book context” object, not raw web results.
+
+Create a backend endpoint such as:
+POST /api/books/context/search
+
+Request body:
+- title
+- author
+- series
+- bookNumber
+
+Response should return a normalized object like:
+
+{
+  "book": {
+    "title": "",
+    "author": "",
+    "series": "",
+    "bookNumber": null,
+    "genre": [],
+    "tone": [],
+    "publisherBlurb": "",
+    "coverImageUrl": null
+  },
+  "world": {
+    "settingSummary": "",
+    "visualStyleHints": [],
+    "factions": [],
+    "locations": [],
+    "technology": [],
+    "species": [],
+    "ships": [],
+    "objects": []
+  },
+  "characters": [
+    {
+      "name": "",
+      "description": "",
+      "role": "",
+      "visualTraits": [],
+      "relationships": []
+    }
+  ],
+  "spoilerSafeContext": {
+    "seriesContext": "",
+    "nonSpoilerSummary": "",
+    "knownThemes": [],
+    "cautions": []
+  },
+  "sources": [
+    {
+      "title": "",
+      "url": "",
+      "type": ""
+    }
+  ]
+}
+
+This should be a support layer to generate visuals, not a raw search dump.
+
+==================================================
+4. STEP 2 – BUILD THE BOOK BIBLE
+==================================================
+
+From the search results and/or user input, create a reusable stored object called a “book bible”.
+
+This should become a first-class concept in the app.
+
+Create a data model for BookBible with fields like:
+
+- id
+- bookId
+- title
+- author
+- series
+- bookNumber
+- genre
+- tone
+- settingSummary
+- visualStyleHints
+- nonSpoilerSummary
+- factions
+- locations
+- species
+- ships
+- technology
+- importantObjects
+- characterProfiles
+- sourceMetadata
+- userNotes
+- createdAt
+- updatedAt
+- contextVersion
+
+Character profile fields:
+- name
+- role
+- description
+- visualTraits
+- relationships
+- aliases
+
+This book bible should be stored server-side and reused later.
+
+If the same book is set up again:
+- load existing book bible if one exists
+- allow refresh/rebuild if needed
+
+==================================================
+5. STEP 3 – USER CONFIRMATION / EDIT SCREEN
+==================================================
+
+Create a confirmation screen where the user can review and edit the generated book bible.
+
+This is important because search results may be imperfect.
+
+Show editable sections:
+- Book info
+- Setting / world
+- Characters
+- Locations
+- Factions
+- Style / tone
+- Non-spoiler summary
+
+Allow the user to:
+- remove incorrect entries
+- add missing characters or locations
+- edit descriptions
+- add “this matters visually” notes
+
+Add a section:
+“What should the visual companion focus on?”
+
+Options:
+- Character visuals
+- Environments / worldbuilding
+- Action atmosphere
+- Tech / ships / gear
+- Emotional mood
+- Creature / alien design
+
+Allow multi-select.
+
+Add a field:
+“Anything we should avoid?”
+Examples:
+- no spoilers beyond chapter 10
+- do not show character deaths
+- avoid romance focus
+- keep visuals grounded, not cartoonish
+
+Buttons:
+- “Save Book Bible”
+- “Generate Visual Companion”
+
+==================================================
+6. STEP 4 – GENERATE VISUAL COMPANION
+==================================================
+
+After saving the book bible, generate a visual companion for the user’s current progress.
+
+This should use:
+- saved book bible
+- current chapter / progress
+- optional excerpt
+- optional “what just happened”
+- optional scene character names
+- visual style preference
+- spoiler mode
+
+Do not depend entirely on raw book text.
+
+Create/extend backend endpoint such as:
+POST /api/books/companion/generate
+
+Input:
+- bookId
+- bookBibleId
+- chapterNumber
+- chapterTitle optional
+- progress info
+- excerpt optional
+- whatJustHappened optional
+- currentSceneCharacters optional
+- visualStyle
+- spoilerMode
+
+The app should then:
+- generate spoiler-safe scene cards
+- generate or load matching images
+- show the companion quickly
+- store the result for reuse
+
+==================================================
+7. SCENE GENERATION RULES
+==================================================
+
+Scene generation must be spoiler-safe.
+
+Use these principles:
+- no major twists
+- no deaths unless already explicitly included by the user
+- no revealing future outcomes
+- focus on atmosphere, environment, mood, visual presence
+- describe what can be seen / felt in the moment
+- treat the result like a cinematic companion, not a plot summary
+
+Each scene should include:
+- title
+- narration
+- summary
+- location
+- mood
+- characters
+- gradient colours
+- image prompt
+- optional image URL/status
+
+Generate 3 to 5 scenes per chapter/segment.
+
+==================================================
+8. IMAGE GENERATION + REUSE
+==================================================
+
+Use the existing idea of server-side image caching/storage.
+
+Important:
+If a scene image already exists for the same book/chapter/style/context combination, reuse it.
+
+If not:
+- generate it
+- store it
+- return it
+
+Do not force the user to wait for every image before using the app.
+
+Flow:
+- show scene cards first
+- use gradient fallback
+- load existing images if available
+- generate missing images in background
+- update the UI progressively
+
+==================================================
+9. NEW UI PAGES / SECTIONS TO CREATE
+==================================================
+
+Please create or update the following UI pieces:
+
+A. “Add a Book” / “Smart Setup” page
+- title + author entry
+- optional series fields
+- optional reading progress
+- optional excerpt / notes
+- search button
+
+B. “Review Book Bible” page
+- editable sections for world, characters, style, notes
+- save + continue CTA
+
+C. “Book Companion” page
+Show:
+- book title
+- author
+- current progress
+- spoiler mode
+- current chapter/segment
+- generated scene cards
+- images/gradients
+- update progress button
+- regenerate button
+- ambient/cinematic mode button
+
+D. “Book Bible” tab or section inside book detail
+Let the user revisit the saved context.
+
+E. “Library” updates
+Each saved book card should show:
+- title
+- author
+- progress
+- whether a book bible exists
+- whether visuals are generated
+- continue button
+
+==================================================
+10. DATA MODEL CHANGES
+==================================================
+
+Please add or update data models for at least:
+
+Book
+- id
+- title
+- author
+- series
+- bookNumber
+- format
+- progress
+- createdAt
+- updatedAt
+
+BookBible
+- id
+- bookId
+- contextVersion
+- genre
+- tone
+- settingSummary
+- visualStyleHints
+- nonSpoilerSummary
+- factions
+- locations
+- species
+- ships
+- technology
+- importantObjects
+- characterProfiles
+- sourceMetadata
+- userNotes
+- focusAreas
+- avoidNotes
+- createdAt
+- updatedAt
+
+ReadingContext
+- id
+- bookId
+- currentChapter
+- currentPage
+- currentLocation
+- currentTimestamp
+- progressPercent
+- lastExcerpt
+- whatJustHappened
+- currentSceneCharacters
+- updatedAt
+
+GeneratedCompanionSet
+- id
+- bookId
+- bookBibleId
+- chapterNumber
+- visualStyle
+- spoilerMode
+- sourceHash
+- scenes
+- createdAt
+
+==================================================
+11. SEARCH AND FALLBACK BEHAVIOUR
+==================================================
+
+If search results are weak or unavailable:
+- allow the user to continue manually
+- ask them to provide:
+  - short book summary
+  - key characters
+  - setting
+  - tone
+  - current context
+
+The product should still work with manual setup.
+
+That means this system needs two modes:
+- Search-assisted setup
+- Manual guided setup
+
+==================================================
+12. UX COPY / POSITIONING
+==================================================
+
+Use clean, human copy.
+
+Examples:
+- “Add the book you’re reading”
+- “We’ll build a visual companion for your current reading position”
+- “Search public book context”
+- “Review your story profile”
+- “Generate visual story”
+- “Tell us where you are in the book”
+- “Paste a short excerpt or describe what just happened”
+- “No spoilers beyond your current progress”
+
+Avoid confusing language like:
+- Upload Writing
+- AI pipeline
+- source normalization
+- embeddings
+- ingestion job
+
+Keep the product feeling simple and magical.
+
+==================================================
+13. IMPORTANT CONSTRAINTS
+==================================================
+
+Do not build:
+- unofficial Kindle login
+- Audible login
+- DRM circumvention
+- piracy-related workflows
+- direct private library access
+- giant complex social features
+
+Do build:
+- search-assisted context gathering
+- reusable book bible
+- spoiler-safe visual generation
+- stored scenes/images
+- simple reader-first UX
+
+==================================================
+14. ACCEPTANCE TEST
+==================================================
+
+A user should be able to:
+
+1. Open the web app
+2. Click Add a Book
+3. Enter:
+   - title = Zero Hour
+   - author = Craig Alanson
+4. Click Search Book Context
+5. See a generated book profile / book bible
+6. Edit or confirm the book bible
+7. Enter where they are in the book
+8. Optionally paste an excerpt or say what just happened
+9. Click Generate Visual Story
+10. See spoiler-safe scene cards for their current reading point
+11. See gradients first, then images appear if/when available
+12. Return later and continue with the same saved book context
+13. Avoid regenerating the same scenes/images unnecessarily
+
+==================================================
+15. DELIVERY EXPECTATION
+==================================================
+
+Please implement this as a real working feature, not just mock UI.
+
+Focus on:
+- practical architecture
+- clean user flow
+- reusable data storage
+- search-assisted setup
+- spoiler-safe visual generation
+
+This feature is a major step in making Jump the Book useful for real modern books, even when users do not have EPUB access.

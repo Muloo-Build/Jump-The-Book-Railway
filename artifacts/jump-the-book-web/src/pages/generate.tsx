@@ -17,6 +17,33 @@ import {
   clearPendingPassage,
   type PendingPassage,
 } from "@/components/paste-passage";
+import { apiFetch } from "@/lib/queryClient";
+import type { SavedBible } from "@/hooks/useBookBible";
+
+interface PendingReadingContext {
+  bookId: string;
+  chapter: number;
+  excerpt?: string;
+  whatJustHappened?: string;
+  savedAt: number;
+}
+
+const READING_CONTEXT_KEY = "@jtb_pending_reading_context";
+
+function readPendingReadingContext(): PendingReadingContext | null {
+  try {
+    const raw = sessionStorage.getItem(READING_CONTEXT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PendingReadingContext;
+  } catch {
+    return null;
+  }
+}
+function clearPendingReadingContext() {
+  try {
+    sessionStorage.removeItem(READING_CONTEXT_KEY);
+  } catch {}
+}
 
 export default function Generate() {
   const searchString = useSearch();
@@ -52,9 +79,26 @@ export default function Generate() {
     return null;
   });
 
+  const [pendingReadingContext] = useState<PendingReadingContext | null>(() => {
+    const ctx = readPendingReadingContext();
+    if (
+      ctx &&
+      ctx.bookId === bookId &&
+      ctx.chapter === chapterNumber &&
+      Date.now() - ctx.savedAt < 5 * 60_000
+    ) {
+      return ctx;
+    }
+    return null;
+  });
+
   useEffect(() => {
     if (pendingPassage) clearPendingPassage();
   }, [pendingPassage]);
+
+  useEffect(() => {
+    if (pendingReadingContext) clearPendingReadingContext();
+  }, [pendingReadingContext]);
 
   useEffect(() => {
     if (!book) return;
@@ -92,6 +136,7 @@ export default function Generate() {
     };
 
     const run = async () => {
+      let bibleId: string | undefined;
       if (isSignedIn) {
         try {
           const resolved = await resolveRemoteBookId({
@@ -111,10 +156,27 @@ export default function Generate() {
           });
           if (!active) return;
           runRemoteBookId = resolved;
+
+          // Auto-load any saved bible so every scene gen on this book is
+          // grounded in the reader's confirmed story profile.
+          if (resolved) {
+            try {
+              const r = await apiFetch<{ bible: SavedBible | null }>(
+                `/me/books/${encodeURIComponent(resolved)}/bible`,
+              );
+              if (r.bible) bibleId = r.bible.id;
+            } catch (err) {
+              console.warn("Failed to load book bible", err);
+            }
+          }
         } catch (err) {
           console.warn("Failed to resolve remote book id", err);
         }
       }
+
+      // Reading-context handoff from the Smart Setup wizard.
+      const excerpt = pendingPassage?.excerpt ?? pendingReadingContext?.excerpt;
+      const whatJustHappened = pendingReadingContext?.whatJustHappened;
 
       const result = await generateScenesWithImages(
         {
@@ -125,8 +187,10 @@ export default function Generate() {
           visualStyle: book.visualStyle,
           spoilerMode:
             "spoilerMode" in book ? book.spoilerMode : "no-spoilers",
-          excerpt: pendingPassage?.excerpt,
+          excerpt,
           sceneCount: pendingPassage?.sceneCount,
+          bookBibleId: bibleId,
+          whatJustHappened,
         },
         {
           onScenesReady: (scenes, cacheKey) => {

@@ -30,20 +30,27 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ## Artifacts
 
 ### `artifacts/api-server` — Express API server
-- Routes: `/api/healthz`, `/api/scenes/generate`, `/api/scenes/image`, `/api/scenes/cache/stats`, `/api/storage/objects/:namespace/:id`, `/api/storage/public-objects/*`, `/api/me/*` (authed user library), `/api/__clerk/*` (Clerk Frontend API proxy, prod only)
+- Routes: `/api/healthz`, `/api/scenes/generate`, `/api/scenes/image`, `/api/scenes/cache/stats`, `/api/storage/objects/:namespace/:id`, `/api/storage/public-objects/*`, `/api/me/*` (authed user library), `/api/books/context/search` (public — bible draft generator), `/api/me/books/:bookId/bible` (authed bible CRUD), `/api/__clerk/*` (Clerk Frontend API proxy, prod only)
 - AI: uses `@workspace/integrations-openai-ai-server` (gpt-5.4 + gpt-image-1)
 - Auth: Clerk via `@clerk/express` `clerkMiddleware`. `requireAuth` middleware on `/api/me/*` enforces signed-in (Clerk `getAuth(req).userId`).
 - CORS is restricted to `REPLIT_DOMAINS` + `REPLIT_DEV_DOMAIN` (http/https). Same-origin / no-Origin requests pass through.
 - Env vars: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY` (auto-provisioned), `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `SESSION_SECRET`
 - **Storage model**: scene PNGs are uploaded to App Storage under `${PRIVATE_OBJECT_DIR}/scene-images/<uuid>` and stored in `image_cache.object_path` as `/objects/scene-images/<uuid>`. The web client receives `imageUrl = /api/storage/objects/scene-images/<uuid>`. The storage GET route only serves an allow-list of namespaces (currently `scene-images`); other private objects are 404. Legacy base64 column (`image_b64`) is nullable for backward compat.
-- **Per-user library tables** (in `lib/db`): `app_users` (clerkUserId PK, defaultVisualStyle, spoilerMode, readingMode, onboardedAt), `user_books` (userId, title, author, source: demo|upload|manual, demoBookId?, visualStyle, spoilerMode, currentChapter/Page, progress…), `user_scenes` (userId, userBookId, chapterNumber, sceneIndex, title/narration/location/mood/characters/gradientColors/imagePrompt/imageUrl, sceneCacheKey/imageCacheKey). Scene upserts are idempotent on (userBookId, chapterNumber, sceneIndex) with `imageUrl` updated via `COALESCE(EXCLUDED.image_url, existing)` so partial generations don't regress.
+- **Per-user library tables** (in `lib/db`): `app_users` (clerkUserId PK, defaultVisualStyle, spoilerMode, readingMode, onboardedAt), `user_books` (userId, title, author, source: demo|upload|manual, demoBookId?, visualStyle, spoilerMode, currentChapter/Page, progress…), `user_scenes` (userId, userBookId, chapterNumber, sceneIndex, title/narration/location/mood/characters/gradientColors/imagePrompt/imageUrl, sceneCacheKey/imageCacheKey), `book_bibles` (one per user_book, uniqueIndex on userBookId; series/bookNumber/genre/tone/setting/locations/factions/characters/ships/tech/species/objects/sources + reader-only fields userNotes/focusAreas/avoidNotes; `contextVersion` bumps on every PUT to bust scene cache). Scene upserts are idempotent on (userBookId, chapterNumber, sceneIndex) with `imageUrl` updated via `COALESCE(EXCLUDED.image_url, existing)` so partial generations don't regress.
 
 ### `artifacts/jump-the-book-web` — React + Vite web app (primary)
 Jump the Book — web reading companion. Reader uploads an EPUB (parsed entirely in-browser via JSZip) or picks a public-domain demo book, gets spoiler-safe AI scenes for the chapter they're on, and views them as Comic (stacked panels) or Cinematic (full-screen with narration).
 
 **Stack**: React 19, Vite, TypeScript, Tailwind v4, shadcn/ui (Radix), wouter, framer-motion, TanStack Query, Clerk (`@clerk/react` + `@clerk/themes`).
 
-**Routes**: `/` Home, `/sign-in/*?`, `/sign-up/*?`, `/onboarding`, `/library`, `/upload`, `/generate`, `/book/:id`, `/position/:id`, `/experience/:id` (Cinematic), `/comic/:id`, `/help`.
+**Routes**: `/` Home, `/sign-in/*?`, `/sign-up/*?`, `/onboarding`, `/library`, `/upload`, `/setup-book` (Smart Book Setup wizard), `/generate`, `/book/:id`, `/position/:id`, `/experience/:id` (Cinematic), `/comic/:id`, `/help`.
+
+**Smart Book Setup** (`/setup-book`):
+- 4-step wizard for adding a modern book (Kindle/Audible/anything we don't have a file for): Identify → Build bible (calls public `POST /api/books/context/search`) → Review/edit (full `<BibleEditor>` form) → Save & open book.
+- `?bookId=<uuid>` mode hydrates from an existing bible and skips to Step 3 (edit-existing flow used from `book-detail`).
+- The wizard creates the user_book on save (via `addBook`) for new books, then PUTs the bible. If the wizard collected an excerpt or "what just happened", it stashes them under `sessionStorage["@jtb_pending_reading_context"]` and navigates to `/generate`.
+- `pages/generate.tsx` auto-loads the saved bible (after `resolveRemoteBookId`) and forwards `bookBibleId` + `whatJustHappened` to `/api/scenes/generate`. The server injects character/world/locations/avoid context into the prompt and mixes the bible's `id:contextVersion` tag into the cache key (via the excerpt slot) so editing a bible naturally invalidates cached scenes.
+- Bibles are surfaced on `pages/book-detail.tsx` (only for signed-in users on UUID-shaped user_book ids — demo slugs are skipped) as a Book Bible card showing series/genre/tone chips, summary, character/location/faction counts, and avoid notes; "Edit" links back to `/setup-book?bookId=<uuid>`. The library page shows a prominent "Smart Setup" CTA above the book grid for signed-in users.
 
 **Auth & onboarding**:
 - `App.tsx` wraps the router in `<ClerkProvider>` with the dark cinematic shadcn theme. In dev the publishable key is used directly (Clerk CDN); in prod (`VITE_CLERK_PROXY_URL` set) the key is derived from the current host via `publishableKeyFromHost` so the same build serves multiple custom domains.

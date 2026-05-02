@@ -34,6 +34,9 @@ export interface GenerateSceneParams {
   spoilerMode?: string;
   excerpt?: string;
   sceneCount?: number;
+  bookBibleId?: string;
+  whatJustHappened?: string;
+  currentSceneCharacters?: string[];
 }
 
 export interface SceneProgress {
@@ -62,16 +65,34 @@ function djb2Hash(s: string): string {
 }
 
 function makeCacheKey(params: GenerateSceneParams) {
-  const { bookTitle, author, chapterNumber, visualStyle, spoilerMode, excerpt, sceneCount } = params;
-  // Different excerpts and scene counts must produce different cache keys —
-  // otherwise pasting a new passage returns the previous run.
+  const {
+    bookTitle,
+    author,
+    chapterNumber,
+    visualStyle,
+    spoilerMode,
+    excerpt,
+    sceneCount,
+    bookBibleId,
+    whatJustHappened,
+    currentSceneCharacters,
+  } = params;
+  // Different excerpts, bibles, and reading-context inputs must produce
+  // different cache keys — otherwise editing the bible or pasting a new
+  // passage returns the previous run.
   const excerptKey = excerpt && excerpt.trim() ? djb2Hash(excerpt.trim()) : "noex";
   const countKey = typeof sceneCount === "number" ? `n${sceneCount}` : "ndefault";
+  const bibleKey = bookBibleId ? `b${bookBibleId.slice(0, 8)}` : "nob";
+  const ctxParts = [
+    whatJustHappened?.trim() ?? "",
+    Array.isArray(currentSceneCharacters) ? currentSceneCharacters.join("|") : "",
+  ].filter(Boolean).join("||");
+  const ctxKey = ctxParts ? djb2Hash(ctxParts) : "noctx";
   return (
     CACHE_PREFIX +
-    `${bookTitle}_${author}_ch${chapterNumber}_${visualStyle}_${spoilerMode ?? "default"}_${countKey}_${excerptKey}`
+    `${bookTitle}_${author}_ch${chapterNumber}_${visualStyle}_${spoilerMode ?? "default"}_${countKey}_${excerptKey}_${bibleKey}_${ctxKey}`
       .replace(/[^a-zA-Z0-9_]+/g, "_")
-      .slice(0, 120)
+      .slice(0, 140)
   );
 }
 

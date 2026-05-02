@@ -1,6 +1,9 @@
 import { Router, type IRouter } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { db } from "@workspace/db";
+import { bookBiblesTable, type BookBibleRow } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   cacheStats,
@@ -15,6 +18,77 @@ import {
   SCENE_CACHE_VERSION,
   type CachedScene,
 } from "../lib/sceneCache";
+
+interface NamedEntity { name: string; description?: string }
+interface CharacterProfile {
+  name: string;
+  role?: string;
+  description?: string;
+  visualTraits?: string[];
+  aliases?: string[];
+}
+
+function asNamedList(v: unknown): NamedEntity[] {
+  return Array.isArray(v) ? (v as NamedEntity[]).filter((x) => x && typeof x.name === "string" && x.name.length > 0) : [];
+}
+function asCharList(v: unknown): CharacterProfile[] {
+  return Array.isArray(v) ? (v as CharacterProfile[]).filter((x) => x && typeof x.name === "string" && x.name.length > 0) : [];
+}
+
+function formatBibleContext(bible: BookBibleRow): string {
+  const parts: string[] = [];
+  if (bible.series) parts.push(`Series: ${bible.series}${bible.bookNumber ? ` (book ${bible.bookNumber})` : ""}`);
+  const tone = Array.isArray(bible.tone) ? (bible.tone as string[]) : [];
+  if (tone.length > 0) parts.push(`Tone: ${tone.join(", ")}`);
+  const visualHints = Array.isArray(bible.visualStyleHints) ? (bible.visualStyleHints as string[]) : [];
+  if (visualHints.length > 0) parts.push(`Visual style hints: ${visualHints.join(", ")}`);
+  if (bible.settingSummary) parts.push(`Setting:\n${bible.settingSummary}`);
+  if (bible.nonSpoilerSummary) parts.push(`Non-spoiler summary:\n${bible.nonSpoilerSummary}`);
+
+  const chars = asCharList(bible.characterProfiles).slice(0, 12);
+  if (chars.length > 0) {
+    const lines = chars.map((c) => {
+      const traits = (c.visualTraits ?? []).join(", ");
+      const desc = c.description ?? c.role ?? "";
+      return `- ${c.name}${c.role ? ` (${c.role})` : ""}: ${desc}${traits ? ` Visual: ${traits}.` : ""}`;
+    });
+    parts.push(`Characters (use these names and visual traits if they appear in this scene):\n${lines.join("\n")}`);
+  }
+
+  const locations = asNamedList(bible.locations).slice(0, 8);
+  if (locations.length > 0) {
+    parts.push(`Locations:\n${locations.map((l) => `- ${l.name}${l.description ? `: ${l.description}` : ""}`).join("\n")}`);
+  }
+  const factions = asNamedList(bible.factions).slice(0, 8);
+  if (factions.length > 0) {
+    parts.push(`Factions:\n${factions.map((f) => `- ${f.name}${f.description ? `: ${f.description}` : ""}`).join("\n")}`);
+  }
+  const tech = asNamedList(bible.technology).slice(0, 6);
+  if (tech.length > 0) {
+    parts.push(`Technology:\n${tech.map((t) => `- ${t.name}${t.description ? `: ${t.description}` : ""}`).join("\n")}`);
+  }
+  const ships = asNamedList(bible.ships).slice(0, 6);
+  if (ships.length > 0) {
+    parts.push(`Ships:\n${ships.map((s) => `- ${s.name}${s.description ? `: ${s.description}` : ""}`).join("\n")}`);
+  }
+  const species = asNamedList(bible.species).slice(0, 6);
+  if (species.length > 0) {
+    parts.push(`Species:\n${species.map((s) => `- ${s.name}${s.description ? `: ${s.description}` : ""}`).join("\n")}`);
+  }
+
+  const focusAreas = Array.isArray(bible.focusAreas) ? (bible.focusAreas as string[]) : [];
+  if (focusAreas.length > 0) parts.push(`The reader specifically wants visuals to focus on: ${focusAreas.join(", ")}.`);
+  if (bible.avoidNotes) parts.push(`AVOID (reader-specified constraints — strictly honor these):\n${bible.avoidNotes}`);
+  if (bible.userNotes) parts.push(`Reader notes:\n${bible.userNotes}`);
+
+  return parts.join("\n\n");
+}
+
+// Hash a bible into a short stable string for cache-keying.
+// Includes contextVersion so editing the bible busts the cache.
+function bibleCacheTag(bible: BookBibleRow): string {
+  return `bible:${bible.id}:v${bible.contextVersion}`;
+}
 
 const router: IRouter = Router();
 const objectStorage = new ObjectStorageService();
@@ -70,6 +144,9 @@ interface GenerateBody {
   excerpt?: string;
   generateImage?: boolean;
   sceneCount?: number;
+  bookBibleId?: string;
+  whatJustHappened?: string;
+  currentSceneCharacters?: string[];
 }
 
 router.post("/scenes/generate", async (req, res) => {
@@ -84,6 +161,9 @@ router.post("/scenes/generate", async (req, res) => {
       excerpt,
       generateImage = false,
       sceneCount: rawSceneCount,
+      bookBibleId,
+      whatJustHappened,
+      currentSceneCharacters,
     } = req.body as GenerateBody;
 
     if (!bookTitle || !author) {
@@ -91,7 +171,34 @@ router.post("/scenes/generate", async (req, res) => {
       return;
     }
 
+    // Optional: load bible for bible-aware generation. Fail-soft if missing.
+    let bible: BookBibleRow | null = null;
+    if (typeof bookBibleId === "string" && bookBibleId.length > 0) {
+      const rows = await db
+        .select()
+        .from(bookBiblesTable)
+        .where(eq(bookBiblesTable.id, bookBibleId))
+        .limit(1);
+      bible = rows[0] ?? null;
+      if (!bible) {
+        req.log.warn({ bookBibleId }, "scenes: bible id not found, generating without bible context");
+      }
+    }
+
     const sceneCount = clampSceneCount(rawSceneCount);
+    const bibleTag = bible ? bibleCacheTag(bible) : undefined;
+    // Mix bible tag + reading-context blobs into the excerpt-hash slot so the
+    // cache key naturally invalidates when the bible or "what just happened"
+    // changes. We avoid changing makeSceneCacheKey's signature.
+    const cacheExcerptInput = [
+      excerpt ?? "",
+      bibleTag ?? "",
+      whatJustHappened ? `wjh:${whatJustHappened}` : "",
+      Array.isArray(currentSceneCharacters) && currentSceneCharacters.length > 0
+        ? `csc:${currentSceneCharacters.join("|")}`
+        : "",
+    ].filter(Boolean).join("||");
+
     const bundleParams = {
       bookTitle,
       author,
@@ -99,7 +206,7 @@ router.post("/scenes/generate", async (req, res) => {
       chapterNumber,
       visualStyle,
       spoilerMode,
-      excerpt,
+      excerpt: cacheExcerptInput || undefined,
       sceneCount: sceneCount || undefined,
     };
     const cacheKey = makeSceneCacheKey(bundleParams);
@@ -156,12 +263,22 @@ router.post("/scenes/generate", async (req, res) => {
       ? `Generate exactly ${sceneCount} scene${sceneCount === 1 ? "" : "s"}${sceneCount === 1 ? " — one strong cinematic moment that captures the heart of the passage" : ""}.`
       : "Generate 3-5 scenes that progress naturally through the chapter.";
 
+    const bibleSection = bible ? formatBibleContext(bible) : "";
+    const wjhSection = whatJustHappened
+      ? `\nWhat the reader says just happened in their reading position (use to ground mood and recent context — do NOT extrapolate further):\n---\n${whatJustHappened.slice(0, 1200)}\n---`
+      : "";
+    const cscSection =
+      Array.isArray(currentSceneCharacters) && currentSceneCharacters.length > 0
+        ? `\nCharacters present in or near the reader's current scene: ${currentSceneCharacters.join(", ")}.`
+        : "";
+
     const userPrompt = `Book: "${bookTitle}" by ${author}
 Chapter ${chapterNumber}: "${chapterTitle}"
 Spoiler strictness: ${spoilerMode}
+${bibleSection ? `\n=== BOOK BIBLE (reader-confirmed context — ground every scene in this) ===\n${bibleSection}\n=== END BIBLE ===\n` : ""}${wjhSection}${cscSection}
 ${excerpt ? `\nExcerpt from this chapter (this is the actual text the reader is on — base scenes on this, not your training memory of the book):\n---\n${excerpt.slice(0, 3000)}\n---` : ""}
 
-${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.`;
+${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.${bible?.avoidNotes ? ` Strictly honor the AVOID notes from the bible.` : ""}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-5.4",

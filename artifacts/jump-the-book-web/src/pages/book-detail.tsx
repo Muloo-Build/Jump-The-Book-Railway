@@ -4,19 +4,41 @@ import { useLibrary } from "@/lib/library";
 import { DEMO_BOOKS, CHAPTERS } from "@/data/books";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Image as ImageIcon, Sparkles, Settings2, BookOpen } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  MapPin,
+  Image as ImageIcon,
+  Sparkles,
+  Settings2,
+  BookOpen,
+  Wand2,
+  Pencil,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import BookMetadata from "@/components/book-metadata";
 import PastePassage from "@/components/paste-passage";
 import { useOpenLibraryEnrichment } from "@/hooks/useOpenLibraryEnrichment";
+import { useBookBible } from "@/hooks/useBookBible";
+import { useIsSignedIn } from "@/hooks/useApiLibrary";
+
+// User-book IDs from the remote API are UUIDs. Demo books use slugs ("alice").
+// Only call the bible endpoint for UUID-shaped IDs to avoid spurious 404s.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function BookDetail() {
   const { id } = useParams<{ id: string }>();
   const { userLibrary, getPosition } = useLibrary();
+  const isSignedIn = useIsSignedIn();
 
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
   const book = userBook || demoBook;
+
+  // Only fetch a bible for signed-in users on a real (UUID) user_book row.
+  const bibleBookId = isSignedIn && userBook && UUID_RE.test(id) ? id : null;
+  const bibleQ = useBookBible(bibleBookId);
+  const bible = bibleQ.data?.bible ?? null;
 
   // Pull a cover from Open Library when the book has no built-in image.
   // The hook also drives <BookMetadata>, so they share one cached lookup.
@@ -134,6 +156,110 @@ export default function BookDetail() {
 
             <BookMetadata title={book.title} author={book.author} />
 
+            {bibleBookId && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                {bible ? (
+                  <Card className="bg-amber-400/5 border-amber-400/30">
+                    <CardContent className="p-6 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="inline-flex items-center gap-2 text-amber-300 text-xs font-semibold uppercase tracking-wider">
+                            <Wand2 className="w-3.5 h-3.5" /> Book Bible
+                          </div>
+                          <h3 className="font-serif text-xl font-semibold">
+                            {bible.series
+                              ? `${bible.series}${bible.bookNumber ? ` #${bible.bookNumber}` : ""}`
+                              : "Your story profile"}
+                          </h3>
+                        </div>
+                        <Link href={`/setup-book?bookId=${book.id}`}>
+                          <Button size="sm" variant="ghost">
+                            <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+                          </Button>
+                        </Link>
+                      </div>
+
+                      {bible.nonSpoilerSummary && (
+                        <p className="text-sm text-muted-foreground line-clamp-3">
+                          {bible.nonSpoilerSummary}
+                        </p>
+                      )}
+
+                      {(bible.genre.length > 0 || bible.tone.length > 0) && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {bible.genre.map((g) => (
+                            <Badge key={`g-${g}`} variant="secondary">
+                              {g}
+                            </Badge>
+                          ))}
+                          {bible.tone.map((t) => (
+                            <Badge
+                              key={`t-${t}`}
+                              variant="outline"
+                              className="border-amber-400/40 text-amber-200"
+                            >
+                              {t}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-2 text-xs text-center pt-2 border-t border-border/40">
+                        <Stat
+                          n={bible.characterProfiles.length}
+                          label="characters"
+                        />
+                        <Stat
+                          n={bible.locations.length}
+                          label="locations"
+                        />
+                        <Stat n={bible.factions.length} label="factions" />
+                      </div>
+
+                      {bible.avoidNotes && (
+                        <div className="text-xs text-muted-foreground border-t border-border/40 pt-3">
+                          <span className="font-medium text-foreground">
+                            Avoid:
+                          </span>{" "}
+                          {bible.avoidNotes}
+                        </div>
+                      )}
+
+                      <p className="text-[11px] text-muted-foreground/80 pt-1">
+                        Every scene we generate uses this context to stay on-tone
+                        and spoiler-safe.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  !bibleQ.isLoading && (
+                    <Card className="border-dashed border-amber-400/30 bg-amber-400/5">
+                      <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
+                        <div className="space-y-1">
+                          <div className="inline-flex items-center gap-2 text-amber-300 text-xs font-semibold uppercase tracking-wider">
+                            <Wand2 className="w-3.5 h-3.5" /> Book Bible
+                          </div>
+                          <p className="text-sm">
+                            Build a story profile so every scene is grounded in
+                            this book's world.
+                          </p>
+                        </div>
+                        <Link href={`/setup-book?bookId=${book.id}`}>
+                          <Button>
+                            <Sparkles className="w-4 h-4 mr-2" /> Add a bible
+                          </Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  )
+                )}
+              </motion.div>
+            )}
+
             <PastePassage bookId={book.id} chapter={currentChapter} />
 
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-4">
@@ -169,5 +295,16 @@ export default function BookDetail() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+function Stat({ n, label }: { n: number; label: string }) {
+  return (
+    <div>
+      <div className="font-serif text-lg font-semibold text-foreground">
+        {n}
+      </div>
+      <div className="text-muted-foreground">{label}</div>
+    </div>
   );
 }

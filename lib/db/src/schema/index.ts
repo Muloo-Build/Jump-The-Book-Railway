@@ -19,3 +19,4 @@
 
 export * from "./sceneCache";
 export * from "./userLibrary";
+export * from "./bookBibles";

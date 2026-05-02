@@ -40,6 +40,34 @@ export default function Library() {
 
         <ReadingStats />
 
+        <Show when="signed-in">
+          <div className="rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/10 to-amber-300/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 text-amber-300 text-sm font-medium">
+                <Sparkles className="w-4 h-4" />
+                Smart Setup
+              </div>
+              <h3 className="font-serif text-xl font-semibold">
+                Reading something we don't have a file of?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Add any modern book by title and author — Kindle, Audible,
+                hardcover, anything. We'll build a story profile and visualize
+                your reading position spoiler-free.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <Link
+                href="/setup-book"
+                className="inline-flex items-center justify-center rounded-md bg-amber-400 text-black h-10 px-4 py-2 font-medium hover:bg-amber-300 transition-colors"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Add a book
+              </Link>
+            </div>
+          </div>
+        </Show>
+
         <Show when="signed-out">
           <div className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
             <div className="space-y-2 max-w-2xl">
@@ -74,15 +102,22 @@ export default function Library() {
             My Books
           </h2>
           {userLibrary.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center">
-              <p className="text-muted-foreground mb-6">
+            <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center gap-3">
+              <p className="text-muted-foreground mb-2">
                 Your library is empty.
               </p>
-              <Link href="/upload">
-                <div className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-primary/90 transition-colors">
-                  <Plus className="mr-2 h-4 w-4" /> Add your first book
-                </div>
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link href="/setup-book">
+                  <div className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-primary/90 transition-colors">
+                    <Sparkles className="mr-2 h-4 w-4" /> Smart Setup
+                  </div>
+                </Link>
+                <Link href="/upload">
+                  <div className="inline-flex items-center justify-center rounded-md border border-border h-10 px-4 py-2 font-medium hover:bg-card transition-colors">
+                    <Plus className="mr-2 h-4 w-4" /> Upload a file
+                  </div>
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
