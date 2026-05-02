@@ -110,7 +110,21 @@ export default function Playback() {
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const advanceTimerRef = useRef<number | null>(null);
 
+  // Clamp index whenever the scenes list grows/shrinks (e.g. chapter switch
+  // or remote hydration arriving after the initial render). Without this,
+  // `scenes[index]` can be undefined and crash render.
+  useEffect(() => {
+    if (scenes.length === 0) {
+      if (index !== 0) setIndex(0);
+      return;
+    }
+    if (index >= scenes.length) setIndex(scenes.length - 1);
+  }, [scenes.length, index]);
+
   const current = scenes[index];
+  const gradient = current?.gradient && current.gradient.length > 0
+    ? current.gradient
+    : ["#000", "#000"];
 
   // Stop on unmount
   useEffect(() => {
@@ -251,7 +265,7 @@ export default function Playback() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(135deg, ${current?.gradient[0] ?? "#000"}, ${current?.gradient[current.gradient.length - 1] ?? "#000"})`,
+              background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[gradient.length - 1]})`,
             }}
           >
             {current?.imageUrl && (

@@ -899,20 +899,49 @@ router.post("/me/orphan-scenes/claim", async (req, res) => {
         .returning();
     }
 
-    const moved = await db
-      .update(userScenesTable)
-      .set({ userBookId: target!.id })
-      .where(
-        and(
-          eq(userScenesTable.userId, userId),
-          eq(userScenesTable.userBookId, orphanId),
-        ),
-      )
-      .returning({ id: userScenesTable.id });
+    const targetId = target!.id;
+    // Move orphan scenes to the canonical book in a single transaction.
+    // The (userBookId, chapterNumber, sceneIndex) unique index means a
+    // naive UPDATE crashes if the target book already has a scene at the
+    // same chapter/scene slot. Drop the colliding orphan rows first, then
+    // move what remains.
+    const { moved, dropped } = await db.transaction(async (tx) => {
+      let dropped = 0;
+      if (targetId !== orphanId) {
+        const conflicts = await tx
+          .delete(userScenesTable)
+          .where(
+            and(
+              eq(userScenesTable.userId, userId),
+              eq(userScenesTable.userBookId, orphanId),
+              sql`(${userScenesTable.chapterNumber}, ${userScenesTable.sceneIndex}) IN (
+                SELECT ${userScenesTable.chapterNumber}, ${userScenesTable.sceneIndex}
+                FROM ${userScenesTable}
+                WHERE ${userScenesTable.userId} = ${userId}
+                  AND ${userScenesTable.userBookId} = ${targetId}
+              )`,
+            ),
+          )
+          .returning({ id: userScenesTable.id });
+        dropped = conflicts.length;
+      }
+      const moved = await tx
+        .update(userScenesTable)
+        .set({ userBookId: targetId })
+        .where(
+          and(
+            eq(userScenesTable.userId, userId),
+            eq(userScenesTable.userBookId, orphanId),
+          ),
+        )
+        .returning({ id: userScenesTable.id });
+      return { moved, dropped };
+    });
 
     res.json({
       book: serializeBook(target!),
       movedSceneCount: moved.length,
+      droppedDuplicateCount: dropped,
     });
   } catch (err) {
     req.log.error({ err }, "POST /me/orphan-scenes/claim failed");

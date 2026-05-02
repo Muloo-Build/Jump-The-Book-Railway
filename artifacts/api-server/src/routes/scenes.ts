@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
-import { getAuth } from "@clerk/express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { db } from "@workspace/db";
 import { bookBiblesTable, type BookBibleRow } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { requireAuth, type AuthedRequest } from "../middlewares/requireAuth";
 import {
   cacheStats,
   getCachedImage,
@@ -150,8 +150,9 @@ interface GenerateBody {
   currentSceneCharacters?: string[];
 }
 
-router.post("/scenes/generate", async (req, res) => {
+router.post("/scenes/generate", requireAuth, async (req, res) => {
   try {
+    const requesterId = (req as AuthedRequest).userId;
     const {
       bookTitle,
       author,
@@ -173,36 +174,27 @@ router.post("/scenes/generate", async (req, res) => {
     }
 
     // Optional: load bible for bible-aware generation. Fail-soft if missing
-    // or if the requester does not own it (prevents cross-tenant leakage on
-    // this public endpoint).
+    // or if the requester does not own it (prevents cross-tenant leakage).
     let bible: BookBibleRow | null = null;
     if (typeof bookBibleId === "string" && bookBibleId.length > 0) {
-      const requesterId = getAuth(req)?.userId ?? null;
-      if (!requesterId) {
+      const rows = await db
+        .select()
+        .from(bookBiblesTable)
+        .where(eq(bookBiblesTable.id, bookBibleId))
+        .limit(1);
+      const candidate = rows[0] ?? null;
+      if (!candidate) {
         req.log.warn(
           { bookBibleId },
-          "scenes: bookBibleId provided without auth, ignoring",
+          "scenes: bible id not found, generating without bible context",
+        );
+      } else if (candidate.userId !== requesterId) {
+        req.log.warn(
+          { bookBibleId, owner: candidate.userId, requesterId },
+          "scenes: bible ownership mismatch, ignoring",
         );
       } else {
-        const rows = await db
-          .select()
-          .from(bookBiblesTable)
-          .where(eq(bookBiblesTable.id, bookBibleId))
-          .limit(1);
-        const candidate = rows[0] ?? null;
-        if (!candidate) {
-          req.log.warn(
-            { bookBibleId },
-            "scenes: bible id not found, generating without bible context",
-          );
-        } else if (candidate.userId !== requesterId) {
-          req.log.warn(
-            { bookBibleId, owner: candidate.userId, requesterId },
-            "scenes: bible ownership mismatch, ignoring",
-          );
-        } else {
-          bible = candidate;
-        }
+        bible = candidate;
       }
     }
 
@@ -410,7 +402,7 @@ interface ImageBody {
   cacheKey?: string;
 }
 
-router.post("/scenes/image", async (req, res) => {
+router.post("/scenes/image", requireAuth, async (req, res) => {
   try {
     const {
       prompt,
@@ -501,7 +493,7 @@ router.post("/scenes/image", async (req, res) => {
   }
 });
 
-router.get("/scenes/cache/stats", async (req, res) => {
+router.get("/scenes/cache/stats", requireAuth, async (req, res) => {
   try {
     const stats = await cacheStats();
     res.json(stats);

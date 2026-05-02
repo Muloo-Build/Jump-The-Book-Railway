@@ -90,7 +90,20 @@ export default function Experience() {
     setScenes([]);
   }, [book, id, chapterNumber, readCachedScenes, remoteScenesQuery.data]);
 
-  if (!book || scenes.length === 0) {
+  // Clamp currentIndex whenever the scenes array changes (e.g. chapter
+  // switch or remote hydration shrinks the list). Prevents undefined
+  // currentScene access below.
+  useEffect(() => {
+    if (scenes.length === 0) {
+      if (currentIndex !== 0) setCurrentIndex(0);
+      return;
+    }
+    if (currentIndex >= scenes.length) setCurrentIndex(scenes.length - 1);
+  }, [scenes.length, currentIndex]);
+
+  const currentScene = scenes[currentIndex];
+
+  if (!book || scenes.length === 0 || !currentScene) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-black text-white p-6">
         <p className="text-xl font-serif mb-4">No scenes found for this chapter.</p>
@@ -100,8 +113,6 @@ export default function Experience() {
       </div>
     );
   }
-
-  const currentScene = scenes[currentIndex];
 
   return (
     <div className="fixed inset-0 bg-black text-white overflow-hidden flex flex-col selection:bg-primary/30">
