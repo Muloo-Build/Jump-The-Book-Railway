@@ -45,8 +45,10 @@ Jump the Book — AI-powered visual reading companion.
 - `app/chapter/[id].tsx` — Chapter with Scenes/Characters/Ambient tabs, progressive unlock, AI Generate
 - `app/ambient-companion.tsx` — Full-screen ambient companion mode (gradient + scene cycling)
 - `app/immersion-mode.tsx` — Full-screen immersion mode
-- `app/add-book.tsx` — Add a current read
-- `app/upload-writing.tsx` — Upload EPUB writing
+- `app/upload.tsx` — **Unified "Upload or Add" flow** (replaces add-book + upload-writing): drag-or-tap EPUB picker (web HTML input + native expo-document-picker), cross-platform JSZip parser, auto-fills title/author/chapter count, auto-kicks-off scene generation for chapter 1 after add. Falls back to manual entry. Inline validation for title/author/chapter/page (positive integers); submit wrapped in try/catch/finally with surfaced `errors.submit`. After `addBook` returns the new id, calls `updatePosition` so the book detail screen immediately reflects the entered chapter/page.
+- `app/book/[id].tsx` — Resolves books from BOTH `DEMO_BOOKS` and `userLibrary` via a `NormalizedBook` adapter. User books with no pre-baked chapters render a "Scenes are being prepared" empty state, hide Ambient/Immersion/Characters quick actions, and disable the primary button with "Scenes coming soon". The "Public Domain" gold badge only renders for demo books.
+- `LibraryContext.addBook` returns the new book id (`Promise<string>`) so callers can immediately reference the created book (e.g. to seed positions).
+- `app/add-book.tsx`, `app/upload-writing.tsx` — Legacy routes (kept for back-compat, no longer linked from library)
 
 **Key components**:
 - `components/AmbientCompanion.tsx` — Swipeable scene player, soundscape labels, auto-hide UI

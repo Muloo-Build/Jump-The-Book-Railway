@@ -62,7 +62,7 @@ interface LibraryContextType {
   streak: StreakData;
   isLoading: boolean;
 
-  addBook: (item: Omit<UserLibraryItem, "id" | "createdAt">) => Promise<void>;
+  addBook: (item: Omit<UserLibraryItem, "id" | "createdAt">) => Promise<string>;
   removeBook: (id: string) => Promise<void>;
   updateProgress: (id: string, progress: number) => Promise<void>;
   setActiveBookId: (id: string | null) => void;
@@ -151,7 +151,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
 
   // ── Library ──────────────────────────────────────────────────────────────
   const addBook = useCallback(
-    async (item: Omit<UserLibraryItem, "id" | "createdAt">) => {
+    async (item: Omit<UserLibraryItem, "id" | "createdAt">): Promise<string> => {
       const newItem: UserLibraryItem = {
         ...item,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -160,6 +160,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       const updated = [...userLibrary, newItem];
       setUserLibrary(updated);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      return newItem.id;
     },
     [userLibrary]
   );

@@ -12,7 +12,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BookCard } from "@/components/BookCard";
-import { EmptyState } from "@/components/EmptyState";
 import { LibraryConnectModal } from "@/components/LibraryConnectModal";
 import { useLibrary } from "@/context/LibraryContext";
 import { DEMO_BOOKS } from "@/data/books";
@@ -54,6 +53,31 @@ export default function LibraryScreen() {
         </View>
       </View>
 
+      {/* Single Upload CTA — primary entry point */}
+      <View style={styles.heroWrap}>
+        <TouchableOpacity
+          style={[
+            styles.heroBtn,
+            { backgroundColor: colors.accent + "15", borderColor: colors.accent + "60" },
+          ]}
+          onPress={() => router.push("/upload")}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.heroIcon, { backgroundColor: colors.accent + "30" }]}>
+            <Feather name="upload-cloud" size={22} color={colors.accent} />
+          </View>
+          <View style={styles.heroText}>
+            <Text style={[styles.heroTitle, { color: colors.foreground }]}>
+              Upload or add a book
+            </Text>
+            <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
+              Drop in an EPUB or enter the details — we'll create your visual companion.
+            </Text>
+          </View>
+          <Feather name="arrow-right" size={18} color={colors.accent} />
+        </TouchableOpacity>
+      </View>
+
       {/* Demo Library */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -63,33 +87,44 @@ export default function LibraryScreen() {
           </View>
         </View>
         <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
-          Explore public domain classics without copyright restrictions.
+          Try it out with a classic — no upload needed.
         </Text>
         {DEMO_BOOKS.map((book) => (
           <BookCard key={book.id} type="demo" book={book} />
         ))}
       </View>
 
-      {/* My Current Reads */}
+      {/* My Books */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>My Current Reads</Text>
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            onPress={() => router.push("/add-book")}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={14} color={colors.primaryForeground} />
-          </TouchableOpacity>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Your books</Text>
+          {userLibrary.length > 0 && (
+            <TouchableOpacity
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              onPress={() => router.push("/upload")}
+              activeOpacity={0.8}
+            >
+              <Feather name="plus" size={14} color={colors.primaryForeground} />
+            </TouchableOpacity>
+          )}
         </View>
         {userLibrary.length === 0 ? (
-          <EmptyState
-            icon="book-open"
-            title="No books added yet"
-            description="Add a book you're currently reading to generate a visual companion."
-            actionLabel="Add My Current Read"
-            onAction={() => router.push("/add-book")}
-          />
+          <View
+            style={[
+              styles.emptyCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={[styles.emptyIcon, { backgroundColor: colors.primary + "15" }]}>
+              <Feather name="book-open" size={26} color={colors.primary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              Your library is empty
+            </Text>
+            <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
+              Tap the upload button above to add your first book and start generating scenes.
+            </Text>
+          </View>
         ) : (
           userLibrary.map((book) => (
             <BookCard
@@ -100,34 +135,6 @@ export default function LibraryScreen() {
             />
           ))
         )}
-      </View>
-
-      {/* My Own Writing */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>My Own Writing</Text>
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.accent }]}
-            onPress={() => router.push("/upload-writing")}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={14} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        <View style={[styles.writingCard, { backgroundColor: colors.card, borderColor: colors.accent + "40" }]}>
-          <Feather name="edit-3" size={24} color={colors.accent} />
-          <Text style={[styles.writingTitle, { color: colors.foreground }]}>Paste your own writing</Text>
-          <Text style={[styles.writingDesc, { color: colors.mutedForeground }]}>
-            Paste your own writing and turn it into an immersive visual companion. Perfect for authors, creators and storytellers.
-          </Text>
-          <TouchableOpacity
-            style={[styles.writingBtn, { backgroundColor: colors.accent + "20", borderColor: colors.accent + "40" }]}
-            onPress={() => router.push("/upload-writing")}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.writingBtnText, { color: colors.accent }]}>Upload Writing</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <LibraryConnectModal
@@ -160,16 +167,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   connectText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  heroWrap: { paddingHorizontal: 20, paddingTop: 16 },
+  heroBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroText: { flex: 1, gap: 4 },
+  heroTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  heroSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
   section: { paddingHorizontal: 20, paddingTop: 24, gap: 12 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   sectionTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   sectionSub: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  addBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  writingCard: { borderRadius: 20, borderWidth: 1, padding: 24, alignItems: "center", gap: 10 },
-  writingTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  writingDesc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, textAlign: "center" },
-  writingBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1, marginTop: 4 },
-  writingBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  addBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 28,
+    alignItems: "center",
+    gap: 10,
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  emptyDesc: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
+    textAlign: "center",
+  },
 });

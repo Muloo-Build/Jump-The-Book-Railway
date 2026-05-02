@@ -40,8 +40,8 @@ export function BookCard(props: BookCardProps) {
   const handlePress = () => {
     if (props.onPress) {
       props.onPress();
-    } else if (isDemo) {
-      router.push(`/book/${(book as Book).id}`);
+    } else {
+      router.push(`/book/${book.id}`);
     }
   };
 

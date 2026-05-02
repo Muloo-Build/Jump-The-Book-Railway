@@ -1,0 +1,24 @@
+Jump the Book – Simplify & Streamline
+
+The goal of this sprint is to make the user flow dirt‑simple: “I’m reading or listening to a book, I upload the file, and the app generates a visual companion that follows along.” We already have core features working (scene generation, ambient mode, character cards, session recap, streaks), but the onboarding and file handling need to be unified and cross‑platform. Focus on stability, polish, and an intuitive single‑entry workflow.
+
+Unify “Add Book” and “Upload Writing”:
+• Merge these into one “Upload or Add” flow accessible from the library.
+• Support uploading EPUB files on both web and mobile. On mobile, use Expo’s DocumentPicker or similar. Parse EPUBs on the client using JSZip or a cross‑platform library, extract metadata (title, author) and the first few chapters of text. Auto‑populate book details.
+• For users without a file, keep manual entry for Kindle/Audible and other formats.
+Automatic scene generation:
+• After parsing the EPUB, automatically call the /api/scenes/generate endpoint for chapter 1 and store the result. Generate additional scenes on‑demand when the reader reaches later chapters.
+• Keep spoiler‑mode options (no‑spoilers, light‑guidance, full‑companion) but default to spoiler‑safe.
+• Maintain the existing caching logic so scene generation doesn’t re‑bill within 24 hours.
+Simplify reading position tracking:
+• Present a single “Where are you?” prompt that lets users set chapter/page or audiobook timestamp. Use that to calculate percentage complete and unlock scenes. Use the existing PositionEntry component as the basis but remove unnecessary fields.
+• Chapters beyond the current position should remain locked, with a clear lock icon.
+Polish the companion experience:
+• On the companion screen, show unlocked scene cards with gradient fallback if images haven’t been generated yet. Provide an optional “Ambient” button that enters full‑screen mode with the mood‑matched soundscapes.
+• Keep the contextual character cards and session recap/streak features, but tuck them under an expandable section so the main flow stays uncluttered.
+Robustness & UX:
+• Implement graceful loading, error, and empty states on every screen.
+• Update any server logic necessary to handle file uploads if you choose to parse EPUB server‑side; otherwise ensure client‑side parsing works reliably.
+• Clean up labels and copy to be friendly and self‑explanatory (e.g. “Upload your book,” “Continue reading,” “Unlock your next scene”).
+
+Do not over‑engineer or add new experimental features yet. The goal is a stable, intuitive MVP that someone can try in 30 seconds: upload → view scenes → set position → see more scenes.
