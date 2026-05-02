@@ -13,11 +13,17 @@ import {
   BookOpen,
   Wand2,
   Pencil,
+  PlayCircle,
+  RefreshCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import BookMetadata from "@/components/book-metadata";
 import PastePassage from "@/components/paste-passage";
-import { useOpenLibraryEnrichment } from "@/hooks/useOpenLibraryEnrichment";
+import {
+  useOpenLibraryEnrichment,
+  clearEnrichmentCache,
+} from "@/hooks/useOpenLibraryEnrichment";
+import { useToast } from "@/hooks/use-toast";
 import { useBookBible } from "@/hooks/useBookBible";
 import { useIsSignedIn } from "@/hooks/useApiLibrary";
 
@@ -30,6 +36,7 @@ export default function BookDetail() {
   const { id } = useParams<{ id: string }>();
   const { userLibrary, getPosition } = useLibrary();
   const isSignedIn = useIsSignedIn();
+  const { toast } = useToast();
 
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
@@ -107,6 +114,23 @@ export default function BookDetail() {
                 />
               )}
             </motion.div>
+            {!book.heroImage && (
+              <button
+                type="button"
+                onClick={() => {
+                  clearEnrichmentCache(book.title, book.author);
+                  toast({
+                    title: "Refreshing cover",
+                    description: "Pulling the latest match from Open Library.",
+                  });
+                  setTimeout(() => window.location.reload(), 400);
+                }}
+                className="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Refresh cover
+              </button>
+            )}
           </div>
 
           {/* Details Column */}
@@ -284,9 +308,16 @@ export default function BookDetail() {
                 </Link>
 
                 <Link href={`/comic/${book.id}?chapter=${currentChapter}`}>
-                  <Button size="lg" variant="outline" className="w-full h-16 text-lg group sm:col-span-2">
+                  <Button size="lg" variant="outline" className="w-full h-16 text-lg group">
                     <BookOpen className="w-5 h-5 mr-3" />
                     Comic View
+                  </Button>
+                </Link>
+
+                <Link href={`/playback/${book.id}?chapter=${currentChapter}`}>
+                  <Button size="lg" variant="outline" className="w-full h-16 text-lg group bg-amber-400/5 border-amber-400/30 text-amber-200 hover:bg-amber-400/10">
+                    <PlayCircle className="w-5 h-5 mr-3" />
+                    Watch as trailer
                   </Button>
                 </Link>
               </div>

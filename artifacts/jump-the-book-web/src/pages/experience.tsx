@@ -4,7 +4,7 @@ import { useLibrary } from "@/lib/library";
 import { useGenerateScene, GeneratedScene } from "@/hooks/useGenerateScene";
 import { useRemoteBooks, useRemoteBookScenes } from "@/hooks/useApiLibrary";
 import { DEMO_BOOKS, CHAPTERS, SCENE_IMAGES } from "@/data/books";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, PlayCircle, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
@@ -109,11 +109,24 @@ export default function Experience() {
         <div className="font-serif text-sm opacity-70 tracking-widest uppercase pointer-events-auto">
           {book.title} — Chapter {chapterNumber}
         </div>
-        <Link href={`/book/${book.id}`}>
-          <Button variant="ghost" size="icon" className="text-white/70 hover:text-white pointer-events-auto hover:bg-white/10 rounded-full">
-            <X className="w-6 h-6" />
-          </Button>
-        </Link>
+        <div className="flex items-center gap-1 pointer-events-auto">
+          <Link href={`/playback/${book.id}?chapter=${chapterNumber}`}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white/70 hover:text-white hover:bg-white/10 rounded-full gap-1.5 hidden sm:inline-flex"
+              title="Watch as trailer"
+            >
+              <PlayCircle className="w-4 h-4" />
+              Watch as trailer
+            </Button>
+          </Link>
+          <Link href={`/book/${book.id}`}>
+            <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10 rounded-full">
+              <X className="w-6 h-6" />
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="flex-1 relative flex items-center justify-center w-full h-full">

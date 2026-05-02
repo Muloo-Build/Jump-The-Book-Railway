@@ -36,6 +36,7 @@ import Comic from "@/pages/comic";
 import Help from "@/pages/help";
 import Onboarding from "@/pages/onboarding";
 import SetupBook from "@/pages/setup-book";
+import Playback from "@/pages/playback";
 
 // In production the Clerk proxy runs on the current host; derive the
 // publishable key from window.location so the same build serves multiple
@@ -228,6 +229,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/position/:id" component={Position} />
             <Route path="/experience/:id" component={Experience} />
             <Route path="/comic/:id" component={Comic} />
+            <Route path="/playback/:id" component={Playback} />
             <Route path="/help" component={Help} />
             <Route component={NotFound} />
           </Switch>

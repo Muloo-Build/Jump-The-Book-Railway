@@ -43,7 +43,15 @@ Jump the Book — web reading companion. Reader uploads an EPUB (parsed entirely
 
 **Stack**: React 19, Vite, TypeScript, Tailwind v4, shadcn/ui (Radix), wouter, framer-motion, TanStack Query, Clerk (`@clerk/react` + `@clerk/themes`).
 
-**Routes**: `/` Home, `/sign-in/*?`, `/sign-up/*?`, `/onboarding`, `/library`, `/upload`, `/setup-book` (Smart Book Setup wizard), `/generate`, `/book/:id`, `/position/:id`, `/experience/:id` (Cinematic), `/comic/:id`, `/help`.
+**Routes**: `/` Home, `/sign-in/*?`, `/sign-up/*?`, `/onboarding`, `/library`, `/upload`, `/setup-book` (Smart Book Setup wizard), `/generate`, `/book/:id`, `/position/:id`, `/experience/:id` (Cinematic), `/comic/:id`, `/playback/:id?chapter=N` (Story Playback / chapter trailer using browser SpeechSynthesis), `/help`.
+
+**Companion features layered on top of Smart Setup**:
+- **Voice capture** — `<VoiceCaptureButton>` (`src/components/voice-capture-button.tsx`) wraps Web Speech API (`window.SpeechRecognition` / `webkitSpeechRecognition`, typings in `src/lib/speechRecognition.ts`). Used by the setup wizard's "What just happened" / excerpt fields and by the bible editor's long-text fields via `<DictatedTextarea>`.
+- **Cover picker** — `<CoverPicker>` (`src/components/cover-picker.tsx`) shows top Open Library cover thumbnails for the typed (title, author) on Step 1; the chosen cover URL is persisted as `user_books.heroImage`. Falls back to a stylized gradient.
+- **Refresh metadata** — `clearEnrichmentCache(title, author)` in `useOpenLibraryEnrichment` drops the cached lookup; library tile (hover) and book-detail expose refresh-cover affordances.
+- **Now Reading hero** — `<NowReadingHero>` pinned to the top of `/library`, picks the active book or the most-recently-updated book in `userLibrary` (the `/api/me/books` list is ordered by `desc(updatedAt)`).
+- **Scene Library** — `<SceneLibrary>` (`src/components/scene-library.tsx`) replaces the old flat scene grid: search bar, "Recently generated" rail, and per-book → per-chapter collapsible groups. Each chapter group has a "Play trailer" link to `/playback/:bookId?chapter=N`.
+- **Softer Smart Setup banner** — `/library` shows the big amber banner only when the user has zero books; once they add one, the banner shrinks to a quiet single-line "Add a book" row.
 
 **Smart Book Setup** (`/setup-book`):
 - 4-step wizard for adding a modern book (Kindle/Audible/anything we don't have a file for): Identify → Build bible (calls public `POST /api/books/context/search`) → Review/edit (full `<BibleEditor>` form) → Save & open book.

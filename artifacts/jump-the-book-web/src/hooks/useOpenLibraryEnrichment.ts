@@ -27,6 +27,18 @@ function cacheKey(title: string, author: string) {
   return PREFIX + hashKey(raw);
 }
 
+/**
+ * Drop the cached Open Library lookup for a (title, author) pair so the next
+ * render of any tile/hero will refetch. Used by "Refresh metadata" buttons.
+ */
+export function clearEnrichmentCache(title: string, author: string) {
+  try {
+    localStorage.removeItem(cacheKey(title, author));
+  } catch {
+    /* non-fatal */
+  }
+}
+
 function readCache(key: string): OpenLibraryEnrichment | null | "miss" {
   try {
     const raw = localStorage.getItem(key);

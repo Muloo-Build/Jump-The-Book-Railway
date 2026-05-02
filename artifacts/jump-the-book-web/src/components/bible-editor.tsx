@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X } from "lucide-react";
+import VoiceCaptureButton from "@/components/voice-capture-button";
 import type {
   BibleDraft,
   CharacterProfile,
@@ -93,19 +94,17 @@ export default function BibleEditor({ value, onChange }: Props) {
         description="What the world feels and looks like — helps ground every visual."
       >
         <Field label="Setting summary">
-          <Textarea
+          <DictatedTextarea
             value={draft.settingSummary}
-            onChange={(e) => updateDraft({ settingSummary: e.target.value })}
+            onChange={(v) => updateDraft({ settingSummary: v })}
             rows={3}
             placeholder="A brief, non-spoiler description of the world…"
           />
         </Field>
         <Field label="Non-spoiler summary">
-          <Textarea
+          <DictatedTextarea
             value={draft.nonSpoilerSummary}
-            onChange={(e) =>
-              updateDraft({ nonSpoilerSummary: e.target.value })
-            }
+            onChange={(v) => updateDraft({ nonSpoilerSummary: v })}
             rows={3}
             placeholder="Back-cover style. Setup only — no plot reveals."
           />
@@ -215,9 +214,9 @@ export default function BibleEditor({ value, onChange }: Props) {
         title="Anything we should avoid?"
         description="Hard constraints — every scene will respect these."
       >
-        <Textarea
+        <DictatedTextarea
           value={value.avoidNotes}
-          onChange={(e) => onChange({ ...value, avoidNotes: e.target.value })}
+          onChange={(v) => onChange({ ...value, avoidNotes: v })}
           rows={3}
           placeholder="e.g. no spoilers beyond chapter 10, avoid romance focus, no character deaths…"
         />
@@ -227,13 +226,40 @@ export default function BibleEditor({ value, onChange }: Props) {
         title="Personal notes"
         description="Anything else worth knowing — your own commentary."
       >
-        <Textarea
+        <DictatedTextarea
           value={value.userNotes}
-          onChange={(e) => onChange({ ...value, userNotes: e.target.value })}
+          onChange={(v) => onChange({ ...value, userNotes: v })}
           rows={3}
           placeholder="Optional notes for yourself…"
         />
       </Section>
+    </div>
+  );
+}
+
+function DictatedTextarea({
+  value,
+  onChange,
+  rows,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  rows?: number;
+  placeholder?: string;
+}) {
+  return (
+    <div className="relative">
+      <Textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        placeholder={placeholder}
+        className="pr-12"
+      />
+      <div className="absolute top-1.5 right-1.5">
+        <VoiceCaptureButton value={value} onChange={onChange} />
+      </div>
     </div>
   );
 }
@@ -441,9 +467,9 @@ function CharacterList({
               <X className="w-4 h-4" />
             </Button>
           </div>
-          <Textarea
+          <DictatedTextarea
             value={c.description}
-            onChange={(e) => update(i, { description: e.target.value })}
+            onChange={(v) => update(i, { description: v })}
             rows={2}
             placeholder="Non-spoiler description (who they are at story start)"
           />

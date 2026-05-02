@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "wouter";
 import Layout from "@/components/layout";
 import { DEMO_BOOKS } from "@/data/books";
@@ -7,26 +8,44 @@ import {
   useRemoteBooks,
 } from "@/hooks/useApiLibrary";
 import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, ImageIcon, Check } from "lucide-react";
+import { Plus, Sparkles, Loader2 } from "lucide-react";
 import { Show } from "@clerk/react";
 import ReadingStats from "@/components/reading-stats";
 import LibraryBookTile from "@/components/library-book-tile";
+import NowReadingHero from "@/components/now-reading-hero";
+import SceneLibrary from "@/components/scene-library";
 
 export default function Library() {
-  const { userLibrary, isSignedIn } = useLibrary();
+  const { userLibrary, isSignedIn, activeBookId } = useLibrary();
   const sceneLib = useRemoteSceneLibrary();
   const remoteBooks = useRemoteBooks();
 
   // Build a lookup from remote book uuid → display id (demoBookId or uuid)
-  const bookIdMap = new Map<string, { displayId: string; title: string }>();
-  (remoteBooks.data ?? []).forEach((b) => {
-    bookIdMap.set(b.id, {
-      displayId: b.demoBookId || b.id,
-      title: b.title,
+  const bookIdMap = useMemo(() => {
+    const map = new Map<string, { displayId: string; title: string }>();
+    (remoteBooks.data ?? []).forEach((b) => {
+      map.set(b.id, {
+        displayId: b.demoBookId || b.id,
+        title: b.title,
+      });
     });
-  });
+    return map;
+  }, [remoteBooks.data]);
+
+  // Pick the "now reading" book: the active one if it still exists, else the
+  // most-recently-updated book in the library (API returns books ordered by
+  // updatedAt desc).
+  const nowReading = useMemo(() => {
+    if (userLibrary.length === 0) return null;
+    if (activeBookId) {
+      const match = userLibrary.find((b) => b.id === activeBookId);
+      if (match) return match;
+    }
+    return userLibrary[0] ?? null;
+  }, [userLibrary, activeBookId]);
+
+  const hasBooks = userLibrary.length > 0;
 
   return (
     <Layout>
@@ -38,34 +57,55 @@ export default function Library() {
           </p>
         </div>
 
+        {nowReading && <NowReadingHero book={nowReading} />}
+
         <ReadingStats />
 
         <Show when="signed-in">
-          <div className="rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/10 to-amber-300/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
-            <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 text-amber-300 text-sm font-medium">
-                <Sparkles className="w-4 h-4" />
-                Smart Setup
+          {hasBooks ? (
+            // Softer banner once they have books — this is now a quiet "add another"
+            <div className="rounded-xl border border-border/50 bg-card/30 p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Sparkles className="w-4 h-4 text-amber-300/80 shrink-0" />
+                <p className="text-sm text-muted-foreground truncate">
+                  Reading something new? Add it with Smart Setup.
+                </p>
               </div>
-              <h3 className="font-serif text-xl font-semibold">
-                Reading something we don't have a file of?
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Add any modern book by title and author — Kindle, Audible,
-                hardcover, anything. We'll build a story profile and visualize
-                your reading position spoiler-free.
-              </p>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
               <Link
                 href="/setup-book"
-                className="inline-flex items-center justify-center rounded-md bg-amber-400 text-black h-10 px-4 py-2 font-medium hover:bg-amber-300 transition-colors"
+                className="inline-flex items-center justify-center rounded-md border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 h-8 px-3 text-xs font-medium transition-colors shrink-0"
               >
-                <Sparkles className="w-4 h-4 mr-2" />
                 Add a book
               </Link>
             </div>
-          </div>
+          ) : (
+            // Bigger banner only when the library is empty
+            <div className="rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/10 to-amber-300/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-2 text-amber-300 text-sm font-medium">
+                  <Sparkles className="w-4 h-4" />
+                  Smart Setup
+                </div>
+                <h3 className="font-serif text-xl font-semibold">
+                  Reading something we don't have a file of?
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Add any modern book by title and author — Kindle, Audible,
+                  hardcover, anything. We'll build a story profile and visualize
+                  your reading position spoiler-free.
+                </p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <Link
+                  href="/setup-book"
+                  className="inline-flex items-center justify-center rounded-md bg-amber-400 text-black h-10 px-4 py-2 font-medium hover:bg-amber-300 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Add a book
+                </Link>
+              </div>
+            </div>
+          )}
         </Show>
 
         <Show when="signed-out">
@@ -101,7 +141,7 @@ export default function Library() {
           <h2 className="font-serif text-2xl font-semibold border-b border-border/40 pb-2">
             My Books
           </h2>
-          {userLibrary.length === 0 ? (
+          {!hasBooks ? (
             <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center gap-3">
               <p className="text-muted-foreground mb-2">
                 Your library is empty.
@@ -137,7 +177,7 @@ export default function Library() {
                   Your Scene Library
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Every cinematic moment you've unlocked.
+                  Every cinematic moment you've unlocked, grouped by book.
                 </p>
               </div>
               {sceneLib.data && sceneLib.data.length > 0 && (
@@ -149,72 +189,15 @@ export default function Library() {
             </div>
 
             {sceneLib.isLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="aspect-square rounded-xl bg-white/[0.03] animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : !sceneLib.data || sceneLib.data.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center">
-                <ImageIcon className="w-8 h-8 text-muted-foreground mb-3" />
-                <p className="text-muted-foreground mb-1">
-                  No scenes saved yet.
-                </p>
-                <p className="text-sm text-muted-foreground/70">
-                  Open a book and visualize a chapter — scenes save automatically.
-                </p>
+              <div className="text-sm text-muted-foreground flex items-center gap-2 py-8 justify-center">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading your scenes…
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {sceneLib.data.map((scene, i) => {
-                  const ref = bookIdMap.get(scene.userBookId);
-                  const link = ref
-                    ? `/experience/${ref.displayId}?chapter=${scene.chapterNumber}`
-                    : "/library";
-                  const grad = scene.gradientColors;
-                  const bg =
-                    grad.length >= 2
-                      ? `linear-gradient(135deg, ${grad[0]}, ${grad[grad.length - 1]})`
-                      : `linear-gradient(135deg, #2a1a4e, #1a1a2e)`;
-                  return (
-                    <motion.div
-                      key={scene.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(i * 0.03, 0.6) }}
-                    >
-                      <Link href={link}>
-                        <div
-                          className="group relative aspect-square overflow-hidden rounded-xl cursor-pointer border border-white/5 hover:border-amber-400/40 transition-all"
-                          style={{ background: bg }}
-                        >
-                          {scene.imageUrl && (
-                            <img
-                              src={scene.imageUrl}
-                              alt={scene.title}
-                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                              loading="lazy"
-                            />
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                          <div className="absolute bottom-0 left-0 right-0 p-3 space-y-1">
-                            <p className="text-xs text-amber-300/90 font-medium uppercase tracking-wider">
-                              {ref?.title ?? "Saved scene"} · Ch{" "}
-                              {scene.chapterNumber}
-                            </p>
-                            <p className="text-sm text-white font-serif font-semibold line-clamp-2 leading-tight">
-                              {scene.title}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </div>
+              <SceneLibrary
+                scenes={sceneLib.data ?? []}
+                bookIdMap={bookIdMap}
+              />
             )}
           </div>
         )}

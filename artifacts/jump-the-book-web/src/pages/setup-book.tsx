@@ -3,6 +3,9 @@ import { useLocation, useSearch } from "wouter";
 import { useUser } from "@clerk/react";
 import Layout from "@/components/layout";
 import BibleEditor from "@/components/bible-editor";
+import CoverPicker from "@/components/cover-picker";
+import VoiceCaptureButton from "@/components/voice-capture-button";
+import type { OpenLibrarySearchResult } from "@/lib/openLibrary";
 import {
   EMPTY_DRAFT,
   useBookBible,
@@ -84,6 +87,7 @@ export default function SetupBook() {
   const [chapter, setChapter] = useState("1");
   const [excerpt, setExcerpt] = useState("");
   const [whatJustHappened, setWhatJustHappened] = useState("");
+  const [pickedCoverUrl, setPickedCoverUrl] = useState<string | null>(null);
 
   const [bibleValue, setBibleValue] = useState<BibleEditorValue>(DEFAULT_VALUE);
 
@@ -210,6 +214,7 @@ export default function SetupBook() {
           visualStyle: settings.defaultVisualStyle,
           progress: 0,
           coverGradient: ["#1a1525", "#2d2440", "#453560"],
+          heroImage: pickedCoverUrl ?? undefined,
         });
       }
 
@@ -326,6 +331,15 @@ export default function SetupBook() {
             setExcerpt={setExcerpt}
             whatJustHappened={whatJustHappened}
             setWhatJustHappened={setWhatJustHappened}
+            pickedCoverUrl={pickedCoverUrl}
+            onPickCover={(match) => {
+              setPickedCoverUrl(match?.coverUrlLarge ?? null);
+              if (match) {
+                if (!series.trim() && match.title && match.title !== title) {
+                  // leave alone — we don't override user-typed series
+                }
+              }
+            }}
             onSearch={handleSearch}
             onSkip={handleSkipSearch}
             isSearching={generateDraft.isPending}
@@ -478,6 +492,8 @@ interface Step1Props {
   setExcerpt: (v: string) => void;
   whatJustHappened: string;
   setWhatJustHappened: (v: string) => void;
+  pickedCoverUrl: string | null;
+  onPickCover: (match: OpenLibrarySearchResult | null) => void;
   onSearch: () => void;
   onSkip: () => void;
   isSearching: boolean;
@@ -553,23 +569,50 @@ function Step1(p: Step1Props) {
             Tell us where you are (optional — helps ground the visuals)
           </p>
           <FieldLabel label="What just happened?">
-            <Textarea
-              value={p.whatJustHappened}
-              onChange={(e) => p.setWhatJustHappened(e.target.value)}
-              rows={2}
-              placeholder="A line or two about your current scene…"
-            />
+            <div className="relative">
+              <Textarea
+                value={p.whatJustHappened}
+                onChange={(e) => p.setWhatJustHappened(e.target.value)}
+                rows={2}
+                placeholder="A line or two about your current scene… or tap the mic to dictate."
+                className="pr-12"
+              />
+              <div className="absolute top-1.5 right-1.5">
+                <VoiceCaptureButton
+                  value={p.whatJustHappened}
+                  onChange={p.setWhatJustHappened}
+                />
+              </div>
+            </div>
           </FieldLabel>
           <FieldLabel label="Paste a short excerpt (optional)">
-            <Textarea
-              value={p.excerpt}
-              onChange={(e) => p.setExcerpt(e.target.value)}
-              rows={4}
-              placeholder="A passage from the chapter you're on…"
-              maxLength={6000}
-            />
+            <div className="relative">
+              <Textarea
+                value={p.excerpt}
+                onChange={(e) => p.setExcerpt(e.target.value)}
+                rows={4}
+                placeholder="A passage from the chapter you're on… or dictate it."
+                maxLength={6000}
+                className="pr-12"
+              />
+              <div className="absolute top-1.5 right-1.5">
+                <VoiceCaptureButton
+                  value={p.excerpt}
+                  onChange={p.setExcerpt}
+                />
+              </div>
+            </div>
           </FieldLabel>
         </div>
+
+        {p.title.trim() && p.author.trim() && (
+          <CoverPicker
+            title={p.title}
+            author={p.author}
+            selectedCoverUrl={p.pickedCoverUrl}
+            onSelect={p.onPickCover}
+          />
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3 pt-4">
           <Button
