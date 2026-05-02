@@ -7,7 +7,11 @@ import {
 } from "@expo-google-fonts/inter";
 import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
@@ -60,10 +64,12 @@ if (!publishableKey) {
  * `getToken` and the correct route.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [tokenGetterReady, setTokenGetterReady] = React.useState(false);
+  const lastUserIdRef = React.useRef<string | null | undefined>(undefined);
 
   React.useEffect(() => {
     setAuthTokenGetter(() => getToken());
@@ -73,6 +79,20 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       setTokenGetterReady(false);
     };
   }, [getToken]);
+
+  // Clear the React Query cache whenever the signed-in user changes
+  // (sign-out, sign-in, or switching accounts). Without this, queries keyed
+  // on `['me', ...]` could briefly serve a previous user's data to a new
+  // session before the refetch completes — a real cross-account leak risk.
+  React.useEffect(() => {
+    if (!isLoaded) return;
+    const current = userId ?? null;
+    const previous = lastUserIdRef.current;
+    if (previous !== undefined && previous !== current) {
+      queryClient.clear();
+    }
+    lastUserIdRef.current = current;
+  }, [isLoaded, userId, queryClient]);
 
   const inAuthGroup = segments[0] === "(auth)";
 
@@ -135,15 +155,22 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <ErrorBoundary>
             <QueryClientProvider client={queryClient}>
-              <LibraryProvider>
-                <GestureHandlerRootView>
-                  <KeyboardProvider>
-                    <AuthGate>
+              <GestureHandlerRootView>
+                <KeyboardProvider>
+                  {/*
+                    AuthGate is OUTSIDE LibraryProvider so the library
+                    context (which uses /api/me/books) only mounts once
+                    Clerk + the bearer-token getter are ready, eliminating
+                    the race where the first authed request could fire
+                    before `setAuthTokenGetter` has run.
+                  */}
+                  <AuthGate>
+                    <LibraryProvider>
                       <RootLayoutNav />
-                    </AuthGate>
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </LibraryProvider>
+                    </LibraryProvider>
+                  </AuthGate>
+                </KeyboardProvider>
+              </GestureHandlerRootView>
             </QueryClientProvider>
           </ErrorBoundary>
         </SafeAreaProvider>

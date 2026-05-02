@@ -1,16 +1,51 @@
+/**
+ * Mobile LibraryContext — Phase 2 of web→mobile parity.
+ *
+ * Books are now persisted on the server via /api/me/books (Clerk-authenticated).
+ * The Context still exposes the same API the rest of the app already consumes
+ * (`userLibrary`, `addBook`, `removeBook`, `updateProgress`, `settings`,
+ * `updateSettings`, plus local-only `streak/sessions/positions/activeBookId`),
+ * so no consumer screens need to change. Internally:
+ *
+ *  - `userLibrary` is derived from `useRemoteBooks()` and mapped to the
+ *    legacy `UserLibraryItem` shape via `remoteBookToUserLibraryItem`.
+ *  - `addBook` POSTs to /api/me/books and returns the server UUID, which is
+ *    the same id used in router URLs like /book/[id] and /experience/[id].
+ *  - `removeBook` / `updateProgress` hit DELETE / PATCH on /api/me/books/:id.
+ *  - Streak, sessions, positions, and active-book-id stay in AsyncStorage —
+ *    they're local UX state, not part of the cross-device library, and a
+ *    later phase will move them server-side if/when needed.
+ *
+ * The `<AuthGate>` in app/_layout.tsx guarantees this provider only mounts
+ * its children once a Clerk session is available (or for the (auth) group).
+ * Inside (auth), `useIsSignedIn()` returns false and the books query stays
+ * disabled — the screens that use `userLibrary` are not in (auth) so they
+ * never observe the brief signed-out state.
+ */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  remoteBookToUserLibraryItem,
+  type SpoilerMode,
+  type UserLibraryItem,
+  type VisualStyle,
+} from "@workspace/jump-the-book-shared";
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
-import { UserLibraryItem, VisualStyle, SpoilerMode } from "@/data/books";
+import {
+  useAddRemoteBook,
+  useDeleteRemoteBook,
+  usePatchRemoteBook,
+  useRemoteBooks,
+} from "@/hooks/useRemoteLibrary";
 
-// ─── Storage Keys ───────────────────────────────────────────────────────────
-const STORAGE_KEY = "@jump_the_book_library";
+// ─── Storage Keys (local-only state) ────────────────────────────────────────
 const SETTINGS_KEY = "@jump_the_book_settings";
 const ACTIVE_BOOK_KEY = "@jump_the_book_active";
 const POSITIONS_KEY = "@jump_the_book_positions";
@@ -69,8 +104,16 @@ interface LibraryContextType {
   updateSettings: (s: Partial<AppSettings>) => Promise<void>;
   updatePosition: (pos: Omit<BookPosition, "lastUpdated">) => Promise<void>;
   getPosition: (bookId: string) => BookPosition | null;
-  startSession: (bookId: string, bookTitle: string, chapter: number) => Promise<string>;
-  endSession: (sessionId: string, endChapter: number, scenesUnlocked: number) => Promise<void>;
+  startSession: (
+    bookId: string,
+    bookTitle: string,
+    chapter: number,
+  ) => Promise<string>;
+  endSession: (
+    sessionId: string,
+    endChapter: number,
+    scenesUnlocked: number,
+  ) => Promise<void>;
   getActiveSession: (bookId: string) => ReadingSession | null;
 }
 
@@ -113,28 +156,37 @@ function calcStreak(prev: StreakData): StreakData {
 }
 
 export function LibraryProvider({ children }: { children: React.ReactNode }) {
-  const [userLibrary, setUserLibrary] = useState<UserLibraryItem[]>([]);
+  // ── Remote-backed library ──────────────────────────────────────────────────
+  const { data: remoteBooks, isPending: booksPending } = useRemoteBooks();
+  const addRemote = useAddRemoteBook();
+  const removeRemote = useDeleteRemoteBook();
+  const patchRemote = usePatchRemoteBook();
+
+  const userLibrary = useMemo<UserLibraryItem[]>(
+    () => (remoteBooks ?? []).map(remoteBookToUserLibraryItem),
+    [remoteBooks],
+  );
+
+  // ── Local-only state (settings, streak, sessions, positions, active) ──────
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [activeBookId, setActiveBookIdState] = useState<string | null>(null);
   const [positions, setPositions] = useState<Record<string, BookPosition>>({});
   const [sessions, setSessions] = useState<ReadingSession[]>([]);
   const [streak, setStreak] = useState<StreakData>(defaultStreak);
-  const [isLoading, setIsLoading] = useState(true);
+  const [localLoading, setLocalLoading] = useState(true);
 
-  // Load all persisted data on mount
+  // Load all persisted local-only data on mount
   useEffect(() => {
     async function load() {
       try {
-        const [libData, settingsData, activeData, posData, sessData, streakData] =
+        const [settingsData, activeData, posData, sessData, streakData] =
           await Promise.all([
-            AsyncStorage.getItem(STORAGE_KEY),
             AsyncStorage.getItem(SETTINGS_KEY),
             AsyncStorage.getItem(ACTIVE_BOOK_KEY),
             AsyncStorage.getItem(POSITIONS_KEY),
             AsyncStorage.getItem(SESSIONS_KEY),
             AsyncStorage.getItem(STREAK_KEY),
           ]);
-        if (libData) setUserLibrary(JSON.parse(libData));
         if (settingsData) setSettings(JSON.parse(settingsData));
         if (activeData) setActiveBookIdState(activeData);
         if (posData) setPositions(JSON.parse(posData));
@@ -143,46 +195,56 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // ignore storage errors
       } finally {
-        setIsLoading(false);
+        setLocalLoading(false);
       }
     }
     load();
   }, []);
 
-  // ── Library ──────────────────────────────────────────────────────────────
+  // We're "loading" until both the remote books query and local AsyncStorage
+  // hydration have settled. `booksPending` stays true while the query is
+  // disabled (signed-out), but children of <AuthGate> only mount once the
+  // session is ready, so in practice this resolves quickly.
+  const isLoading = localLoading || booksPending;
+
+  // ── Library (remote) ──────────────────────────────────────────────────────
   const addBook = useCallback(
-    async (item: Omit<UserLibraryItem, "id" | "createdAt">): Promise<string> => {
-      const newItem: UserLibraryItem = {
-        ...item,
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        createdAt: new Date().toISOString(),
-      };
-      const updated = [...userLibrary, newItem];
-      setUserLibrary(updated);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return newItem.id;
+    async (
+      item: Omit<UserLibraryItem, "id" | "createdAt">,
+    ): Promise<string> => {
+      const created = await addRemote.mutateAsync({
+        title: item.title,
+        author: item.author,
+        format: item.format,
+        source: item.sourceType === "demo" ? "demo" : "upload",
+        coverGradient: item.coverGradient,
+        visualStyle: item.visualStyle,
+        spoilerMode: item.spoilerMode,
+        currentChapter: item.currentChapter,
+        currentPage: item.currentPage,
+        currentAudioTimestamp: item.currentAudioTimestamp,
+        progress: item.progress,
+        userNote: item.userNote,
+        tagline: item.tagline ?? null,
+        heroImage: item.heroImage ?? null,
+      });
+      return created.id;
     },
-    [userLibrary]
+    [addRemote],
   );
 
   const removeBook = useCallback(
     async (id: string) => {
-      const updated = userLibrary.filter((b) => b.id !== id);
-      setUserLibrary(updated);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      await removeRemote.mutateAsync(id);
     },
-    [userLibrary]
+    [removeRemote],
   );
 
   const updateProgress = useCallback(
     async (id: string, progress: number) => {
-      const updated = userLibrary.map((b) =>
-        b.id === id ? { ...b, progress } : b
-      );
-      setUserLibrary(updated);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      await patchRemote.mutateAsync({ id, progress });
     },
-    [userLibrary]
+    [patchRemote],
   );
 
   // ── Active Book ──────────────────────────────────────────────────────────
@@ -202,7 +264,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       setSettings(updated);
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
     },
-    [settings]
+    [settings],
   );
 
   // ── Positions ─────────────────────────────────────────────────────────────
@@ -215,21 +277,27 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       setPositions(updated);
       await AsyncStorage.setItem(POSITIONS_KEY, JSON.stringify(updated));
     },
-    [positions]
+    [positions],
   );
 
   const getPosition = useCallback(
     (bookId: string): BookPosition | null => {
       return positions[bookId] ?? null;
     },
-    [positions]
+    [positions],
   );
 
   // ── Sessions ──────────────────────────────────────────────────────────────
   const startSession = useCallback(
-    async (bookId: string, bookTitle: string, chapter: number): Promise<string> => {
+    async (
+      bookId: string,
+      bookTitle: string,
+      chapter: number,
+    ): Promise<string> => {
       const id =
-        "sess_" + Date.now().toString() + Math.random().toString(36).substr(2, 5);
+        "sess_" +
+        Date.now().toString() +
+        Math.random().toString(36).substr(2, 5);
       const session: ReadingSession = {
         id,
         bookId,
@@ -252,7 +320,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(updated));
       return id;
     },
-    [sessions, streak]
+    [sessions, streak],
   );
 
   const endSession = useCallback(
@@ -272,14 +340,14 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       setSessions(updated);
       await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(updated));
     },
-    [sessions]
+    [sessions],
   );
 
   const getActiveSession = useCallback(
     (bookId: string): ReadingSession | null => {
       return sessions.find((s) => s.bookId === bookId && !s.endedAt) ?? null;
     },
-    [sessions]
+    [sessions],
   );
 
   return (

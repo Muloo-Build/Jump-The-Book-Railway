@@ -105,7 +105,7 @@ Jump the Book — web reading companion. Reader uploads an EPUB (parsed entirely
 **Theme**: dark cinematic — Playfair Display (serif) + Plus Jakarta Sans, deep plums/oxbloods/dusty golds/midnight blues. Palette in `src/index.css` `:root` and `.dark` blocks (HSL tokens compatible with shadcn/ui).
 
 ### `artifacts/jump-the-book` — Expo mobile app (route `/mobile`)
-Jump the Book — AI-powered visual reading companion. Drop an EPUB → choose Comic or Cinematic → watch the chapter as AI-generated panels. **Phase 1 of web→mobile parity (auth + shared lib) is in progress; remote library, snap-page, snap-cover, Smart Setup, and orphan recovery are still web-only.**
+Jump the Book — AI-powered visual reading companion. Drop an EPUB → choose Comic or Cinematic → watch the chapter as AI-generated panels. **Phase 1 (Clerk auth + shared lib) and Phase 2 (remote library backed by `/api/me/books`) shipped. Snap-page, snap-cover, Smart Setup wizard, scene library / Now Reading / Discover, and orphan recovery are still web-only.**
 
 **Auth (Clerk via `@clerk/expo`)**:
 - `app/_layout.tsx` wraps the app in `<ClerkProvider tokenCache={tokenCache} proxyUrl={EXPO_PUBLIC_CLERK_PROXY_URL}>` + `<ClerkLoaded>`. The `<AuthGate>` component uses `useSegments`/`useRouter` to bounce signed-out users into `/(auth)/sign-in` and signed-in users out of the `(auth)` group into `/(tabs)`. It also calls `setAuthTokenGetter(() => getToken())` from `@workspace/api-client-react` so every generated API hook automatically attaches the Clerk session token. `setBaseUrl(\`https://${EXPO_PUBLIC_DOMAIN}\`)` is called once at module scope.
@@ -116,9 +116,15 @@ Jump the Book — AI-powered visual reading companion. Drop an EPUB → choose C
 **Shared lib `@workspace/jump-the-book-shared`** (`lib/jump-the-book-shared/`):
 - Composite TS lib (declared in root `tsconfig.json` references). Houses code that must stay in lockstep between web and mobile so parity drift can't happen silently:
   - `src/openLibrary.ts` — `searchOpenLibrary`, `getOpenLibraryCoversForBook`, edition lookups (verbatim copy of the web helper, single source of truth).
-  - `src/types.ts` — `VisualStyle`, `SpoilerMode`, label maps, `UserLibraryItem`, `CoverIdentifyResult`.
+  - `src/types.ts` — `VisualStyle`, `SpoilerMode`, label maps, `UserLibraryItem`, `CoverIdentifyResult`. Phase 2 added `RemoteUser`, `RemoteBook`, `RemoteScene`, `AddBookInput`, and the `remoteBookToUserLibraryItem(b)` mapper that both apps use to project an API row onto the in-app library shape (id = remote uuid, source = `demo` for `demoBookId !== null` else `user-added`, `progress` clamped 0–1, etc.).
   - `src/index.ts` — barrel.
-- The web app's `src/lib/openLibrary.ts` is now `export * from "@workspace/jump-the-book-shared"` (root export — Vite couldn't resolve a `.ts` subpath export). Mobile will consume the same barrel as `@workspace/jump-the-book-shared` once Phase 2 (remote library + snap-cover) lands.
+- The web app's `src/lib/openLibrary.ts` is now `export * from "@workspace/jump-the-book-shared"` (root export — Vite couldn't resolve a `.ts` subpath export). Mobile imports the same barrel.
+
+**Phase 2 — Remote library wiring** (mobile parity with web's `/api/me/*` flow):
+- `hooks/useRemoteLibrary.ts` mirrors web's `useApiLibrary.ts`: `useRemoteUser`, `useRemoteBooks`, `useAddRemoteBook`, `useDeleteRemoteBook`, `usePatchRemoteBook` etc., implemented via `customFetch` from `@workspace/api-client-react` (auto-attaches the Clerk bearer token via `setAuthTokenGetter`) and Clerk Expo's `useAuth`.
+- `context/LibraryContext.tsx` — `userLibrary` is now derived from `useRemoteBooks()` mapped via the shared `remoteBookToUserLibraryItem`. `addBook` / `removeBook` / `updateProgress` POST/DELETE/PATCH to `/api/me/books`. Local UX state (settings, streak, sessions, positions, activeBookId) stays in AsyncStorage. The Context's public surface (`userLibrary`, `addBook` returning `Promise<string>` of the remote uuid, `removeBook`, `updateProgress`, etc.) is preserved so no consumer screen needed to change.
+- `_layout.tsx` mounts `<LibraryProvider>` **inside** `<AuthGate>`. AuthGate doesn't render its children until Clerk reports `isLoaded` AND `setAuthTokenGetter` has been installed AND the current route matches the auth state — which means the very first authed `/api/me/books` request can never fire without a bearer token. The gate also clears the React Query cache (`queryClient.clear()`) whenever the Clerk `userId` changes so a previous user's books can never briefly bleed through to a new session.
+- `useAddRemoteBook.onSuccess` seeds `['me','books']` with the returned row (`setQueryData`) before invalidating, so screens that immediately `router.push('/experience/' + bookId)` after `addBook` don't race the background refetch and hit "Book not found".
 
 **5-tab navigation**: Home, Library, Immersion, Characters, Settings
 
