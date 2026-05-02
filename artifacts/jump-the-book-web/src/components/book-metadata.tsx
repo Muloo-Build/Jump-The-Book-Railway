@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { BookText, Tag } from "lucide-react";
-import { searchAndFetchWork, type OpenLibraryWorkDetails } from "@/lib/openLibrary";
+import { useOpenLibraryEnrichment } from "@/hooks/useOpenLibraryEnrichment";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface BookMetadataProps {
@@ -9,80 +9,9 @@ interface BookMetadataProps {
   author: string;
 }
 
-const STORAGE_PREFIX = "@jtb_meta_v1_";
-const TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-interface CachedMeta {
-  details: OpenLibraryWorkDetails | null;
-  timestamp: number;
-}
-
-// djb2 — stable, collision-resistant for short strings, handles any unicode.
-// Plain regex stripping silently collapses non-ASCII titles to the same key.
-function hashKey(s: string): string {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return Math.abs(h).toString(36);
-}
-
-function cacheKey(title: string, author: string) {
-  const raw = `${title.trim().toLowerCase()}|${author.trim().toLowerCase()}`;
-  return STORAGE_PREFIX + hashKey(raw);
-}
-
-function readCache(key: string): OpenLibraryWorkDetails | null | "miss" {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return "miss";
-    const parsed = JSON.parse(raw) as CachedMeta;
-    if (Date.now() - parsed.timestamp > TTL_MS) return "miss";
-    return parsed.details;
-  } catch {
-    return "miss";
-  }
-}
-
-function writeCache(key: string, details: OpenLibraryWorkDetails | null) {
-  try {
-    const payload: CachedMeta = { details, timestamp: Date.now() };
-    localStorage.setItem(key, JSON.stringify(payload));
-  } catch {
-    /* quota errors non-fatal */
-  }
-}
-
 export default function BookMetadata({ title, author }: BookMetadataProps) {
-  const [loading, setLoading] = useState(true);
-  const [details, setDetails] = useState<OpenLibraryWorkDetails | null>(null);
+  const { details, loading } = useOpenLibraryEnrichment(title, author);
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    const key = cacheKey(title, author);
-    const cached = readCache(key);
-    if (cached !== "miss") {
-      setDetails(cached);
-      setLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    setLoading(true);
-    searchAndFetchWork(title, author, controller.signal)
-      .then((r) => {
-        if (controller.signal.aborted) return;
-        const d = r?.details ?? null;
-        setDetails(d);
-        writeCache(key, d);
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return;
-        setDetails(null);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [title, author]);
 
   if (loading) {
     return (
@@ -101,7 +30,8 @@ export default function BookMetadata({ title, author }: BookMetadataProps) {
 
   const desc = details.description ?? "";
   const isLong = desc.length > 320;
-  const visibleDesc = expanded || !isLong ? desc : desc.slice(0, 320).trimEnd() + "…";
+  const visibleDesc =
+    expanded || !isLong ? desc : desc.slice(0, 320).trimEnd() + "…";
 
   return (
     <motion.div

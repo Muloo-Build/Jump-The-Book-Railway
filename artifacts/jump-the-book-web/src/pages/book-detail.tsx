@@ -8,6 +8,7 @@ import { MapPin, Image as ImageIcon, Sparkles, Settings2, BookOpen } from "lucid
 import { motion } from "framer-motion";
 import BookMetadata from "@/components/book-metadata";
 import PastePassage from "@/components/paste-passage";
+import { useOpenLibraryEnrichment } from "@/hooks/useOpenLibraryEnrichment";
 
 export default function BookDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,14 @@ export default function BookDetail() {
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
   const book = userBook || demoBook;
+
+  // Pull a cover from Open Library when the book has no built-in image.
+  // The hook also drives <BookMetadata>, so they share one cached lookup.
+  const needsWebCover = !!book && !book.heroImage;
+  const enrichment = useOpenLibraryEnrichment(book?.title, book?.author, {
+    enabled: needsWebCover,
+  });
+  const webCover = needsWebCover ? enrichment.coverUrl : null;
 
   if (!book) {
     return (
@@ -67,6 +76,14 @@ export default function BookDetail() {
                     onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                 ))}
+              {!book.heroImage && webCover && (
+                <img
+                  src={webCover}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              )}
             </motion.div>
           </div>
 

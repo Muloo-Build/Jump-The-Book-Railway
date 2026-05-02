@@ -4,7 +4,8 @@ export interface OpenLibrarySearchResult {
   author: string;
   firstPublishYear: number | null;
   pageCount: number | null;
-  coverUrl: string | null;
+  coverUrl: string | null;       // M (~180px) — for thumbs / search dropdown
+  coverUrlLarge: string | null;  // L (~500px) — for hero cover
   workKey: string;
 }
 
@@ -59,6 +60,7 @@ export async function searchOpenLibrary(
       firstPublishYear: d.first_publish_year ?? null,
       pageCount: d.number_of_pages_median ?? null,
       coverUrl: coverUrlFor(d.cover_i, "M"),
+      coverUrlLarge: coverUrlFor(d.cover_i, "L"),
     }))
     .slice(0, 12);
 }
