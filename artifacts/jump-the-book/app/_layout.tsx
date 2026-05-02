@@ -32,6 +32,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen name="add-book" options={{ headerShown: false }} />
       <Stack.Screen name="upload-writing" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="ambient-companion"
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
+      />
     </Stack>
   );
 }

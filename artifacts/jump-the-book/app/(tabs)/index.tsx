@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useRef } from "react";
+import React from "react";
 import {
   Dimensions,
   Image,
@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { StreakBadge } from "@/components/StreakBadge";
+import { useLibrary } from "@/context/LibraryContext";
 import { DEMO_BOOKS } from "@/data/books";
 import { useColors } from "@/hooks/useColors";
 
@@ -28,27 +30,30 @@ const HERO_IMAGES: Record<string, any> = {
 
 const HOW_IT_WORKS = [
   { icon: "book", step: "01", title: "Choose or add a book", desc: "Pick from our demo classics or add your own current read." },
-  { icon: "map-pin", step: "02", title: "Tell us where you are", desc: "Set your chapter, page or timestamp — no spoilers." },
-  { icon: "image", step: "03", title: "Generate visual scenes", desc: "Spoiler-safe scene cards appear for your exact place in the story." },
-  { icon: "layers", step: "04", title: "Swipe your companion", desc: "Explore characters, locations, mood and immersive panels." },
+  { icon: "map-pin", step: "02", title: "Tell us where you are", desc: "Set your chapter, page or timestamp — no spoilers ever." },
+  { icon: "image", step: "03", title: "AI generates visual scenes", desc: "Real AI-painted scene cards appear for your exact place in the story." },
+  { icon: "layers", step: "04", title: "Ambient companion mode", desc: "A cinematic visual layer runs quietly beside your reading session." },
 ];
 
 const COMING_SOON = [
-  "Kindle and Audible progress sync",
-  "Real AI image generation",
+  "Kindle progress sync",
+  "Audible progress sync",
   "Voice narration",
-  "Author manuscript mode",
   "Book club rooms",
   "Classroom mode",
   "Export as storyboard",
   "Interactive character maps",
+  "Author manuscript mode",
 ];
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { streak, sessions } = useLibrary();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
+  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 64;
+
+  const recentSession = sessions.find((s) => s.endedAt);
 
   return (
     <ScrollView
@@ -66,7 +71,7 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.heroHeadline}>Don't just read the story.{"\n"}Step inside it.</Text>
         <Text style={[styles.heroSub, { color: "rgba(240,230,211,0.7)" }]}>
-          Turn your current read into visual scenes, character guides and immersive story moments.
+          Turn your Kindle read or Audible listen into a live visual companion — spoiler-safe, scene by scene.
         </Text>
         <View style={styles.heroBtns}>
           <TouchableOpacity
@@ -91,13 +96,28 @@ export default function HomeScreen() {
         </View>
       </LinearGradient>
 
-      {/* Preview carousel */}
+      {/* Streak */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Demo Library
-        </Text>
+        <StreakBadge streak={streak} />
+        {recentSession && (
+          <View style={[styles.recentSession, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="clock" size={14} color={colors.mutedForeground} />
+            <Text style={[styles.recentText, { color: colors.mutedForeground }]} numberOfLines={1}>
+              Last read: <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>{recentSession.bookTitle}</Text>
+              {recentSession.endChapter ? ` · Ch ${recentSession.startChapter}–${recentSession.endChapter}` : ""}
+            </Text>
+            <TouchableOpacity onPress={() => router.push("/book/" + recentSession.bookId)}>
+              <Feather name="arrow-right" size={14} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Demo carousel */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Demo Library</Text>
         <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
-          Explore public domain classics without copyright restrictions.
+          Public domain classics with AI-generated visual companions ready to go.
         </Text>
         <ScrollView
           horizontal
@@ -112,16 +132,9 @@ export default function HomeScreen() {
               activeOpacity={0.85}
             >
               {book.heroImage && HERO_IMAGES[book.heroImage] ? (
-                <Image
-                  source={HERO_IMAGES[book.heroImage]}
-                  style={styles.carouselImage}
-                  resizeMode="cover"
-                />
+                <Image source={HERO_IMAGES[book.heroImage]} style={styles.carouselImage} resizeMode="cover" />
               ) : (
-                <LinearGradient
-                  colors={book.coverGradient as [string, string, ...string[]]}
-                  style={styles.carouselImage}
-                />
+                <LinearGradient colors={book.coverGradient as [string, string, ...string[]]} style={styles.carouselImage} />
               )}
               <View style={styles.carouselOverlay} />
               <View style={styles.carouselInfo}>
@@ -181,65 +194,29 @@ const CARD_W = SCREEN_WIDTH * 0.68;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   hero: { paddingHorizontal: 24, paddingBottom: 40, gap: 16 },
-  logoPill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
+  logoPill: { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   logoText: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 2 },
-  heroHeadline: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    color: "#f0e6d3",
-    lineHeight: 42,
-  },
-  heroSub: { fontSize: 16, fontFamily: "Inter_400Regular", lineHeight: 26 },
+  heroHeadline: { fontSize: 32, fontFamily: "Inter_700Bold", color: "#f0e6d3", lineHeight: 42 },
+  heroSub: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 24 },
   heroBtns: { flexDirection: "column", gap: 12, marginTop: 8 },
-  primaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 14,
-    gap: 8,
-  },
+  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, borderRadius: 14, gap: 8 },
   primaryBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  secondaryBtn: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 15,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
+  secondaryBtn: { alignItems: "center", justifyContent: "center", paddingVertical: 15, borderRadius: 14, borderWidth: 1 },
   secondaryBtnText: { fontSize: 16, fontFamily: "Inter_500Medium" },
-  section: { paddingHorizontal: 20, paddingTop: 32, gap: 12 },
-  howSection: { paddingVertical: 32, marginTop: 8 },
+  section: { paddingHorizontal: 20, paddingTop: 28, gap: 12 },
+  howSection: { paddingVertical: 28, marginTop: 8 },
   sectionTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  sectionSub: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  sectionSub: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  recentSession: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    padding: 12, borderRadius: 12, borderWidth: 1,
+  },
+  recentText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
   carousel: { paddingRight: 20, gap: 12, paddingTop: 4 },
-  carouselCard: {
-    width: CARD_W,
-    height: 280,
-    borderRadius: 20,
-    overflow: "hidden",
-    borderWidth: 1,
-    position: "relative",
-  },
+  carouselCard: { width: CARD_W, height: 280, borderRadius: 20, overflow: "hidden", borderWidth: 1, position: "relative" },
   carouselImage: { width: "100%", height: "100%" },
-  carouselOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    backgroundImage: undefined,
-  },
-  carouselInfo: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
-    gap: 2,
-  },
+  carouselOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
+  carouselInfo: { position: "absolute", bottom: 16, left: 16, right: 16, gap: 2 },
   carouselTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
   carouselAuthor: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
   carouselTagline: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)", marginTop: 4 },
@@ -255,14 +232,6 @@ const styles = StyleSheet.create({
   sparkBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: "flex-start" },
   sparkText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   comingGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  comingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
+  comingItem: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   comingText: { fontSize: 12, fontFamily: "Inter_400Regular" },
 });
