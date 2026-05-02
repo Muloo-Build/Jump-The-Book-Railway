@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { ObjectStorageService } from "../lib/objectStorage";
 import {
   cacheStats,
   getCachedImage,
@@ -8,6 +9,7 @@ import {
   IMAGE_CACHE_VERSION,
   makeImageCacheKey,
   makeSceneCacheKey,
+  objectPathToUrl,
   saveCachedImage,
   saveSceneBundle,
   SCENE_CACHE_VERSION,
@@ -15,6 +17,7 @@ import {
 } from "../lib/sceneCache";
 
 const router: IRouter = Router();
+const objectStorage = new ObjectStorageService();
 
 const STYLE_DESCRIPTIONS: Record<string, string> = {
   "comic-book": "bold comic book illustration with vibrant ink outlines, dynamic panel composition, halftone shading",
@@ -102,33 +105,26 @@ router.post("/scenes/generate", async (req, res) => {
         "scene cache hit",
       );
 
-      // Attach any cached image refs so the client can skip re-fetching them
       const enriched = await Promise.all(
         scenes.map(async (s, i) => {
-          if (s.imageCacheKey) {
-            const img = await getCachedImage(s.imageCacheKey);
-            return img
-              ? { ...s, imageB64: img.imageB64, imageGeneratedAt: img.generatedAt.toISOString() }
-              : s;
-          }
-          // Re-derive image key in case it wasn't stored on the bundle
-          const imageCacheKey = makeImageCacheKey({
-            bookTitle,
-            author,
-            chapterNumber,
-            sceneIndex: i,
-            visualStyle,
-            prompt: s.imagePrompt ?? "",
-          });
-          const img = await getCachedImage(imageCacheKey);
-          return img
-            ? {
-                ...s,
-                imageCacheKey,
-                imageB64: img.imageB64,
-                imageGeneratedAt: img.generatedAt.toISOString(),
-              }
-            : { ...s, imageCacheKey };
+          const key =
+            s.imageCacheKey ??
+            makeImageCacheKey({
+              bookTitle,
+              author,
+              chapterNumber,
+              sceneIndex: i,
+              visualStyle,
+              prompt: s.imagePrompt ?? "",
+            });
+          const img = await getCachedImage(key);
+          if (!img) return { ...s, imageCacheKey: key };
+          return {
+            ...s,
+            imageCacheKey: key,
+            imageUrl: objectPathToUrl(img.objectPath),
+            imageGeneratedAt: img.generatedAt.toISOString(),
+          };
         }),
       );
 
@@ -190,7 +186,6 @@ Generate visual scene companion cards for this chapter. Remember: atmosphere and
       };
     });
 
-    // Pre-compute the image cache key for each scene so the bundle is self-describing
     const sceneListWithKeys: CachedScene[] = sceneList.map((s, i) => ({
       ...s,
       imageCacheKey: makeImageCacheKey({
@@ -203,7 +198,6 @@ Generate visual scene companion cards for this chapter. Remember: atmosphere and
       }),
     }));
 
-    // Persist the text bundle right away so the client can show it immediately
     if (sceneListWithKeys.length > 0) {
       await saveSceneBundle(cacheKey, bundleParams, sceneListWithKeys);
       req.log.info(
@@ -212,16 +206,14 @@ Generate visual scene companion cards for this chapter. Remember: atmosphere and
       );
     }
 
-    // Optional: paint the first image inline (kept for backwards compatibility)
-    let imageB64: string | null = null;
+    let firstImageUrl: string | null = null;
     if (generateImage && sceneListWithKeys.length > 0) {
       const first = sceneListWithKeys[0];
       const styleDesc = STYLE_DESCRIPTIONS[visualStyle] ?? "illustrated";
       const fullPrompt = `${styleDesc}. ${first.imagePrompt} No text, no words, no letters, purely visual artwork.`;
       try {
         const buffer = await generateImageBuffer(fullPrompt, "1024x1024");
-        const generated = buffer.toString("base64");
-        imageB64 = generated;
+        const objectPath = await objectStorage.uploadBufferAsObjectEntity(buffer, "image/png");
         if (first.imageCacheKey) {
           await saveCachedImage(
             first.imageCacheKey,
@@ -233,10 +225,10 @@ Generate visual scene companion cards for this chapter. Remember: atmosphere and
               visualStyle,
               prompt: first.imagePrompt,
             },
-            generated,
+            { objectPath, bytes: buffer.length },
           );
-          first.imageB64 = generated;
-          // Re-save the bundle now that scene 0 carries an image hint
+          firstImageUrl = objectPathToUrl(objectPath);
+          first.imageUrl = firstImageUrl;
           await saveSceneBundle(cacheKey, bundleParams, sceneListWithKeys);
         }
       } catch (imgErr) {
@@ -248,7 +240,7 @@ Generate visual scene companion cards for this chapter. Remember: atmosphere and
       scenes: sceneListWithKeys,
       cacheKey,
       cached: false,
-      imageB64,
+      imageUrl: firstImageUrl,
       sceneCacheVersion: SCENE_CACHE_VERSION,
       imageCacheVersion: IMAGE_CACHE_VERSION,
     });
@@ -297,11 +289,7 @@ router.post("/scenes/image", async (req, res) => {
       return;
     }
 
-    // SECURITY: never trust a client-provided cache key. The cache is shared
-    // across all users, so a malicious client could otherwise overwrite or
-    // poison another book's cached image. We always recompute the key from
-    // the canonical (book, chapter, sceneIndex, style, prompt) tuple. If the
-    // client sent a key, it must match — otherwise we ignore it entirely.
+    // SECURITY: never trust a client-provided cache key; recompute from canonical inputs.
     const cacheKey = makeImageCacheKey({
       bookTitle,
       author,
@@ -312,25 +300,19 @@ router.post("/scenes/image", async (req, res) => {
     });
     if (providedKey && providedKey !== cacheKey) {
       req.log.warn(
-        {
-          providedKey,
-          recomputedKey: cacheKey,
-          bookTitle,
-          chapterNumber,
-          sceneIndex,
-        },
+        { providedKey, recomputedKey: cacheKey, bookTitle, chapterNumber, sceneIndex },
         "client image cacheKey did not match server-derived key — ignoring client value",
       );
     }
 
     // ── Cache hit ────────────────────────────────────────────────────────────
     const cached = await getCachedImage(cacheKey);
-    if (cached) {
+    if (cached?.objectPath) {
       req.log.info(
         { cacheKey, bookTitle, chapterNumber, sceneIndex },
         "image cache hit",
       );
-      res.json({ b64: cached.imageB64, cacheKey, cached: true });
+      res.json({ imageUrl: objectPathToUrl(cached.objectPath), cacheKey, cached: true });
       return;
     }
 
@@ -350,33 +332,25 @@ router.post("/scenes/image", async (req, res) => {
       res.status(500).json({ error: "Image generation failed" });
       return;
     }
-    const b64 = buffer.toString("base64");
 
+    const objectPath = await objectStorage.uploadBufferAsObjectEntity(buffer, "image/png");
     await saveCachedImage(
       cacheKey,
-      {
-        bookTitle,
-        author,
-        chapterNumber,
-        sceneIndex,
-        visualStyle: style,
-        prompt,
-      },
-      b64,
+      { bookTitle, author, chapterNumber, sceneIndex, visualStyle: style, prompt },
+      { objectPath, bytes: buffer.length },
     );
     req.log.info(
-      { cacheKey, bytes: buffer.length, bookTitle, chapterNumber, sceneIndex },
-      "image generated and saved",
+      { cacheKey, bytes: buffer.length, bookTitle, chapterNumber, sceneIndex, objectPath },
+      "image generated and saved to App Storage",
     );
 
-    res.json({ b64, cacheKey, cached: false });
+    res.json({ imageUrl: objectPathToUrl(objectPath), cacheKey, cached: false });
   } catch (err) {
     req.log.error({ err }, "Image endpoint failed");
     res.status(500).json({ error: "Image generation failed" });
   }
 });
 
-// ── Dev/admin: inspect cache ──────────────────────────────────────────────
 router.get("/scenes/cache/stats", async (req, res) => {
   try {
     const stats = await cacheStats();

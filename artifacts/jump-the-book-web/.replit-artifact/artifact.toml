@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Jump the Book"
+version = "1.0.0"
+id = "artifacts/jump-the-book-web"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21282
+
+[services.development]
+run = "pnpm --filter @workspace/jump-the-book-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/jump-the-book-web", "run", "build" ]
+publicDir = "artifacts/jump-the-book-web/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21282"
+BASE_PATH = "/"

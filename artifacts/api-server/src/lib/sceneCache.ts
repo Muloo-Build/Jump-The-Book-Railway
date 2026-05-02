@@ -22,7 +22,7 @@ export interface CachedScene {
   gradientColors: string[];
   imagePrompt: string;
   imageCacheKey?: string;
-  imageB64?: string | null;
+  imageUrl?: string | null;
   imageGeneratedAt?: string | null;
 }
 
@@ -54,15 +54,6 @@ export function hashExcerpt(excerpt: string | undefined): string {
   return sha(excerpt.trim()).slice(0, 16);
 }
 
-/**
- * Cache key identity = the canonical "this chapter of this book in this
- * style" — NOT the extra context that callers pass for *generation*. We
- * deliberately exclude chapterTitle and excerpt from the key because the
- * upload flow has the EPUB's real chapter title + excerpt, but the
- * experience-screen reopen flow only knows the chapter number. Including
- * those would produce different keys for the same chapter and force
- * unnecessary regeneration on every reopen / new device.
- */
 export function makeSceneCacheKey(p: SceneBundleParams): string {
   const raw = [
     `v${SCENE_CACHE_VERSION}`,
@@ -141,10 +132,22 @@ export async function getCachedImage(
   return rows[0] ?? null;
 }
 
+/**
+ * Convert a stored objectPath ("/objects/<namespace>/<id>") to a public URL
+ * the web client can load. The api-server is mounted under `/api`, so the
+ * storage GET route is `/api/storage/objects/<namespace>/<id>`.
+ */
+export function objectPathToUrl(objectPath: string | null | undefined): string | null {
+  if (!objectPath) return null;
+  if (!objectPath.startsWith("/objects/")) return objectPath;
+  const tail = objectPath.slice("/objects/".length);
+  return `/api/storage/objects/${tail}`;
+}
+
 export async function saveCachedImage(
   cacheKey: string,
   p: ImageKeyParams,
-  imageB64: string,
+  opts: { objectPath: string; bytes: number },
 ): Promise<void> {
   const promptHash = sha(p.prompt.trim()).slice(0, 16);
   await db
@@ -158,14 +161,16 @@ export async function saveCachedImage(
       sceneIndex: p.sceneIndex,
       visualStyle: p.visualStyle,
       promptHash,
-      imageB64,
-      bytes: Math.ceil(imageB64.length * 0.75),
+      objectPath: opts.objectPath,
+      imageB64: null,
+      bytes: opts.bytes,
     })
     .onConflictDoUpdate({
       target: imageCacheTable.cacheKey,
       set: {
-        imageB64,
-        bytes: Math.ceil(imageB64.length * 0.75),
+        objectPath: opts.objectPath,
+        imageB64: null,
+        bytes: opts.bytes,
         generatedAt: new Date(),
       },
     });

@@ -1,0 +1,401 @@
+Yes. This is the right move.
+
+For this idea, I’d prioritise a web app/PWA first, not a mobile app first. Uploading EPUBs, viewing generated visual stories, caching images, managing a library, and testing quickly will be much easier on web. Mobile apps can come later once the product loop is proven.
+
+Give Replit this:
+
+We need to migrate Jump the Book from the current Expo/mobile-first app into a web-first app/PWA.
+
+Current product direction:
+Jump the Book should be a simple web app where a reader can upload an EPUB, generate a visual story companion, and follow along while reading or listening.
+
+The core flow is:
+
+1. User opens the web app
+2. User uploads an EPUB
+3. App extracts title, author, cover and chapters
+4. User clicks “Generate Visual Story”
+5. App generates spoiler-safe scene cards for Chapter 1
+6. Scene cards display immediately with gradient fallback
+7. Images load from the stored image library if available, or generate in the background
+8. User can update where they are in the book
+9. Future chapters remain locked until the user reaches them
+10. Generated scenes/images are stored and reused, not regenerated unnecessarily
+
+The current app has useful React Native/Expo components, but the product should now become a web app/PWA first.
+
+Please create a web app version of Jump the Book.
+
+Preferred approach:
+Use the simplest reliable web stack that fits this repo and Replit.
+
+Recommended:
+- React
+- Vite
+- TypeScript
+- Tailwind CSS
+- React Router or equivalent
+- Existing Express API server
+- File-based persistence or DB if already available
+- PWA support if straightforward
+
+Do not keep building around native mobile screens as the primary interface.
+
+Core pages required:
+
+1. Landing / Home page
+
+Purpose:
+Explain the product simply and get the user to upload a book.
+
+Hero copy:
+“Turn your book into a visual story companion.”
+
+Supporting copy:
+“Upload an EPUB, generate spoiler-safe visual scenes, and follow along as you read or listen.”
+
+Primary CTA:
+“Upload a Book”
+
+Secondary CTA:
+“Try Demo Book”
+
+Sections:
+- How it works
+- Upload EPUB
+- Generate visual scenes
+- Follow along without spoilers
+- Reuse saved scenes and images from the library
+
+2. Library page
+
+Purpose:
+Show books the user has uploaded or demo books available.
+
+Sections:
+- My Books
+- Demo Books
+- Recently Generated
+- Continue Reading
+
+Each book card should show:
+- title
+- author
+- cover image or gradient
+- progress
+- scenes generated count
+- button: Continue
+- button: Generate / Open Companion
+
+3. Upload Book page
+
+Purpose:
+Make the upload process very simple.
+
+Flow:
+- Upload EPUB
+- Parse EPUB
+- Show detected title, author, cover and chapter count
+- Let user choose visual style
+- Let user choose spoiler mode, default no spoilers
+- Button: Generate Visual Story
+
+Required:
+- Web file upload for .epub
+- EPUB parsing using JSZip or existing parser
+- Extract title, author, cover if possible
+- Extract chapters into chapter objects
+- Store parsed book locally/server-side
+- Do not treat this as “Upload Writing”
+- This is “Upload Book”
+
+4. Generate Visual Story screen/state
+
+Purpose:
+Generate Chapter 1 scenes quickly and make the user feel progress.
+
+Flow:
+- First check server-side scene cache
+- If scenes exist, load them
+- If not, generate scene text
+- Save scene bundle
+- Show scene cards as soon as text exists
+- Load cached images where available
+- Generate missing images in the background
+- Replace gradients with images as they finish
+
+Important:
+Do not block the whole experience while waiting for all images.
+
+Labels:
+- “Reading your chapter…”
+- “Generating visual scenes…”
+- “Checking saved image library…”
+- “Creating image…”
+- “Your visual story is ready”
+
+5. Book Detail / Companion page
+
+Purpose:
+This is the main reading companion page.
+
+Show:
+- book title
+- author
+- cover
+- current position
+- progress percentage
+- chapter list
+- locked/unlocked chapters
+- generated scenes for current chapter
+- button: Update Where I Am
+- button: Generate Chapter Scenes
+- button: Ambient / Cinematic Mode
+
+Scene cards:
+- image if available
+- gradient fallback if not
+- scene title
+- narration
+- summary
+- location
+- mood
+- characters
+
+6. Position Update modal
+
+Purpose:
+Let the user update where they are.
+
+Fields:
+- chapter
+- page / location
+- audiobook timestamp
+
+The app should:
+- update progress
+- unlock chapters up to current chapter
+- keep future chapters locked
+- save position
+
+7. Ambient / Cinematic Mode
+
+Purpose:
+Full-screen visual story viewing.
+
+Show:
+- one scene at a time
+- image or gradient background
+- narration
+- next/previous controls
+- exit button
+- optional mood/soundscape suggestion
+
+Keep it simple.
+
+8. Help / How It Works page
+
+Create a help page explaining:
+- Uploading an EPUB
+- Generating scenes
+- Image library/cache
+- Spoiler safety
+- Updating reading position
+- Unlocking chapters
+- Ambient mode
+
+Navigation:
+Top nav should include:
+- Home
+- Library
+- Upload Book
+- Help
+
+Technical requirements:
+
+1. Preserve and reuse existing backend logic where useful
+
+Existing endpoints:
+- /api/scenes/generate
+- /api/scenes/image
+
+But update them as needed for web-first usage and server-side caching.
+
+2. Implement server-side generated asset storage
+
+This is important.
+
+Generated scenes and images must be reusable.
+
+Server-side storage should support:
+- saved books
+- parsed chapters
+- generated scene bundles
+- generated image assets
+- cache keys
+- cache versioning
+
+If no DB exists yet, use file-based storage:
+- /data/books
+- /data/scenes
+- /data/images
+- /data/index.json
+
+Store generated image files as actual image files if possible, not only base64 blobs.
+
+Return image URLs from the API where possible.
+
+3. Image generation performance
+
+Do not make the user wait for all images before using the app.
+
+Use this approach:
+- Generate/load scene text first
+- Display scenes with gradients immediately
+- Request images in background
+- Save images server-side
+- Update UI when ready
+
+4. Shared library logic
+
+If the same book/chapter/style has already been generated before:
+- load existing scenes
+- load existing images
+- do not regenerate unless explicitly requested
+
+Use stable cache keys based on:
+- book title
+- author
+- chapter number
+- chapter title
+- visual style
+- spoiler mode
+- content hash
+- cache version
+
+5. Web app styling
+
+The web app should feel:
+- cinematic
+- simple
+- modern
+- dark themed
+- bookish but not old-fashioned
+- mobile-responsive
+
+Visual direction:
+- dark navy / black background
+- soft gradients
+- large visual scene cards
+- clean typography
+- strong CTA buttons
+- card-based library layout
+
+Avoid:
+- clutter
+- too many settings upfront
+- mobile-native looking screens
+- confusing labels like “Upload Writing”
+
+6. Data model
+
+Create or update types for:
+
+Book:
+- id
+- title
+- author
+- format
+- coverImageUrl
+- coverGradient
+- visualStyle
+- spoilerMode
+- currentChapter
+- currentPage
+- currentTimestamp
+- progress
+- chapters
+- createdAt
+- updatedAt
+
+Chapter:
+- id
+- bookId
+- chapterNumber
+- title
+- text
+- excerpt
+- wordCount
+- scenesGenerated
+- locked
+
+Scene:
+- id
+- bookId
+- chapterId
+- chapterNumber
+- sceneIndex
+- title
+- summary
+- narration
+- location
+- mood
+- characters
+- gradientColors
+- imagePrompt
+- imageUrl
+- imageStatus
+- generatedAt
+
+7. Migration expectations
+
+Do not delete useful existing code blindly.
+
+Audit current Expo app and reuse:
+- scene generation prompts
+- style options
+- scene card layout ideas
+- ambient/cinematic mode ideas
+- position tracking logic
+- EPUB parsing logic if useful
+
+But the new primary app should be web-first.
+
+8. Acceptance test
+
+A user should be able to:
+
+- Open the web app
+- Click Upload Book
+- Upload an EPUB
+- See detected title, author and chapter count
+- Click Generate Visual Story
+- See Chapter 1 scene cards quickly
+- Watch images appear as they are ready
+- Leave and return to the Library
+- Open the same book again
+- See saved scenes/images load instantly
+- Update reading position
+- See future chapters locked/unlocked properly
+- Open Ambient Mode and view scenes full-screen
+
+9. Important constraints
+
+Do not overcomplicate authentication yet.
+Do not add payment.
+Do not add social features.
+Do not add Kindle/Audible integrations yet.
+Do not redesign endlessly.
+
+Focus on:
+- web-first upload flow
+- EPUB parsing
+- generated visual story
+- stored scene/image library
+- spoiler-safe progress tracking
+- fast reusable experience
+
+The MVP should feel like:
+“Upload book → generate visual story → follow along.”
+
+My honest view: stop trying to make the mobile app perfect right now. Web app first gives you the cleanest demo, easier uploads, faster debugging, easier storage, and a much better Replit Build Marathon pitch.
