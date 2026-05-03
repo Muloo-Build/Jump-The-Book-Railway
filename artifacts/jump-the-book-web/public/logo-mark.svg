@@ -1,0 +1,28 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="ear" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E6C885"></stop>
+      <stop offset="100%" stop-color="#C9A96A"></stop>
+    </linearGradient>
+    <radialGradient id="head" cx="0.45" cy="0.4" r="0.7">
+      <stop offset="0%" stop-color="#E6C885"></stop>
+      <stop offset="60%" stop-color="#C9A96A"></stop>
+      <stop offset="100%" stop-color="#8E7339"></stop>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="#08080B"></rect>
+  
+  <rect x="320" y="120" width="140" height="430" rx="70" fill="url(#ear)" transform="rotate(-10 390 335)"></rect>
+  <rect x="564" y="120" width="140" height="430" rx="70" fill="url(#ear)" transform="rotate(10 634 335)"></rect>
+  
+  <rect x="358" y="200" width="64" height="290" rx="32" fill="#08080B" transform="rotate(-10 390 345)"></rect>
+  <rect x="602" y="200" width="64" height="290" rx="32" fill="#08080B" transform="rotate(10 634 345)"></rect>
+  
+  <circle cx="512" cy="640" r="280" fill="url(#head)"></circle>
+  
+  <circle cx="408" cy="610" r="22" fill="#08080B"></circle>
+  <circle cx="616" cy="610" r="22" fill="#08080B"></circle>
+  
+  <path d="M512 700 L490 740 L534 740 Z" fill="#08080B"></path>
+</svg>

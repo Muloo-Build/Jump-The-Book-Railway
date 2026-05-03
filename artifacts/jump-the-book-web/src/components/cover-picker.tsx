@@ -115,8 +115,8 @@ export default function CoverPicker({
                 onClick={() => onSelect(r)}
                 className={`group relative aspect-[2/3] rounded-md overflow-hidden border-2 transition-all ${
                   isSelected
-                    ? "border-amber-400 ring-2 ring-amber-400/40"
-                    : "border-transparent hover:border-amber-400/50"
+                    ? "border-primary ring-2 ring-primary/40"
+                    : "border-transparent hover:border-primary/50"
                 }`}
                 title={`${r.title}${r.firstPublishYear ? ` (${r.firstPublishYear})` : ""}`}
               >
@@ -133,8 +133,8 @@ export default function CoverPicker({
                   </div>
                 )}
                 {isSelected && (
-                  <div className="absolute inset-0 bg-amber-400/20 flex items-center justify-center">
-                    <div className="rounded-full bg-amber-400 p-1">
+                  <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                    <div className="rounded-full bg-primary p-1">
                       <Check className="w-3 h-3 text-black" />
                     </div>
                   </div>
@@ -152,7 +152,7 @@ export default function CoverPicker({
             onClick={() => onSelect(null)}
             className={`aspect-[2/3] rounded-md border-2 flex flex-col items-center justify-center text-[10px] gap-1 transition-all ${
               selectedCoverUrl === null
-                ? "border-amber-400 bg-amber-400/10 text-amber-200"
+                ? "border-primary bg-primary/10 text-[var(--jtb-accent-hi)]"
                 : "border-dashed border-border/60 text-muted-foreground hover:border-border"
             }`}
             title="Use a stylized fallback"

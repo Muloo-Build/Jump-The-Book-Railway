@@ -1,5 +1,4 @@
 @layer theme, base, clerk, components, utilities;
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 @import "tailwindcss";
 @import "@clerk/themes/shadcn.css";
 @import "tw-animate-css";
@@ -7,11 +6,11 @@
 
 /* Clerk overrides — placeholder + focus visibility on dark theme */
 .cl-formFieldInput::placeholder {
-  color: hsl(40 20% 65% / 0.55);
+  color: hsl(34 9% 58% / 0.55);
   opacity: 1;
 }
 .cl-formFieldInput:focus {
-  outline: 2px solid hsl(40 80% 60%);
+  outline: 2px solid hsl(38 47% 60%);
   outline-offset: -1px;
 }
 
@@ -79,60 +78,111 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ─── Jump the Book — v1.0 design tokens ──────────────────────────────
+   Refined black + warm gold. Cinematic + literary.
+   These are the source-of-truth tokens from the handoff. The shadcn
+   HSL variables below are derived from them so every component inherits
+   the new palette automatically. */
 :root {
+  /* Ink ramp (near-blacks) */
+  --jtb-ink-950: #050507;
+  --jtb-ink-900: #08080B;
+  --jtb-ink-800: #0F1015;
+  --jtb-ink-700: #16171E;
+  --jtb-ink-600: #1E1F28;
+  --jtb-ink-500: #2A2B36;
+  --jtb-ink-400: #3A3B47;
+
+  /* Gold ramp (antique brass) */
+  --jtb-gold-50:  #FBF3DC;
+  --jtb-gold-100: #F2E1B0;
+  --jtb-gold-200: #E6C885;
+  --jtb-gold-300: #D4B26B;
+  --jtb-gold-400: #C9A96A;
+  --jtb-gold-500: #B0904D;
+  --jtb-gold-600: #8E7339;
+  --jtb-gold-700: #6B552A;
+
+  /* Paper / semantic */
+  --jtb-paper:     #EDE6D3;
+  --jtb-text-dim:  #9D958A;
+  --jtb-text-mute: #6B6258;
+
+  --jtb-border:    rgba(201,169,106,0.10);
+  --jtb-border-hi: rgba(201,169,106,0.22);
+  --jtb-divider:   rgba(255,255,255,0.06);
+
+  --jtb-accent:    var(--jtb-gold-400);
+  --jtb-accent-hi: var(--jtb-gold-200);
+  --jtb-accent-on: #1A1208;
+
+  --jtb-danger:  #C9624A;
+  --jtb-success: #6BA37A;
+
+  /* Type stack */
+  --app-font-sans:  'Inter', -apple-system, system-ui, sans-serif;
+  --app-font-serif: 'Cormorant Garamond', 'EB Garamond', Georgia, serif;
+  --app-font-mono:  'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  /* Radii / spacing / shadows */
+  --jtb-r-sm: 6px;
+  --jtb-r-md: 10px;
+  --jtb-r-lg: 14px;
+  --jtb-r-xl: 22px;
+  --jtb-r-pill: 999px;
+
+  --jtb-shadow-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px rgba(0,0,0,0.35);
+  --jtb-shadow-2: 0 1px 0 rgba(255,255,255,0.05) inset, 0 14px 40px rgba(0,0,0,0.5);
+  --jtb-glow-gold: 0 0 0 1px rgba(201,169,106,0.25), 0 6px 30px rgba(201,169,106,0.18);
+
+  /* shadcn HSL bridge — used by light mode, but the app is forced dark
+     on <html> so the .dark block below is what actually renders. We
+     still set sane light-mode values for component snapshots. */
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 260 20% 98%;
-  --foreground: 260 40% 10%;
-  --border: 260 10% 85%;
-  --card: 260 20% 100%;
-  --card-foreground: 260 40% 10%;
-  --card-border: 260 10% 90%;
-  
-  --sidebar: 260 20% 98%;
-  --sidebar-foreground: 260 40% 10%;
-  --sidebar-border: 260 10% 85%;
-  --sidebar-primary: 38 45% 45%;
-  --sidebar-primary-foreground: 38 100% 95%;
-  --sidebar-accent: 260 10% 92%;
-  --sidebar-accent-foreground: 260 40% 10%;
-  --sidebar-ring: 38 45% 45%;
+  --background: 43 41% 95%;
+  --foreground: 240 17% 8%;
+  --border: 38 20% 80%;
+  --card: 43 41% 98%;
+  --card-foreground: 240 17% 8%;
+  --card-border: 38 20% 85%;
 
-  --popover: 260 20% 100%;
-  --popover-foreground: 260 40% 10%;
-  --popover-border: 260 10% 90%;
+  --sidebar: 43 41% 95%;
+  --sidebar-foreground: 240 17% 8%;
+  --sidebar-border: 38 20% 80%;
+  --sidebar-primary: 38 47% 50%;
+  --sidebar-primary-foreground: 30 50% 6%;
+  --sidebar-accent: 43 30% 90%;
+  --sidebar-accent-foreground: 240 17% 8%;
+  --sidebar-ring: 38 47% 50%;
 
-  --primary: 38 45% 45%;
-  --primary-foreground: 38 100% 95%;
+  --popover: 43 41% 98%;
+  --popover-foreground: 240 17% 8%;
+  --popover-border: 38 20% 85%;
 
-  --secondary: 260 15% 92%;
-  --secondary-foreground: 260 40% 15%;
+  --primary: 38 47% 50%;
+  --primary-foreground: 30 50% 6%;
+  --secondary: 43 30% 90%;
+  --secondary-foreground: 240 17% 8%;
+  --muted: 43 30% 92%;
+  --muted-foreground: 31 11% 38%;
+  --accent: 43 30% 90%;
+  --accent-foreground: 240 17% 8%;
+  --destructive: 9 53% 54%;
+  --destructive-foreground: 0 0% 98%;
+  --input: 38 20% 80%;
+  --ring: 38 47% 50%;
+  --chart-1: 38 47% 60%;
+  --chart-2: 240 17% 30%;
+  --chart-3: 165 22% 47%;
+  --chart-4: 9 53% 54%;
+  --chart-5: 41 65% 71%;
 
-  --muted: 260 10% 94%;
-  --muted-foreground: 260 15% 40%;
-
-  --accent: 260 15% 92%;
-  --accent-foreground: 260 40% 15%;
-
-  --destructive: 0 65% 50%;
-  --destructive-foreground: 0 100% 95%;
-
-  --input: 260 10% 85%;
-  --ring: 38 45% 45%;
-  --chart-1: 38 45% 45%;
-  --chart-2: 260 30% 40%;
-  --chart-3: 190 30% 40%;
-  --chart-4: 340 30% 40%;
-  --chart-5: 20 30% 40%;
-
-  --app-font-sans: 'Plus Jakarta Sans', sans-serif;
-  --app-font-serif: 'Playfair Display', serif;
-  --app-font-mono: Menlo, monospace;
-  --radius: .5rem; 
+  --radius: .625rem;
 
   --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0,0.05);
   --shadow-xs: 0px 2px 0px 0px rgba(0,0,0,0.05);
@@ -142,7 +192,7 @@
   --shadow-lg: 0px 2px 0px 0px rgba(0,0,0,0.05), 0px 4px 6px -1px rgba(0,0,0,0.05);
   --shadow-xl: 0px 2px 0px 0px rgba(0,0,0,0.05), 0px 8px 10px -1px rgba(0,0,0,0.05);
   --shadow-2xl: 0px 2px 0px 0px rgba(0,0,0,0.05);
-  
+
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -162,50 +212,50 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* Deep plum/indigo dark cinematic vibe */
-  --background: 260 20% 5%;
-  --foreground: 40 30% 90%;
-  --border: 260 15% 15%;
-  --card: 260 20% 7%;
-  --card-foreground: 40 30% 90%;
-  --card-border: 260 15% 13%;
-  
-  --sidebar: 260 20% 6%;
-  --sidebar-foreground: 40 30% 85%;
-  --sidebar-border: 260 15% 15%;
-  --sidebar-primary: 38 40% 50%;
-  --sidebar-primary-foreground: 38 100% 10%;
-  --sidebar-accent: 260 15% 12%;
-  --sidebar-accent-foreground: 40 30% 95%;
-  --sidebar-ring: 38 40% 50%;
+  /* Refined black + warm gold — derived from the v1.0 handoff */
+  --background: 240 17% 4%;       /* ink-900 #08080B */
+  --foreground: 43 41% 88%;       /* paper   #EDE6D3 */
+  --border: 38 25% 22% / 0.18;    /* gold-tinted hairline */
+  --card: 232 17% 7%;             /* ink-800 #0F1015 */
+  --card-foreground: 43 41% 88%;
+  --card-border: 38 25% 22% / 0.22;
 
-  --popover: 260 20% 7%;
-  --popover-foreground: 40 30% 90%;
-  --popover-border: 260 15% 13%;
+  --sidebar: 232 17% 7%;
+  --sidebar-foreground: 43 41% 84%;
+  --sidebar-border: 230 16% 14%;
+  --sidebar-primary: 38 47% 60%;  /* gold-400 #C9A96A */
+  --sidebar-primary-foreground: 30 50% 6%;
+  --sidebar-accent: 232 14% 14%;  /* ink-600 hover */
+  --sidebar-accent-foreground: 43 41% 92%;
+  --sidebar-ring: 38 47% 60%;
 
-  --primary: 38 40% 50%; /* dusty gold */
-  --primary-foreground: 38 100% 10%;
+  --popover: 230 16% 10%;         /* ink-700 popovers */
+  --popover-foreground: 43 41% 88%;
+  --popover-border: 38 25% 22% / 0.22;
 
-  --secondary: 260 15% 12%;
-  --secondary-foreground: 40 30% 90%;
+  --primary: 38 47% 60%;          /* gold-400 PRIMARY */
+  --primary-foreground: 30 50% 6%;
 
-  --muted: 260 15% 10%;
-  --muted-foreground: 260 10% 50%;
+  --secondary: 232 17% 7%;
+  --secondary-foreground: 43 41% 88%;
 
-  --accent: 260 15% 12%;
-  --accent-foreground: 40 30% 90%;
+  --muted: 232 17% 7%;
+  --muted-foreground: 33 9% 58%;  /* text-dim #9D958A */
 
-  --destructive: 0 50% 45%;
-  --destructive-foreground: 0 100% 95%;
+  --accent: 232 14% 14%;          /* ink-600 hover */
+  --accent-foreground: 43 41% 92%;
 
-  --input: 260 15% 18%;
-  --ring: 38 40% 50%;
-  
-  --chart-1: 38 40% 50%;
-  --chart-2: 260 30% 60%;
-  --chart-3: 190 30% 60%;
-  --chart-4: 340 30% 60%;
-  --chart-5: 20 30% 60%;
+  --destructive: 9 53% 54%;       /* danger #C9624A */
+  --destructive-foreground: 43 41% 95%;
+
+  --input: 230 16% 12%;
+  --ring: 38 47% 60%;
+
+  --chart-1: 38 47% 60%;
+  --chart-2: 41 65% 71%;
+  --chart-3: 33 9% 58%;
+  --chart-4: 9 53% 54%;
+  --chart-5: 165 22% 47%;
 
   --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0,0.5);
   --shadow-xs: 0px 2px 0px 0px rgba(0,0,0,0.5);
@@ -228,7 +278,75 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
   }
+
+  /* Cormorant Garamond looks best at slightly tighter tracking and a
+     touch heavier on display sizes. Tighten globally for any element
+     using `font-serif`. */
+  .font-serif {
+    letter-spacing: -0.01em;
+  }
+}
+
+/* ─── .jtb-* component classes from the handoff (drop-in utilities) ─── */
+
+.jtb-eyebrow {
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--jtb-accent);
+}
+
+.jtb-label {
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--jtb-text-mute);
+  display: block;
+}
+
+.jtb-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--app-font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--jtb-accent);
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(201,169,106,0.10);
+  border: 1px solid rgba(201,169,106,0.18);
+}
+
+.jtb-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--jtb-r-pill);
+  font-family: var(--app-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.03);
+  color: var(--jtb-text-dim);
+  border: 1px solid var(--jtb-border);
+  transition: background .15s, border-color .15s, color .15s;
+  cursor: pointer;
+}
+.jtb-chip:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--jtb-paper);
+}
+.jtb-chip[data-active="true"], .jtb-chip--active {
+  background: rgba(201,169,106,0.14);
+  color: var(--jtb-accent-hi);
+  border-color: var(--jtb-border-hi);
+}
+
+.jtb-card-accent {
+  border: 1px solid var(--jtb-border-hi);
+  background: linear-gradient(135deg, rgba(201,169,106,0.06), rgba(201,169,106,0.02));
 }
 
 @layer utilities {

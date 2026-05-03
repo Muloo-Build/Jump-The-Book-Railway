@@ -121,7 +121,7 @@ export default function SnapPageButton({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={busy}
-        className={`inline-flex items-center gap-2 rounded-md border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 disabled:opacity-60 disabled:cursor-not-allowed h-9 px-3 text-xs font-medium transition-colors ${className}`}
+        className={`inline-flex items-center gap-2 rounded-md border border-primary/40 text-[var(--jtb-accent-hi)] hover:bg-primary/10 disabled:opacity-60 disabled:cursor-not-allowed h-9 px-3 text-xs font-medium transition-colors ${className}`}
         aria-label="Snap a photo of the page"
       >
         {busy ? (

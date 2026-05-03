@@ -73,8 +73,8 @@ export default function SceneShare() {
           </CardContent>
         </Card>
 
-        <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-6 text-center space-y-3">
-          <Sparkles className="w-8 h-8 mx-auto text-amber-300" />
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-6 text-center space-y-3">
+          <Sparkles className="w-8 h-8 mx-auto text-[var(--jtb-accent-hi)]" />
           <h2 className="font-serif text-2xl font-semibold">See the worlds you read</h2>
           <p className="text-muted-foreground text-sm max-w-md mx-auto">
             Jump the Book turns the chapter you're on into spoiler-safe scenes

@@ -199,7 +199,7 @@ export default function BibleEditor({ value, onChange }: Props) {
                 }
                 className={`text-xs rounded-full px-3 py-1.5 border transition-colors ${
                   active
-                    ? "bg-amber-400/15 border-amber-400/60 text-amber-200"
+                    ? "bg-primary/15 border-primary/60 text-[var(--jtb-accent-hi)]"
                     : "border-border/60 text-muted-foreground hover:border-border"
                 }`}
               >

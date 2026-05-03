@@ -125,7 +125,7 @@ export default function PastePassage({ bookId, chapter }: PastePassageProps) {
         <span
           className={
             tooShort
-              ? "text-amber-400"
+              ? "text-primary"
               : tooLong
                 ? "text-destructive"
                 : "text-muted-foreground"

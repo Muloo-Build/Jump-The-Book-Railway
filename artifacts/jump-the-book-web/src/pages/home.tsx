@@ -1,53 +1,56 @@
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { BookOpen, ArrowRight, Library, Sparkles } from "lucide-react";
-import Layout from "@/components/layout";
 import { motion } from "framer-motion";
-import { useLibrary } from "@/lib/library";
 
+/**
+ * Landing screen (W·01 in the design handoff).
+ *
+ * Spec: single-screen pitch. Wordmark, one sentence, two actions. No
+ * marketing fluff. Vertically centered, max 720px column, no scroll.
+ */
 export default function Home() {
-  const { activeBookId, getPosition } = useLibrary();
-  
   return (
-    <Layout>
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+    <div className="min-h-[100dvh] dark bg-background text-foreground flex flex-col">
+      <main className="flex-1 flex items-center justify-center px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="max-w-3xl space-y-8"
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="w-full max-w-[720px] text-center space-y-10"
         >
-          <div className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-            <Sparkles className="mr-2 h-4 w-4" />
-            Your reading, visualized.
+          <div className="flex items-center justify-center gap-3 jtb-eyebrow">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <span>Jump the Book · v1</span>
           </div>
-          
-          <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight text-foreground">
-            See the worlds <br/> you read.
+
+          <h1 className="font-serif font-normal tracking-[-0.03em] leading-[0.95] text-foreground text-[64px] sm:text-[88px]">
+            Jump <em className="not-italic font-serif italic text-primary">the</em> Book.
           </h1>
-          
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Upload your EPUB or pick a classic. As you read, we generate spoiler-safe, 
-            cinematic scenes that bring the chapter to life without ruining what happens next.
+
+          <p className="font-serif italic text-muted-foreground leading-snug text-lg sm:text-[22px] max-w-[640px] mx-auto">
+            A reading-and-review companion for people who like books a little
+            too much. See the worlds you read, scene by spoiler-free scene.
           </p>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
-            <Link href="/library" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto text-lg h-14 px-8 font-serif italic tracking-wide group">
-                <Library className="mr-2 h-5 w-5 group-hover:-rotate-12 transition-transform" />
-                Open Library
-              </Button>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center justify-center h-12 px-6 rounded-[10px] bg-primary text-primary-foreground border border-[var(--jtb-accent-hi)] font-semibold text-sm hover:brightness-110 transition-[filter] shadow-[0_6px_20px_rgba(201,169,106,0.25)]"
+            >
+              Start a shelf
             </Link>
-            <Link href="/upload" className="w-full sm:w-auto">
-              <Button variant="outline" size="lg" className="w-full sm:w-auto text-lg h-14 px-8 group">
-                <BookOpen className="mr-2 h-5 w-5" />
-                Upload Book
-                <ArrowRight className="ml-2 h-5 w-5 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-              </Button>
+            <Link
+              href="/sign-in"
+              className="inline-flex items-center justify-center h-12 px-6 rounded-[10px] bg-transparent text-[var(--jtb-accent-hi)] border border-[var(--jtb-border-hi)] font-semibold text-sm hover:bg-[rgba(201,169,106,0.06)] hover:border-primary transition-colors"
+            >
+              I have an account
             </Link>
           </div>
         </motion.div>
-      </div>
-    </Layout>
+      </main>
+
+      <footer className="py-10 text-center jtb-label">
+        Reading is for readers.
+      </footer>
+    </div>
   );
 }

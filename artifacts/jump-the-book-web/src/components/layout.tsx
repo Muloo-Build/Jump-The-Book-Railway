@@ -42,7 +42,7 @@ function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="h-9 w-9 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-200 font-medium text-sm flex items-center justify-center hover:bg-amber-400/25 transition-colors overflow-hidden"
+          className="h-9 w-9 rounded-full bg-primary/15 border border-primary/30 text-[var(--jtb-accent-hi)] font-medium text-sm flex items-center justify-center hover:bg-primary/25 transition-colors overflow-hidden"
           aria-label="Account menu"
         >
           {bunny ? (
@@ -129,7 +129,7 @@ function HeaderSearch() {
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search library…"
         aria-label="Search your library"
-        className="h-9 w-56 lg:w-64 rounded-md border border-border/40 bg-card/30 pl-8 pr-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-amber-400/40 focus:border-amber-400/40 transition-colors"
+        className="h-9 w-56 lg:w-64 rounded-md border border-border/40 bg-card/30 pl-8 pr-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-colors"
       />
     </form>
   );
@@ -146,14 +146,16 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground dark font-sans overflow-x-hidden">
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur">
         <div className="container flex h-14 max-w-screen-2xl items-center gap-3 px-4">
-          <Link href="/" className="flex items-center gap-2 group shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             <img
-              src={`${import.meta.env.BASE_URL}logo.svg`}
+              src={`${import.meta.env.BASE_URL}logo-mark.svg`}
               alt="Jump the Book"
-              className="h-7 w-7 transition-transform group-hover:rotate-[-6deg]"
+              className="h-7 w-7 rounded-md transition-transform group-hover:rotate-[-6deg]"
             />
-            <span className="hidden font-serif text-lg sm:inline-block">
-              Jump <span className="italic text-amber-200">the</span> Book
+            <span className="hidden font-serif text-lg sm:inline-block tracking-tight">
+              <span className="italic text-primary">Jump</span>{" "}
+              <span className="text-muted-foreground/70 text-[0.85em]">the</span>{" "}
+              Book
             </span>
           </Link>
           <nav className="flex items-center gap-4 sm:gap-6 text-sm font-medium overflow-x-auto no-scrollbar min-w-0">
@@ -217,7 +219,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               <Link href="/sign-up">
                 <Button
                   size="sm"
-                  className="bg-amber-400 text-black hover:bg-amber-300"
+                  className="bg-primary text-primary-foreground hover:brightness-110 font-semibold"
                 >
                   Get started
                 </Button>

@@ -114,9 +114,9 @@ export default function SnapCoverButton({
   };
 
   const tileClasses =
-    "group flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400/40 bg-amber-400/5 hover:bg-amber-400/10 hover:border-amber-400/60 text-amber-200 transition-all px-6 py-8 disabled:opacity-60 disabled:cursor-not-allowed w-full";
+    "group flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 text-[var(--jtb-accent-hi)] transition-all px-6 py-8 disabled:opacity-60 disabled:cursor-not-allowed w-full";
   const pillClasses =
-    "inline-flex items-center gap-2 rounded-md border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 disabled:opacity-60 disabled:cursor-not-allowed h-9 px-3 text-xs font-medium transition-colors";
+    "inline-flex items-center gap-2 rounded-md border border-primary/40 text-[var(--jtb-accent-hi)] hover:bg-primary/10 disabled:opacity-60 disabled:cursor-not-allowed h-9 px-3 text-xs font-medium transition-colors";
   const iconClass =
     variant === "tile" ? "w-7 h-7" : "w-3.5 h-3.5";
 
@@ -138,7 +138,7 @@ export default function SnapCoverButton({
           {busy ? "Reading cover…" : label}
         </span>
         {variant === "tile" && !busy && (
-          <span className="text-xs text-amber-300/70 font-normal">
+          <span className="text-xs text-[var(--jtb-accent-hi)]/70 font-normal">
             Point your camera at any book
           </span>
         )}

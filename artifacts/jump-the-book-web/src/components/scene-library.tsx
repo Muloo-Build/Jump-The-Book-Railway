@@ -193,10 +193,10 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
       )}
 
       {orphanGroupCount > 0 && !q && (
-        <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm flex items-start gap-3">
-          <HelpCircle className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+        <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm flex items-start gap-3">
+          <HelpCircle className="w-4 h-4 text-[var(--jtb-accent-hi)] shrink-0 mt-0.5" />
           <div className="space-y-0.5">
-            <p className="text-amber-200 font-medium">
+            <p className="text-[var(--jtb-accent-hi)] font-medium">
               {orphanGroupCount === 1
                 ? "1 scene group is missing its book"
                 : `${orphanGroupCount} scene groups are missing their book`}
@@ -250,7 +250,7 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
               key={group.bookId}
               className={`rounded-2xl border overflow-hidden ${
                 isOrphan
-                  ? "border-amber-400/30 bg-amber-400/[0.03]"
+                  ? "border-primary/30 bg-primary/[0.03]"
                   : "border-border/40 bg-card/30"
               }`}
             >
@@ -267,7 +267,7 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
                   )}
                   <h3
                     className={`font-serif text-lg font-semibold truncate ${
-                      isOrphan ? "text-amber-100/90" : ""
+                      isOrphan ? "text-[var(--jtb-accent-hi)]/90" : ""
                     }`}
                   >
                     {ref?.title ?? "Unknown book"}
@@ -291,7 +291,7 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
                             sceneCount: group.scenes.length,
                           })
                         }
-                        className="text-amber-300 hover:text-amber-200 hover:bg-amber-400/10 h-8"
+                        className="text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)] hover:bg-primary/10 h-8"
                       >
                         <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                         Recover
@@ -315,7 +315,7 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
                     bookLink && (
                       <Link
                         href={bookLink}
-                        className="text-xs text-amber-300/80 hover:text-amber-300"
+                        className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)]"
                       >
                         Open →
                       </Link>
@@ -337,7 +337,7 @@ export default function SceneLibrary({ scenes, bookIdMap }: Props) {
                           {ref && (
                             <Link
                               href={`/playback/${ref.displayId}?chapter=${chapterNumber}`}
-                              className="text-xs text-amber-300/80 hover:text-amber-300 inline-flex items-center gap-1"
+                              className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] inline-flex items-center gap-1"
                             >
                               <PlayCircle className="w-3 h-3" />
                               Play trailer
@@ -442,7 +442,7 @@ function SceneTile({
     <div
       className={`group relative aspect-square overflow-hidden rounded-xl border border-white/5 transition-all ${
         link
-          ? "cursor-pointer hover:border-amber-400/40"
+          ? "cursor-pointer hover:border-primary/40"
           : "cursor-default opacity-90"
       }`}
       style={{ background: bg }}
@@ -462,12 +462,12 @@ function SceneTile({
         }`}
       >
         {compact && bookRef && (
-          <p className="text-[9px] text-amber-300/90 font-medium uppercase tracking-wider line-clamp-1">
+          <p className="text-[9px] text-[var(--jtb-accent-hi)]/90 font-medium uppercase tracking-wider line-clamp-1">
             {bookRef.title} · Ch {scene.chapterNumber}
           </p>
         )}
         {!compact && bookRef && (
-          <p className="text-[10px] text-amber-300/90 font-medium uppercase tracking-wider">
+          <p className="text-[10px] text-[var(--jtb-accent-hi)]/90 font-medium uppercase tracking-wider">
             Ch {scene.chapterNumber}
           </p>
         )}

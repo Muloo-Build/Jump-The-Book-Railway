@@ -108,7 +108,7 @@ export default function NowReadingHero({ book, latestScene }: Props) {
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-2 min-w-0">
               <Link href={`/book/${book.id}`}>
-                <h2 className="font-serif text-2xl md:text-3xl font-bold leading-tight hover:text-amber-200 transition-colors line-clamp-2">
+                <h2 className="font-serif text-2xl md:text-3xl font-bold leading-tight hover:text-[var(--jtb-accent-hi)] transition-colors line-clamp-2">
                   {book.title}
                 </h2>
               </Link>
@@ -128,12 +128,12 @@ export default function NowReadingHero({ book, latestScene }: Props) {
                 )}
               </p>
             </div>
-            <span className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-amber-400/50 bg-amber-400/20 text-amber-100 text-[10px] tracking-[0.2em] uppercase font-medium px-2 py-1">
+            <span className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-primary/50 bg-primary/20 text-[var(--jtb-accent-hi)] text-[10px] tracking-[0.2em] uppercase font-medium px-2 py-1">
               Continue reading
             </span>
           </div>
 
-          <blockquote className="font-serif italic text-base md:text-lg text-foreground/90 leading-relaxed border-l-2 border-amber-400/40 pl-4 line-clamp-4">
+          <blockquote className="font-serif italic text-base md:text-lg text-foreground/90 leading-relaxed border-l-2 border-primary/40 pl-4 line-clamp-4">
             “{quote}”
           </blockquote>
 
@@ -141,7 +141,7 @@ export default function NowReadingHero({ book, latestScene }: Props) {
             <div className="space-y-1.5">
               <div className="h-1 w-full rounded-full bg-white/[0.06] overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-300 to-amber-400"
+                  className="h-full bg-gradient-to-r from-[var(--jtb-accent-hi)] to-primary"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -151,7 +151,7 @@ export default function NowReadingHero({ book, latestScene }: Props) {
           <div className="flex flex-wrap gap-2 pt-1">
             <Link
               href={resumeHref}
-              className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-10 px-4 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
             >
               <Play className="w-4 h-4" />
               Resume

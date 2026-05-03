@@ -73,8 +73,8 @@ export default function WelcomeHero({ nowReading, totalBooks }: Props) {
 
   return (
     <section className="space-y-5">
-      <div className="inline-flex items-center gap-2 text-[10px] tracking-[0.25em] text-amber-300/90 font-medium">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-300/80" />
+      <div className="inline-flex items-center gap-2 text-[10px] tracking-[0.25em] text-[var(--jtb-accent-hi)]/90 font-medium">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--jtb-accent-hi)]/80" />
         {datePill}
       </div>
 
@@ -83,11 +83,11 @@ export default function WelcomeHero({ nowReading, totalBooks }: Props) {
           <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-tight">
             <Show when="signed-in">
               Welcome back,{" "}
-              <span className="italic text-amber-200">{firstName}</span>.
+              <span className="italic text-[var(--jtb-accent-hi)]">{firstName}</span>.
             </Show>
             <Show when="signed-out">
               Welcome to{" "}
-              <span className="italic text-amber-200">Jump the Book</span>.
+              <span className="italic text-[var(--jtb-accent-hi)]">Jump the Book</span>.
             </Show>
           </h1>
           <p className="text-muted-foreground text-base md:text-lg max-w-xl">
@@ -106,7 +106,7 @@ export default function WelcomeHero({ nowReading, totalBooks }: Props) {
           {nowReading ? (
             <Link
               href={continueHref}
-              className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-10 px-4 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
             >
               <BookOpen className="w-4 h-4" />
               Continue reading
@@ -114,7 +114,7 @@ export default function WelcomeHero({ nowReading, totalBooks }: Props) {
           ) : (
             <Link
               href="/setup-book"
-              className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-10 px-4 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
             >
               <Sparkles className="w-4 h-4" />
               Add a book

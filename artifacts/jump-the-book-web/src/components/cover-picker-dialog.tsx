@@ -147,7 +147,7 @@ export default function CoverPickerDialog({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-serif">
-            <Sparkles className="w-4 h-4 text-amber-300" />
+            <Sparkles className="w-4 h-4 text-[var(--jtb-accent-hi)]" />
             We think this is…
           </DialogTitle>
           <DialogDescription>
@@ -174,14 +174,14 @@ export default function CoverPickerDialog({
                 size="sm"
                 variant="ghost"
                 onClick={() => setEditing(true)}
-                className="shrink-0 text-amber-300 hover:text-amber-200"
+                className="shrink-0 text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)]"
               >
                 <Pencil className="w-3.5 h-3.5 mr-1.5" />
                 Edit
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-amber-400/30 bg-amber-400/5 p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
               <div className="space-y-1.5">
                 <Label htmlFor="cover-search-title">Title</Label>
                 <Input
@@ -254,7 +254,7 @@ export default function CoverPickerDialog({
                     disabled={
                       adding || !titleQ.trim() || !authorQ.trim()
                     }
-                    className="bg-amber-400 text-black hover:bg-amber-300"
+                    className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)]"
                   >
                     {adding ? (
                       <>
@@ -289,8 +289,8 @@ export default function CoverPickerDialog({
                       onClick={() => setSelectedKey(c.key)}
                       className={`w-full flex items-stretch gap-3 rounded-xl border text-left transition-all overflow-hidden ${
                         active
-                          ? "border-amber-400 bg-amber-400/5 ring-2 ring-amber-400/30"
-                          : "border-border/50 hover:border-amber-400/40"
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/30"
+                          : "border-border/50 hover:border-primary/40"
                       }`}
                     >
                       <div className="w-16 sm:w-20 shrink-0 bg-gradient-to-br from-purple-900/60 to-indigo-900/60 flex items-center justify-center">
@@ -323,7 +323,7 @@ export default function CoverPickerDialog({
                           </p>
                         </div>
                         {active && (
-                          <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center shrink-0">
+                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
                             <Check className="w-3 h-3 text-black" />
                           </div>
                         )}
@@ -350,7 +350,7 @@ export default function CoverPickerDialog({
             type="button"
             disabled={!selected || adding || search.isLoading}
             onClick={() => selected && handleAdd(selected)}
-            className="bg-amber-400 text-black hover:bg-amber-300"
+            className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)]"
           >
             {adding ? (
               <>

@@ -135,7 +135,7 @@ export default function Library() {
             // Softer banner once they have books — this is now a quiet "add another"
             <div className="rounded-xl border border-border/50 bg-card/30 p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <Sparkles className="w-4 h-4 text-amber-300/80 shrink-0" />
+                <Sparkles className="w-4 h-4 text-[var(--jtb-accent-hi)]/80 shrink-0" />
                 <p className="text-sm text-muted-foreground truncate">
                   Reading something new? Add it with Smart Setup.
                 </p>
@@ -144,7 +144,7 @@ export default function Library() {
                 <SnapCoverButton className="h-8 px-3 text-xs" />
                 <Link
                   href="/setup-book"
-                  className="inline-flex items-center justify-center rounded-md border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 h-8 px-3 text-xs font-medium transition-colors"
+                  className="inline-flex items-center justify-center rounded-md border border-primary/40 text-[var(--jtb-accent-hi)] hover:bg-primary/10 h-8 px-3 text-xs font-medium transition-colors"
                 >
                   Add a book
                 </Link>
@@ -152,9 +152,9 @@ export default function Library() {
             </div>
           ) : (
             // Bigger banner only when the library is empty
-            <div className="rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/10 to-amber-300/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+            <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
               <div className="space-y-2 max-w-2xl">
-                <div className="inline-flex items-center gap-2 text-amber-300 text-sm font-medium">
+                <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-sm font-medium">
                   <Sparkles className="w-4 h-4" />
                   Your shelf, brought to life
                 </div>
@@ -170,7 +170,7 @@ export default function Library() {
               <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
                 <Link
                   href="/setup-book"
-                  className="inline-flex items-center justify-center rounded-md bg-amber-400 text-black h-10 px-4 py-2 font-medium hover:bg-amber-300 transition-colors"
+                  className="inline-flex items-center justify-center rounded-md bg-primary text-black h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
                 >
                   <Sparkles className="w-4 h-4 mr-2" />
                   Add a book
@@ -182,9 +182,9 @@ export default function Library() {
         </Show>
 
         <Show when="signed-out">
-          <div className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
             <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 text-amber-300 text-sm font-medium">
+              <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-sm font-medium">
                 <Sparkles className="w-4 h-4" />
                 Save your collection
               </div>
@@ -196,7 +196,7 @@ export default function Library() {
             <div className="flex gap-2 flex-shrink-0">
               <Link
                 href="/sign-up"
-                className="inline-flex items-center justify-center rounded-md bg-amber-400 text-black h-10 px-4 py-2 font-medium hover:bg-amber-300 transition-colors"
+                className="inline-flex items-center justify-center rounded-md bg-primary text-black h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
               >
                 Get started
               </Link>
@@ -235,7 +235,7 @@ export default function Library() {
             {q ? (
               <Link
                 href="/library"
-                className="text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
+                className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] transition-colors"
               >
                 Clear search ✕
               </Link>
@@ -244,7 +244,7 @@ export default function Library() {
               userLibrary.length > 6 && (
                 <Link
                   href="#my-books"
-                  className="text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
+                  className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] transition-colors"
                 >
                   Browse all →
                 </Link>
@@ -275,14 +275,14 @@ export default function Library() {
               No books match “{q}”.{" "}
               <Link
                 href="/library"
-                className="text-amber-300 hover:text-amber-200 underline underline-offset-2"
+                className="text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)] underline underline-offset-2"
               >
                 Clear search
               </Link>{" "}
               or{" "}
               <Link
                 href="/setup-book"
-                className="text-amber-300 hover:text-amber-200 underline underline-offset-2"
+                className="text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)] underline underline-offset-2"
               >
                 add a new book
               </Link>
@@ -320,7 +320,7 @@ export default function Library() {
               {totalScenes > 8 && (
                 <Link
                   href="#scenes"
-                  className="text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
+                  className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] transition-colors"
                 >
                   Browse all →
                 </Link>
@@ -342,12 +342,12 @@ export default function Library() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Open any book and tap{" "}
-                  <span className="text-amber-300/90">Generate scenes</span>{" "}
+                  <span className="text-[var(--jtb-accent-hi)]/90">Generate scenes</span>{" "}
                   to bring a chapter to life.
                 </p>
                 <Link
                   href="/discover"
-                  className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-9 px-4 text-sm font-semibold transition-colors"
+                  className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-9 px-4 text-sm font-semibold transition-colors"
                 >
                   Browse the catalogue
                 </Link>

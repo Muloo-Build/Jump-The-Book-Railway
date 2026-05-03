@@ -434,7 +434,7 @@ export default function SetupBook() {
     return (
       <Layout>
         <div className="container max-w-xl mx-auto py-24 text-center">
-          <Loader2 className="w-12 h-12 mx-auto animate-spin text-amber-300 mb-4" />
+          <Loader2 className="w-12 h-12 mx-auto animate-spin text-[var(--jtb-accent-hi)] mb-4" />
           <h1 className="font-serif text-3xl font-bold mb-3">
             Saving your book bible…
           </h1>
@@ -450,7 +450,7 @@ export default function SetupBook() {
     <Layout>
       <div className="container max-w-3xl mx-auto px-4 py-12 space-y-8">
         <header className="space-y-2">
-          <div className="inline-flex items-center gap-2 text-amber-300 text-sm font-medium">
+          <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-sm font-medium">
             <Sparkles className="w-4 h-4" /> Smart Book Setup
           </div>
           <h1 className="font-serif text-4xl font-bold">
@@ -521,8 +521,8 @@ export default function SetupBook() {
 
         {step === 3 && (
           <div className="space-y-6">
-            <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 flex items-start gap-3">
-              <Wand2 className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex items-start gap-3">
+              <Wand2 className="w-5 h-5 text-[var(--jtb-accent-hi)] shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium text-foreground">
                   Review your story profile
@@ -601,7 +601,7 @@ function Stepper({ current }: { current: number }) {
                 done
                   ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
                   : active
-                    ? "bg-amber-400/20 text-amber-200 border border-amber-400/50"
+                    ? "bg-primary/20 text-[var(--jtb-accent-hi)] border border-primary/50"
                     : "border border-border text-muted-foreground"
               }`}
             >
@@ -817,7 +817,7 @@ function FieldLabel({
     <div className="space-y-1.5">
       <Label className="text-xs uppercase tracking-wider text-muted-foreground">
         {label}
-        {required && <span className="text-amber-400 ml-1">*</span>}
+        {required && <span className="text-primary ml-1">*</span>}
       </Label>
       {children}
     </div>

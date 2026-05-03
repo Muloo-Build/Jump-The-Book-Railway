@@ -67,7 +67,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <Link href="/library">
               <Button
                 onClick={this.handleReset}
-                className="bg-amber-400 text-black hover:bg-amber-300"
+                className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)]"
               >
                 Back to library
               </Button>

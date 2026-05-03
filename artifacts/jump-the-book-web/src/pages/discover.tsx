@@ -73,12 +73,12 @@ export default function Discover() {
       <div className="container max-w-6xl mx-auto px-4 py-10 md:py-12 space-y-10 md:space-y-12">
         {/* Hero */}
         <section className="space-y-4">
-          <div className="inline-flex items-center gap-2 text-[10px] tracking-[0.25em] uppercase text-amber-300/90 font-medium">
+          <div className="inline-flex items-center gap-2 text-[10px] tracking-[0.25em] uppercase text-[var(--jtb-accent-hi)]/90 font-medium">
             <Compass className="w-3.5 h-3.5" />
             Discover
           </div>
           <h1 className="font-serif text-4xl md:text-5xl leading-[1.05] tracking-tight">
-            Find your <span className="italic text-amber-200">next</span> scene.
+            Find your <span className="italic text-[var(--jtb-accent-hi)]">next</span> scene.
           </h1>
           <p className="text-muted-foreground text-base md:text-lg max-w-2xl">
             Browse our curated catalogue, jump into a public-domain classic, or
@@ -90,13 +90,13 @@ export default function Discover() {
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Link
             href="/setup-book"
-            className="group rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/10 to-amber-300/5 p-6 flex items-start gap-4 hover:border-amber-400/60 transition-colors"
+            className="group rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-6 flex items-start gap-4 hover:border-primary/60 transition-colors"
           >
-            <div className="shrink-0 rounded-xl bg-amber-400/15 text-amber-300 p-3">
+            <div className="shrink-0 rounded-xl bg-primary/15 text-[var(--jtb-accent-hi)] p-3">
               <Wand2 className="w-5 h-5" />
             </div>
             <div className="space-y-1">
-              <div className="text-xs uppercase tracking-wider text-amber-300/90 font-medium">
+              <div className="text-xs uppercase tracking-wider text-[var(--jtb-accent-hi)]/90 font-medium">
                 Smart Setup
               </div>
               <h3 className="font-serif text-lg font-semibold">
@@ -146,7 +146,7 @@ export default function Discover() {
                 <Link
                   key={e.id}
                   href={`/book/${e.id}`}
-                  className="group rounded-xl border border-border/40 bg-card/40 p-4 hover:border-amber-400/40 transition-colors block"
+                  className="group rounded-xl border border-border/40 bg-card/40 p-4 hover:border-primary/40 transition-colors block"
                 >
                   <div className="font-serif text-3xl leading-none">
                     {e.count}
@@ -157,7 +157,7 @@ export default function Discover() {
                   <div className="font-serif text-sm text-foreground/90 mt-2 line-clamp-2">
                     {e.title}
                   </div>
-                  <div className="text-[11px] text-amber-300/80 mt-1 group-hover:text-amber-200">
+                  <div className="text-[11px] text-[var(--jtb-accent-hi)]/80 mt-1 group-hover:text-[var(--jtb-accent-hi)]">
                     Open →
                   </div>
                 </Link>
@@ -197,7 +197,7 @@ export default function Discover() {
         {/* Footer CTA */}
         <section className="rounded-2xl border border-border/50 bg-card/30 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-start gap-3 max-w-xl">
-            <Sparkles className="w-5 h-5 text-amber-300/90 mt-0.5 shrink-0" />
+            <Sparkles className="w-5 h-5 text-[var(--jtb-accent-hi)]/90 mt-0.5 shrink-0" />
             <p className="text-sm text-muted-foreground">
               Don't see what you're reading? Add it with Smart Setup and we'll
               build a spoiler-safe profile so every scene fits the story.
@@ -205,7 +205,7 @@ export default function Discover() {
           </div>
           <Link
             href="/setup-book"
-            className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-10 px-4 text-sm font-semibold transition-colors shrink-0"
+            className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors shrink-0"
           >
             <Wand2 className="w-4 h-4" />
             Open Smart Setup

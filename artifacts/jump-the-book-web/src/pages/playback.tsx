@@ -317,7 +317,7 @@ export default function Playback() {
                 onClick={() => setIndex(i)}
                 className={`h-1 rounded-full transition-all ${
                   i === index
-                    ? "w-8 bg-amber-300"
+                    ? "w-8 bg-[var(--jtb-accent-hi)]"
                     : i < index
                       ? "w-4 bg-white/60"
                       : "w-4 bg-white/20"
@@ -340,7 +340,7 @@ export default function Playback() {
             <Button
               size="icon"
               onClick={togglePlay}
-              className="bg-amber-400 text-black hover:bg-amber-300 w-12 h-12 rounded-full"
+              className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)] w-12 h-12 rounded-full"
             >
               {playing ? (
                 <Pause className="w-5 h-5" />

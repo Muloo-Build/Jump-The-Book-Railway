@@ -208,12 +208,12 @@ export default function EditBookDialog({
           <DialogTitle className="flex items-center gap-2 font-serif">
             {isClaim ? (
               <>
-                <Sparkles className="w-4 h-4 text-amber-300" />
+                <Sparkles className="w-4 h-4 text-[var(--jtb-accent-hi)]" />
                 Recover this book
               </>
             ) : (
               <>
-                <Pencil className="w-4 h-4 text-amber-300" />
+                <Pencil className="w-4 h-4 text-[var(--jtb-accent-hi)]" />
                 Edit book details
               </>
             )}
@@ -265,7 +265,7 @@ export default function EditBookDialog({
               </div>
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:text-amber-300 underline underline-offset-2"
+                className="text-xs text-muted-foreground hover:text-[var(--jtb-accent-hi)] underline underline-offset-2"
                 onClick={() => setManualMode(false)}
               >
                 ← Back to search
@@ -360,7 +360,7 @@ export default function EditBookDialog({
             <Button
               type="submit"
               disabled={!canSave || pending}
-              className="bg-amber-400 text-black hover:bg-amber-300"
+              className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)]"
             >
               {pending ? (
                 <>
@@ -404,7 +404,7 @@ function ClaimSearchPanel({
   return (
     <div className="space-y-3">
       {selected ? (
-        <div className="flex gap-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+        <div className="flex gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3">
           <div
             className="w-20 h-28 flex-shrink-0 rounded-md overflow-hidden bg-muted"
             style={{
@@ -523,7 +523,7 @@ function ClaimSearchPanel({
       <button
         type="button"
         onClick={onManual}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-amber-300 transition-colors"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-[var(--jtb-accent-hi)] transition-colors"
       >
         <ChevronDown className="w-3 h-3" />
         Can't find it? Enter title manually

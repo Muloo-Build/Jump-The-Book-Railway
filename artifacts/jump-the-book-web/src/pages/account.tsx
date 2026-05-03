@@ -157,7 +157,7 @@ function AvatarPickerCard({
                 title={opt.blurb}
                 className={`group relative aspect-square rounded-2xl overflow-hidden border transition-all bg-black/20 ${
                   active
-                    ? "border-amber-400 ring-2 ring-amber-400/40"
+                    ? "border-primary ring-2 ring-primary/40"
                     : "border-white/10 hover:border-white/30"
                 } ${busy && !isBusy ? "opacity-50" : ""}`}
               >
@@ -173,13 +173,13 @@ function AvatarPickerCard({
                   </span>
                 </div>
                 {active && (
-                  <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center shadow">
+                  <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow">
                     <Check className="w-3 h-3 text-black" />
                   </div>
                 )}
                 {isBusy && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 animate-spin text-amber-300" />
+                    <Loader2 className="w-5 h-5 animate-spin text-[var(--jtb-accent-hi)]" />
                   </div>
                 )}
               </button>
@@ -273,7 +273,7 @@ function ChipMultiSelect({
               disabled={disabled}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 active
-                  ? "border-amber-400 bg-amber-400/15 text-amber-100"
+                  ? "border-primary bg-primary/15 text-[var(--jtb-accent-hi)]"
                   : disabled
                     ? "border-white/5 text-muted-foreground/40 cursor-not-allowed"
                     : "border-white/15 text-foreground/80 hover:border-white/30 hover:text-foreground"
@@ -287,7 +287,7 @@ function ChipMultiSelect({
         {customs.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-amber-400 bg-amber-400/15 text-amber-100"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-primary bg-primary/15 text-[var(--jtb-accent-hi)]"
           >
             {tag}
             <button
@@ -315,7 +315,7 @@ function ChipMultiSelect({
           maxLength={60}
           placeholder={placeholder}
           disabled={selected.length >= max}
-          className="flex-1 h-9 rounded-md border border-border/40 bg-card/30 px-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-amber-400/40 focus:border-amber-400/40 disabled:opacity-50"
+          className="flex-1 h-9 rounded-md border border-border/40 bg-card/30 px-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 disabled:opacity-50"
         />
         <Button
           type="button"
@@ -482,7 +482,7 @@ function PreferencesCard() {
                   key={s}
                   className={`group relative overflow-hidden rounded-xl border text-left transition-all ${
                     active
-                      ? "border-amber-400 ring-2 ring-amber-400/40"
+                      ? "border-primary ring-2 ring-primary/40"
                       : "border-white/10 hover:border-white/30"
                   }`}
                 >
@@ -503,15 +503,15 @@ function PreferencesCard() {
                         {VISUAL_STYLE_LABELS[s]}
                       </span>
                       {isPrimary && (
-                        <span className="text-[10px] uppercase tracking-wider text-amber-300/90 font-semibold shrink-0 inline-flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-amber-300" />
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--jtb-accent-hi)]/90 font-semibold shrink-0 inline-flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-[var(--jtb-accent-hi)]" />
                           Primary
                         </span>
                       )}
                     </div>
                   </button>
                   {active && (
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center pointer-events-none">
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center pointer-events-none">
                       <Check className="w-3 h-3 text-black" />
                     </div>
                   )}
@@ -527,7 +527,7 @@ function PreferencesCard() {
                         setPrimaryStyle(s);
                         setDirty(true);
                       }}
-                      className="absolute top-1.5 left-1.5 px-1.5 h-5 rounded-full bg-black/70 hover:bg-amber-400 hover:text-black text-amber-200 text-[10px] font-semibold uppercase tracking-wider inline-flex items-center gap-1 transition-colors"
+                      className="absolute top-1.5 left-1.5 px-1.5 h-5 rounded-full bg-black/70 hover:bg-primary hover:text-black text-[var(--jtb-accent-hi)] text-[10px] font-semibold uppercase tracking-wider inline-flex items-center gap-1 transition-colors"
                       aria-label={`Make ${VISUAL_STYLE_LABELS[s]} my primary style`}
                     >
                       <Star className="w-3 h-3" />
@@ -563,7 +563,7 @@ function PreferencesCard() {
                   }}
                   className={`block w-full text-left p-4 rounded-xl border transition-all ${
                     active
-                      ? "border-amber-400 bg-amber-400/5"
+                      ? "border-primary bg-primary/5"
                       : "border-white/10 hover:border-white/30"
                   }`}
                 >
@@ -571,7 +571,7 @@ function PreferencesCard() {
                     <div
                       className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                         active
-                          ? "border-amber-400 bg-amber-400"
+                          ? "border-primary bg-primary"
                           : "border-white/30"
                       }`}
                     >
@@ -612,13 +612,13 @@ function PreferencesCard() {
                   }}
                   className={`p-4 rounded-xl border text-left transition-all ${
                     active
-                      ? "border-amber-400 bg-amber-400/5"
+                      ? "border-primary bg-primary/5"
                       : "border-white/10 hover:border-white/30"
                   }`}
                 >
                   <Icon
                     className={`w-5 h-5 mb-2 ${
-                      active ? "text-amber-400" : "text-muted-foreground"
+                      active ? "text-primary" : "text-muted-foreground"
                     }`}
                   />
                   <div className="font-medium text-sm">{label}</div>
@@ -780,7 +780,7 @@ function ReadingProfileCard() {
                   }}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     active
-                      ? "border-amber-400 bg-amber-400/5"
+                      ? "border-primary bg-primary/5"
                       : "border-white/10 hover:border-white/30"
                   }`}
                 >
@@ -958,15 +958,15 @@ function AccountInner() {
           <img
             src={headerAvatar}
             alt={greeting}
-            className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border border-amber-400/30 ring-2 ring-amber-400/10 shrink-0 bg-black/30"
+            className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border border-primary/30 ring-2 ring-primary/10 shrink-0 bg-black/30"
           />
         ) : (
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-amber-400/15 text-amber-200 flex items-center justify-center font-serif text-2xl md:text-3xl border border-amber-400/30 shrink-0">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-primary/15 text-[var(--jtb-accent-hi)] flex items-center justify-center font-serif text-2xl md:text-3xl border border-primary/30 shrink-0">
             {initial}
           </div>
         )}
         <div className="space-y-1 min-w-0">
-          <p className="text-xs uppercase tracking-[0.2em] text-amber-400/80">
+          <p className="text-xs uppercase tracking-[0.2em] text-primary/80">
             Account
           </p>
           <h1 className="font-serif text-3xl md:text-4xl font-bold tracking-tight truncate">

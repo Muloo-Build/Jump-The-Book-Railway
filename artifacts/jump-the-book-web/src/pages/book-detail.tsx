@@ -452,7 +452,7 @@ export default function BookDetail() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setEditOpen(true)}
-                    className="shrink-0 mt-1 text-muted-foreground hover:text-amber-300"
+                    className="shrink-0 mt-1 text-muted-foreground hover:text-[var(--jtb-accent-hi)]"
                     title="Edit book details"
                   >
                     <Pencil className="w-3.5 h-3.5 mr-1.5" />
@@ -508,11 +508,11 @@ export default function BookDetail() {
                 transition={{ delay: 0.2 }}
               >
                 {bible ? (
-                  <Card className="bg-amber-400/5 border-amber-400/30">
+                  <Card className="bg-primary/5 border-primary/30">
                     <CardContent className="p-6 space-y-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
-                          <div className="inline-flex items-center gap-2 text-amber-300 text-xs font-semibold uppercase tracking-wider">
+                          <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-xs font-semibold uppercase tracking-wider">
                             <Wand2 className="w-3.5 h-3.5" /> Book Bible
                           </div>
                           <h3 className="font-serif text-xl font-semibold">
@@ -545,7 +545,7 @@ export default function BookDetail() {
                             <Badge
                               key={`t-${t}`}
                               variant="outline"
-                              className="border-amber-400/40 text-amber-200"
+                              className="border-primary/40 text-[var(--jtb-accent-hi)]"
                             >
                               {t}
                             </Badge>
@@ -582,10 +582,10 @@ export default function BookDetail() {
                   </Card>
                 ) : (
                   !bibleQ.isLoading && (
-                    <Card className="border-dashed border-amber-400/30 bg-amber-400/5">
+                    <Card className="border-dashed border-primary/30 bg-primary/5">
                       <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
                         <div className="space-y-1">
-                          <div className="inline-flex items-center gap-2 text-amber-300 text-xs font-semibold uppercase tracking-wider">
+                          <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-xs font-semibold uppercase tracking-wider">
                             <Wand2 className="w-3.5 h-3.5" /> Book Bible
                           </div>
                           <p className="text-sm">
@@ -636,7 +636,7 @@ export default function BookDetail() {
                 </Link>
 
                 <Link href={`/playback/${book.id}?chapter=${currentChapter}`}>
-                  <Button size="lg" variant="outline" className="w-full h-16 text-lg group bg-amber-400/5 border-amber-400/30 text-amber-200 hover:bg-amber-400/10">
+                  <Button size="lg" variant="outline" className="w-full h-16 text-lg group bg-primary/5 border-primary/30 text-[var(--jtb-accent-hi)] hover:bg-primary/10">
                     <PlayCircle className="w-5 h-5 mr-3" />
                     Watch as trailer
                   </Button>
@@ -664,7 +664,7 @@ export default function BookDetail() {
                           </p>
                           <Link
                             href={`/playback/${book.id}?chapter=${chapterNumber}`}
-                            className="text-xs text-amber-300/80 hover:text-amber-300 inline-flex items-center gap-1"
+                            className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] inline-flex items-center gap-1"
                           >
                             <PlayCircle className="w-3 h-3" />
                             Play trailer
@@ -799,7 +799,7 @@ function SceneTileWithDelete({
     <div className="relative group">
       <Link href={`/experience/${bookId}?chapter=${chapterNumber}`}>
         <div
-          className="aspect-square overflow-hidden rounded-xl border border-white/5 transition-all cursor-pointer hover:border-amber-400/40"
+          className="aspect-square overflow-hidden rounded-xl border border-white/5 transition-all cursor-pointer hover:border-primary/40"
           style={{ background: bg }}
         >
           {scene.imageUrl && (
@@ -812,7 +812,7 @@ function SceneTileWithDelete({
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent rounded-xl" />
           <div className="absolute bottom-0 left-0 right-0 p-3 space-y-1">
-            <p className="text-[10px] text-amber-300/90 font-medium uppercase tracking-wider">
+            <p className="text-[10px] text-[var(--jtb-accent-hi)]/90 font-medium uppercase tracking-wider">
               Ch {scene.chapterNumber}
             </p>
             <p className="text-white font-serif font-semibold line-clamp-2 leading-tight text-sm">

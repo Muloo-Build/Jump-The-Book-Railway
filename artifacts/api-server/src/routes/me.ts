@@ -29,17 +29,21 @@ const BOOK_SOURCES = new Set(["demo", "upload", "manual"]);
 // `data/avatars.ts` on the web. Leaving the column un-enumed in the DB lets
 // us add new bunnies later without a migration; the validator here just
 // stops anyone from POSTing arbitrary strings.
+// Colour-keyed bunny IDs from the v1.0 design handoff. Old IDs (cute /
+// whimsical / etc.) are intentionally NOT included — any user who picked
+// one before the redesign will gracefully fall back to initials in the
+// header until they re-pick from the new set.
 const AVATAR_IDS = new Set([
-  "cute",
-  "whimsical",
-  "geometric",
-  "scifi",
-  "fantasy",
-  "pixel",
-  "comic",
-  "watercolor",
-  "gothic",
-  "cosmic",
+  "cream",
+  "gold",
+  "rose",
+  "midnight",
+  "forest",
+  "ember",
+  "ink",
+  "paper",
+  "mauve",
+  "sage",
 ]);
 const READING_PACES = new Set(["slow", "steady", "voracious"]);
 const MAX_GENRES = 12;

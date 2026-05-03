@@ -117,7 +117,7 @@ export default function LibraryBookTile({ book, index, hasBible = false }: Props
             )}
             {hasBible && !finished && (
               <div
-                className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-amber-400/90 text-black text-[10px] font-semibold px-2 py-0.5 shadow-sm"
+                className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-primary/90 text-black text-[10px] font-semibold px-2 py-0.5 shadow-sm"
                 title="Smart story profile attached"
               >
                 <Wand2 className="w-3 h-3" /> Bible
