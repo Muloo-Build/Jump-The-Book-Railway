@@ -1,3 +1,8 @@
+import aliceCover from "@/assets/covers/alice.png";
+import draculaCover from "@/assets/covers/dracula.png";
+import frankensteinCover from "@/assets/covers/frankenstein.png";
+import sherlockCover from "@/assets/covers/sherlock.png";
+
 export type VisualStyle =
   | "comic-book"
   | "watercolour"
@@ -142,6 +147,7 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "fantasy-illustration",
     tagline: "A journey through the impossible.",
+    coverUrl: aliceCover,
   },
   {
     id: "dracula",
@@ -155,6 +161,7 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "dark-cinematic",
     tagline: "Evil has a new face.",
+    coverUrl: draculaCover,
   },
   {
     id: "frankenstein",
@@ -168,6 +175,7 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "dark-cinematic",
     tagline: "The birth of the unnatural.",
+    coverUrl: frankensteinCover,
   },
   {
     id: "sherlock",
@@ -181,6 +189,7 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "animated-storybook",
     tagline: "Elementary, my dear reader.",
+    coverUrl: sherlockCover,
   },
 ];
 
