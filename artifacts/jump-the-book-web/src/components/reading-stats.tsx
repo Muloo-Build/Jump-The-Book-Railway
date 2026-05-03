@@ -10,24 +10,28 @@ interface StatProps {
   value: string | number;
   hint?: string;
   delay?: number;
+  /** Make the cell span both mobile columns (used for the orphaned 5th stat). */
+  spanMobile?: boolean;
 }
 
-function Stat({ label, value, hint, delay = 0 }: StatProps) {
+function Stat({ label, value, hint, delay = 0, spanMobile = false }: StatProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className="px-5 py-4 first:pl-0 last:pr-0 md:border-r md:border-border/40 md:last:border-r-0 flex flex-col gap-1.5"
+      className={`px-3 py-3 sm:px-4 sm:py-4 md:px-5 min-w-0 md:border-r md:border-border/40 md:last:border-r-0 flex flex-col gap-1 sm:gap-1.5${
+        spanMobile ? " col-span-2 md:col-span-1 border-t border-border/40 md:border-t-0" : ""
+      }`}
     >
-      <div className="text-[10px] tracking-[0.22em] uppercase text-muted-foreground/70 font-medium">
+      <div className="text-[10px] tracking-[0.22em] uppercase text-muted-foreground/70 font-medium truncate">
         {label}
       </div>
-      <div className="font-serif text-3xl md:text-4xl leading-none">
+      <div className="font-serif text-2xl sm:text-3xl md:text-4xl leading-none truncate">
         {value}
       </div>
       {hint && (
-        <div className="text-xs text-muted-foreground/70 leading-tight truncate">
+        <div className="text-[11px] sm:text-xs text-muted-foreground/70 leading-tight truncate">
           {hint}
         </div>
       )}
@@ -74,7 +78,7 @@ export default function ReadingStats({ nowReading }: Props = {}) {
   return (
     <section
       aria-label="Reading stats"
-      className="rounded-xl border border-border/40 bg-card/30 grid grid-cols-2 md:grid-cols-5 divide-y divide-border/40 md:divide-y-0"
+      className="rounded-xl border border-border/40 bg-card/30 grid grid-cols-2 md:grid-cols-5 overflow-hidden"
     >
       <Stat
         label="Currently reading"
@@ -119,6 +123,7 @@ export default function ReadingStats({ nowReading }: Props = {}) {
         value={formatReadingTime(stats.totalReadingMinutes)}
         hint={`${stats.totalSessions} session${stats.totalSessions === 1 ? "" : "s"}`}
         delay={0.2}
+        spanMobile
       />
     </section>
   );

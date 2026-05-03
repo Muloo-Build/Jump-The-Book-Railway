@@ -22,7 +22,20 @@ export default function Home() {
             <span>Jump the Book · v1</span>
           </div>
 
-          <h1 className="font-serif font-normal tracking-[-0.03em] leading-[0.95] text-foreground text-[64px] sm:text-[88px]">
+          {/* Brand bunny — signed-out visitors should see the mascot up top
+              so the landing reads as part of the same product as the logged-in
+              shell, where the bunny lives in the header. */}
+          <motion.img
+            src={`${import.meta.env.BASE_URL}avatars/bunny-gold.svg`}
+            alt=""
+            aria-hidden="true"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
+            className="mx-auto w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_6px_20px_rgba(201,169,106,0.25)]"
+          />
+
+          <h1 className="font-serif font-normal tracking-[-0.03em] leading-[0.95] text-foreground text-[56px] sm:text-[88px]">
             Jump <em className="not-italic font-serif italic text-primary">the</em> Book.
           </h1>
 
