@@ -1,8 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearch, Link } from "wouter";
 import { useLibrary } from "@/lib/library";
-import { useGenerateScene, GeneratedScene } from "@/hooks/useGenerateScene";
+import {
+  useGenerateScene,
+  prewarmScenes,
+  GeneratedScene,
+} from "@/hooks/useGenerateScene";
 import { useRemoteBooks, useRemoteBookScenes } from "@/hooks/useApiLibrary";
+import { useBookBible } from "@/hooks/useBookBible";
 import { DEMO_BOOKS, CHAPTERS, SCENE_IMAGES } from "@/data/books";
 import { ChevronLeft, ChevronRight, PlayCircle, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,6 +32,25 @@ export default function Experience() {
     return match?.id ?? null;
   }, [isSignedIn, id, remoteBooks.data]);
   const remoteScenesQuery = useRemoteBookScenes(remoteBookId);
+  const bibleQuery = useBookBible(remoteBookId);
+
+  // Best guess at the highest legitimate chapter so we don't speculatively
+  // generate scenes for a chapter that doesn't exist (which would burn LLM
+  // budget). Demo books have a known length; signed-in users may have set
+  // totalChapters on their library entry; otherwise we fall back to allowing
+  // a single look-ahead.
+  const knownChapterCount = useMemo(() => {
+    if (!id) return null;
+    const demoLen = CHAPTERS[id]?.length;
+    if (typeof demoLen === "number" && demoLen > 0) return demoLen;
+    const remote = (remoteBooks.data ?? []).find(
+      (b) => b.id === remoteBookId || b.demoBookId === id,
+    );
+    if (remote?.totalChapters && remote.totalChapters > 0) {
+      return remote.totalChapters;
+    }
+    return null;
+  }, [id, remoteBookId, remoteBooks.data]);
 
   const [scenes, setScenes] = useState<GeneratedScene[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -52,8 +76,15 @@ export default function Experience() {
     return () => window.removeEventListener("keydown", onKey);
   }, [scenes.length]);
 
+  // Wait for the bible query to settle for signed-in users so the cache key
+  // we use here matches the one prewarm wrote with — otherwise we'd miss the
+  // warmed bundle on the first render after navigation.
+  const bibleSettled = !isSignedIn || !remoteBookId || !bibleQuery.isLoading;
+  const bibleId = bibleQuery.data?.bible?.id;
+
   useEffect(() => {
     if (!book) return;
+    if (!bibleSettled) return;
 
     // 1) Prefer server-saved scenes for the current chapter (signed-in only).
     const remote = (remoteScenesQuery.data ?? []).filter(
@@ -80,7 +111,9 @@ export default function Experience() {
       return;
     }
 
-    // 2) Browser cache from a recent generation.
+    // 2) Browser cache from a recent generation. Must include bookBibleId
+    // so we hit the same cache slot that prewarm (and the generate flow)
+    // wrote with for signed-in users with a saved bible.
     const cached = readCachedScenes({
       bookTitle: book.title,
       author: book.author,
@@ -88,6 +121,7 @@ export default function Experience() {
       chapterNumber,
       visualStyle: book.visualStyle,
       spoilerMode: "spoilerMode" in book ? book.spoilerMode : "no-spoilers",
+      bookBibleId: bibleId,
     });
     if (cached && cached.length > 0) {
       setScenes(cached);
@@ -107,7 +141,46 @@ export default function Experience() {
     }
 
     setScenes([]);
-  }, [book, id, chapterNumber, readCachedScenes, remoteScenesQuery.data]);
+  }, [
+    book,
+    id,
+    chapterNumber,
+    readCachedScenes,
+    remoteScenesQuery.data,
+    bibleId,
+    bibleSettled,
+  ]);
+
+  // Silently warm the cache for the *next* chapter while the reader enjoys
+  // the current one. The server caches per-bundle, and our own hook stops
+  // images on 429, so this is safe to fire-and-forget. We only kick off once
+  // the current chapter has scenes (so we don't compete with the foreground)
+  // and only when we believe a next chapter actually exists.
+  useEffect(() => {
+    if (!book || !id) return;
+    if (!bibleSettled) return;
+    if (scenes.length === 0) return;
+    const nextChapter = chapterNumber + 1;
+    if (knownChapterCount !== null && nextChapter > knownChapterCount) return;
+
+    prewarmScenes({
+      bookTitle: book.title,
+      author: book.author,
+      chapterTitle: `Chapter ${nextChapter}`,
+      chapterNumber: nextChapter,
+      visualStyle: book.visualStyle,
+      spoilerMode: "spoilerMode" in book ? book.spoilerMode : "no-spoilers",
+      bookBibleId: bibleId,
+    });
+  }, [
+    book,
+    id,
+    chapterNumber,
+    scenes.length,
+    knownChapterCount,
+    bibleId,
+    bibleSettled,
+  ]);
 
   // Clamp currentIndex whenever the scenes array changes (e.g. chapter
   // switch or remote hydration shrinks the list). Prevents undefined

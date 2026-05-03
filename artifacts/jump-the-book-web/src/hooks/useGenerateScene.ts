@@ -331,3 +331,91 @@ export function useGenerateScene() {
     error,
   };
 }
+
+/**
+ * Best-effort, low-priority background warm of the server + browser cache for
+ * a chapter the reader hasn't asked for yet (typically chapter N+1 while they
+ * are reading N). Returns silently on any failure — never surface errors to
+ * the UI. Honours the server cache (cheap if already generated) and stops
+ * painting images on the first 429 so we don't burn a rate-limit budget on
+ * speculative work.
+ */
+export function prewarmScenes(params: GenerateSceneParams): void {
+  if (typeof window === "undefined") return;
+
+  const localKey = makeCacheKey(params);
+  const cached = getCached<GeneratedScene[]>(localKey);
+  if (cached && cached.length > 0 && cached.every((s) => s.imageUrl)) {
+    return;
+  }
+
+  const schedule = (fn: () => void) => {
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      w.requestIdleCallback(fn, { timeout: 4000 });
+    } else {
+      setTimeout(fn, 1500);
+    }
+  };
+
+  schedule(async () => {
+    try {
+      const textRes = await fetchWithTimeout(
+        `${API_BASE}/scenes/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...params, generateImage: false }),
+        },
+        SCENE_TIMEOUT_MS,
+      );
+      if (!textRes.ok) return;
+      const json = (await textRes.json()) as {
+        scenes?: GeneratedScene[];
+      };
+      const scenes = (json.scenes ?? []).map((s) => ({
+        ...s,
+        imageUrl: s.imageUrl ?? null,
+      }));
+      if (scenes.length === 0) return;
+      setCache(localKey, scenes);
+
+      // Sequentially fill missing images. Any 429 ends the warm — we don't
+      // want speculative work to starve the foreground reader's requests.
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        if (scene.imageUrl) continue;
+        try {
+          const imgRes = await fetchWithTimeout(
+            `${API_BASE}/scenes/image`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt: scene.imagePrompt,
+                style: params.visualStyle,
+                bookTitle: params.bookTitle,
+                author: params.author,
+                chapterNumber: params.chapterNumber,
+                sceneIndex: i,
+                cacheKey: scene.imageCacheKey ?? undefined,
+              }),
+            },
+            IMAGE_TIMEOUT_MS,
+          );
+          if (imgRes.status === 429) return;
+          if (!imgRes.ok) continue;
+          const { imageUrl } = (await imgRes.json()) as { imageUrl: string };
+          scenes[i] = { ...scenes[i], imageUrl };
+          setCache(localKey, scenes);
+        } catch {
+          // best-effort — keep what we have
+        }
+      }
+    } catch {
+      // swallow — prewarm must never disturb the foreground UX
+    }
+  });
+}

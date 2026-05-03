@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai, isRateLimitError } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { db } from "@workspace/db";
 import { bookBiblesTable, type BookBibleRow } from "@workspace/db/schema";
@@ -470,6 +470,11 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
     try {
       buffer = await generateImageBuffer(fullPrompt, "1024x1024");
     } catch (err) {
+      if (isRateLimitError(err)) {
+        req.log.warn({ err, cacheKey }, "image generation rate-limited");
+        res.status(429).json({ error: "Image generation rate-limited" });
+        return;
+      }
       req.log.error({ err, cacheKey }, "image generation failed");
       res.status(500).json({ error: "Image generation failed" });
       return;
