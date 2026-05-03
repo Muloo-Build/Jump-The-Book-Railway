@@ -1,12 +1,11 @@
 import { useMemo } from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
 import { Sparkles, Upload as UploadIcon, Wand2, Compass } from "lucide-react";
 import Layout from "@/components/layout";
 import { DEMO_BOOKS } from "@/data/books";
 import { useRemoteSceneLibrary, useRemoteBooks } from "@/hooks/useApiLibrary";
 import { useLibrary } from "@/lib/library";
-import { Card, CardContent } from "@/components/ui/card";
+import LibraryBookTile from "@/components/library-book-tile";
 
 interface Category {
   id: string;
@@ -185,47 +184,10 @@ export default function Discover() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {books.map((book, i) => (
-                  <motion.div
-                    key={book.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <Link href={`/book/${book.id}`}>
-                      <Card className="overflow-hidden hover:ring-2 ring-primary/50 transition-all cursor-pointer h-full border-border/40 bg-card/50">
-                        <div
-                          className="aspect-[2/3] w-full relative"
-                          style={{
-                            background: `linear-gradient(to bottom right, ${book.coverGradient[0]}, ${book.coverGradient[1]})`,
-                          }}
-                        >
-                          {book.heroImage && (
-                            <img
-                              src={`${import.meta.env.BASE_URL}images/${book.heroImage}.png`}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-60"
-                              onError={(e) =>
-                                (e.currentTarget.style.display = "none")
-                              }
-                            />
-                          )}
-                        </div>
-                        <CardContent className="p-4 space-y-1">
-                          <h3 className="font-serif font-bold line-clamp-1">
-                            {book.title}
-                          </h3>
-                          <p className="text-sm text-muted-foreground line-clamp-1">
-                            {book.author}
-                          </p>
-                          {book.tagline && (
-                            <p className="text-xs text-amber-300/80 mt-1 line-clamp-1">
-                              {book.tagline}
-                            </p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  </motion.div>
+                  // Reuse the same tile the Library uses so the cover lookup
+                  // (heroImage > persisted coverUrl > Open Library hook) and
+                  // the cached image cycle behave identically here.
+                  <LibraryBookTile key={book.id} book={book} index={i} />
                 ))}
               </div>
             </section>
