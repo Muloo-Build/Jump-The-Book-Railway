@@ -113,3 +113,21 @@ id = "bS7zlP-jtPwJDrUWxE7Re"
 uri = "file://app-store/icon/adaptive-icon.png"
 type = "image"
 title = "Android adaptive icon foreground"
+
+[[outputs]]
+id = "R2mGvfX58q6ZulKAQLASy"
+uri = "file://mobile-design-spec.tar.gz"
+type = "unspecified"
+title = "Mobile design pack (whole folder, .tar.gz)"
+
+[[outputs]]
+id = "QXAEtsdVys18jMNGAhA6t"
+uri = "file://mobile-design-spec/DESIGN_SPEC.md"
+type = "text"
+title = "Visual design spec (read first)"
+
+[[outputs]]
+id = "d3cIdiQ-55WqYfkxvn9sD"
+uri = "file://mobile-design-spec/README.md"
+type = "text"
+title = "Install + usage guide"
