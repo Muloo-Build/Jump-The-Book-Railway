@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "packages": {
+    "node": "24"
+  },
+  "steps": {
+    "build": {
+      "commands": [
+        "pnpm -r --if-present run build"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @workspace/api-server start"
+  }
+}
