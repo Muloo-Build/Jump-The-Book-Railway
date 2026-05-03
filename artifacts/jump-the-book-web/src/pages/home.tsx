@@ -26,7 +26,7 @@ export default function Home() {
               so the landing reads as part of the same product as the logged-in
               shell, where the bunny lives in the header. */}
           <motion.img
-            src={`${import.meta.env.BASE_URL}avatars/bunny-gold.svg`}
+            src={`${import.meta.env.BASE_URL}logo-mark.svg`}
             alt=""
             aria-hidden="true"
             initial={{ opacity: 0, scale: 0.9 }}
