@@ -442,7 +442,7 @@ export default function SetupBook() {
                 size="lg"
                 onClick={handleSaveAndContinue}
                 disabled={isSaving}
-                className="min-w-[240px]"
+                className="w-full sm:w-auto sm:min-w-[240px]"
               >
                 {isSaving ? (
                   <>
@@ -474,14 +474,14 @@ export default function SetupBook() {
 
 function Stepper({ current }: { current: number }) {
   return (
-    <ol className="flex items-center gap-2 text-xs text-muted-foreground">
+    <ol className="flex items-center gap-1.5 sm:gap-2 text-xs text-muted-foreground min-w-0">
       {STEPS.map((s, i) => {
         const active = current === s.n;
         const done = current > s.n;
         return (
-          <li key={s.n} className="flex items-center gap-2">
+          <li key={s.n} className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <span
-              className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[11px] font-semibold ${
+              className={`w-6 h-6 shrink-0 rounded-full inline-flex items-center justify-center text-[11px] font-semibold ${
                 done
                   ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
                   : active
@@ -492,18 +492,23 @@ function Stepper({ current }: { current: number }) {
               {done ? <Check className="w-3 h-3" /> : s.n}
             </span>
             <span
-              className={
+              className={`hidden sm:inline truncate ${
                 active
                   ? "text-foreground font-medium"
                   : done
                     ? "text-muted-foreground"
                     : "text-muted-foreground/60"
-              }
+              }`}
             >
               {s.title}
             </span>
+            {active && (
+              <span className="sm:hidden text-foreground font-medium truncate">
+                {s.title}
+              </span>
+            )}
             {i < STEPS.length - 1 && (
-              <span className="w-6 h-px bg-border/60 mx-1" />
+              <span className="w-3 sm:w-6 h-px bg-border/60 mx-0.5 sm:mx-1 shrink-0" />
             )}
           </li>
         );

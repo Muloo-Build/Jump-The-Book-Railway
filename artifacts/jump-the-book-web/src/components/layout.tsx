@@ -125,14 +125,14 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
   const [location] = useLocation();
 
   if (hideNav) {
-    return <div className="min-h-[100dvh] bg-background text-foreground dark">{children}</div>;
+    return <div className="min-h-[100dvh] bg-background text-foreground dark overflow-x-hidden">{children}</div>;
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-background text-foreground dark font-sans">
+    <div className="min-h-[100dvh] flex flex-col bg-background text-foreground dark font-sans overflow-x-hidden">
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur">
-        <div className="container flex h-14 max-w-screen-2xl items-center px-4">
-          <Link href="/" className="mr-6 flex items-center gap-2 group">
+        <div className="container flex h-14 max-w-screen-2xl items-center gap-3 px-4">
+          <Link href="/" className="flex items-center gap-2 group shrink-0">
             <img
               src={`${import.meta.env.BASE_URL}logo.svg`}
               alt="Jump the Book"
@@ -142,7 +142,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               Jump <span className="italic text-amber-200">the</span> Book
             </span>
           </Link>
-          <nav className="flex items-center space-x-6 text-sm font-medium">
+          <nav className="flex items-center gap-4 sm:gap-6 text-sm font-medium overflow-x-auto no-scrollbar min-w-0">
             <Link
               href="/library"
               className={cn(
@@ -150,6 +150,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
                 location?.startsWith("/library")
                   ? "text-foreground"
                   : "text-foreground/60",
+                "shrink-0",
               )}
             >
               Library
@@ -161,6 +162,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
                 location?.startsWith("/discover")
                   ? "text-foreground"
                   : "text-foreground/60",
+                "shrink-0",
               )}
             >
               Discover
@@ -172,6 +174,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
                 location?.startsWith("/upload")
                   ? "text-foreground"
                   : "text-foreground/60",
+                "shrink-0",
               )}
             >
               Upload
@@ -183,12 +186,13 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
                 location?.startsWith("/help")
                   ? "text-foreground"
                   : "text-foreground/60",
+                "shrink-0",
               )}
             >
               Help
             </Link>
           </nav>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
             <HeaderSearch />
             <Show when="signed-out">
               <Link href="/sign-in">
