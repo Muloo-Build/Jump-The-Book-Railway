@@ -37,10 +37,15 @@ function UserMenu() {
           className="h-9 w-9 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-200 font-medium text-sm flex items-center justify-center hover:bg-amber-400/25 transition-colors"
           aria-label="Account menu"
         >
-          {user?.imageUrl ? (
+          {/* Clerk's `imageUrl` is always populated — it returns a generic
+              silhouette placeholder when the user has no real photo. Use
+              `hasImage` to detect a real Google/uploaded photo and fall back
+              to initials otherwise. */}
+          {user?.hasImage && user.imageUrl ? (
             <img
               src={user.imageUrl}
               alt=""
+              referrerPolicy="no-referrer"
               className="h-full w-full rounded-full object-cover"
             />
           ) : (
