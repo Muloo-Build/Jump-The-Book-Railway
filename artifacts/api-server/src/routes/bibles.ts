@@ -268,12 +268,24 @@ const meRouter: IRouter = Router();
 meRouter.use(requireAuth);
 
 async function findUserBook(userId: string, bookId: string) {
-  const rows = await db
-    .select()
-    .from(userBooksTable)
-    .where(and(eq(userBooksTable.id, bookId), eq(userBooksTable.userId, userId)))
-    .limit(1);
-  return rows[0] ?? null;
+  // Postgres' uuid type rejects malformed strings with `invalid_text_representation`
+  // (SQLSTATE 22P02). Treat ONLY that as "not found" so client URLs with junk
+  // bookIds 404 cleanly. Every other DB error must keep bubbling so transient
+  // failures don't get masked as missing rows.
+  try {
+    const rows = await db
+      .select()
+      .from(userBooksTable)
+      .where(
+        and(eq(userBooksTable.id, bookId), eq(userBooksTable.userId, userId)),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code;
+    if (code === "22P02") return null;
+    throw err;
+  }
 }
 
 // Lightweight summary of every bible the user owns. Used by the library to
@@ -317,6 +329,10 @@ meRouter.get("/me/books/:bookId/bible", async (req, res) => {
 
   const book = await findUserBook(userId, bookId);
   if (!book) {
+    req.log.warn(
+      { userId, bookId, route: "GET /me/books/:bookId/bible" },
+      "bible lookup: book not found for user",
+    );
     res.status(404).json({ error: "Book not found" });
     return;
   }
@@ -349,6 +365,10 @@ meRouter.put("/me/books/:bookId/bible", async (req, res) => {
 
   const book = await findUserBook(userId, bookId);
   if (!book) {
+    req.log.warn(
+      { userId, bookId, route: "PUT /me/books/:bookId/bible" },
+      "bible save: book not found for user",
+    );
     res.status(404).json({ error: "Book not found" });
     return;
   }

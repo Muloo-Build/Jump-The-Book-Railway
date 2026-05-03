@@ -198,14 +198,12 @@ export default function SetupBook() {
 
     setIsSaving(true);
     try {
-      let bookId = editingBookId;
-
       // Create the user_book if we're in new-book mode. Smart Setup is the
       // "manual" source (user typed it in); the API dedupes by case-insensitive
       // (title, author) so re-running setup for an existing book updates it
       // in place rather than creating a duplicate row.
-      if (!bookId) {
-        bookId = await addBook(
+      const createNewBook = () =>
+        addBook(
           {
             title: title.trim(),
             author: author.trim(),
@@ -222,15 +220,48 @@ export default function SetupBook() {
           },
           { source: "manual" },
         );
+
+      let bookId = editingBookId;
+
+      // If the URL's editingBookId points to a book we couldn't load (deleted
+      // row, signed in as a different account, or a stale shared link), the
+      // existing-bible query will have errored. Treat it as new-book mode so
+      // we don't try to PUT against an id that no longer belongs to this user.
+      if (bookId && existingBibleQ.isError) {
+        bookId = null;
       }
 
-      await saveBible.mutateAsync({
-        bookId,
-        draft: bibleValue.draft,
-        userNotes: bibleValue.userNotes,
-        focusAreas: bibleValue.focusAreas,
-        avoidNotes: bibleValue.avoidNotes,
-      });
+      if (!bookId) {
+        bookId = await createNewBook();
+      }
+
+      try {
+        await saveBible.mutateAsync({
+          bookId,
+          draft: bibleValue.draft,
+          userNotes: bibleValue.userNotes,
+          focusAreas: bibleValue.focusAreas,
+          avoidNotes: bibleValue.avoidNotes,
+        });
+      } catch (err) {
+        // Safety net: if the PUT 404s because the editingBookId is stale and
+        // the existing-bible query happened to succeed earlier (race), create
+        // a fresh book and retry once.
+        const is404 =
+          err instanceof Error && /\bAPI 404\b/.test(err.message);
+        if (is404 && bookId === editingBookId) {
+          bookId = await createNewBook();
+          await saveBible.mutateAsync({
+            bookId,
+            draft: bibleValue.draft,
+            userNotes: bibleValue.userNotes,
+            focusAreas: bibleValue.focusAreas,
+            avoidNotes: bibleValue.avoidNotes,
+          });
+        } else {
+          throw err;
+        }
+      }
 
       toast({
         title: "Book bible saved",
