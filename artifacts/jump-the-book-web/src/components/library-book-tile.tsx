@@ -8,10 +8,23 @@ import {
   clearEnrichmentCache,
 } from "@/hooks/useOpenLibraryEnrichment";
 import { useToast } from "@/hooks/use-toast";
-import type { UserLibraryItem } from "@/data/books";
+// Structural shape — accepts both real user-library items and the curated
+// demo Book entries shown in the Classics grid. Both expose the same set of
+// fields the tile actually reads (title, author, id, coverGradient, …); the
+// tile doesn't depend on the user-only metadata (createdAt, remoteId, etc.).
+export interface LibraryBookTileBook {
+  id: string;
+  title: string;
+  author: string;
+  coverGradient: string[];
+  heroImage?: string;
+  currentChapter: number;
+  progress?: number;
+  tagline?: string;
+}
 
 interface Props {
-  book: UserLibraryItem;
+  book: LibraryBookTileBook;
   index: number;
   hasBible?: boolean;
 }

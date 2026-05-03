@@ -136,7 +136,6 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "fantasy-illustration",
     tagline: "A journey through the impossible.",
-    heroImage: "alice-hero",
   },
   {
     id: "dracula",
@@ -150,7 +149,6 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "dark-cinematic",
     tagline: "Evil has a new face.",
-    heroImage: "dracula-hero",
   },
   {
     id: "frankenstein",
@@ -164,7 +162,6 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "dark-cinematic",
     tagline: "The birth of the unnatural.",
-    heroImage: "frankenstein-hero",
   },
   {
     id: "sherlock",
@@ -178,7 +175,6 @@ export const DEMO_BOOKS: Book[] = [
     currentChapter: 1,
     visualStyle: "animated-storybook",
     tagline: "Elementary, my dear reader.",
-    heroImage: "sherlock-hero",
   },
 ];
 

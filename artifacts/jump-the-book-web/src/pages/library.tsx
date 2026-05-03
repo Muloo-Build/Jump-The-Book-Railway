@@ -354,45 +354,7 @@ export default function Library() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {DEMO_BOOKS.map((book, i) => (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                key={book.id}
-              >
-                <Link href={`/book/${book.id}`}>
-                  <Card className="overflow-hidden hover:ring-2 ring-primary/50 transition-all cursor-pointer h-full border-border/40 bg-card/50">
-                    <div
-                      className="aspect-[2/3] w-full relative"
-                      style={{
-                        background: `linear-gradient(to bottom right, ${book.coverGradient[0]}, ${book.coverGradient[1]})`,
-                      }}
-                    >
-                      {book.heroImage && (
-                        <img
-                          src={`${import.meta.env.BASE_URL}images/${book.heroImage}.png`}
-                          alt=""
-                          className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
-                          onError={(e) =>
-                            (e.currentTarget.style.display = "none")
-                          }
-                        />
-                      )}
-                    </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-serif font-bold line-clamp-1">
-                        {book.title}
-                      </h3>
-                      <p className="text-sm text-muted-foreground line-clamp-1">
-                        {book.author}
-                      </p>
-                      <p className="text-xs text-primary mt-2">
-                        {book.tagline}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              </motion.div>
+              <LibraryBookTile key={book.id} book={book} index={i} />
             ))}
           </div>
         </div>
