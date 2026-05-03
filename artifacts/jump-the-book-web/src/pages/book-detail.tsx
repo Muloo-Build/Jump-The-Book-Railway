@@ -36,6 +36,7 @@ import {
   clearEnrichmentCache,
 } from "@/hooks/useOpenLibraryEnrichment";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useBookBible } from "@/hooks/useBookBible";
 import {
   useIsSignedIn,
@@ -43,7 +44,10 @@ import {
   useRemoteBookScenes,
   useDeleteRemoteBook,
   useDeleteRemoteScene,
+  useAddRemoteBook,
+  useSaveRemoteScene,
   type RemoteScene,
+  type RemoteBook,
 } from "@/hooks/useApiLibrary";
 import EditBookDialog from "@/components/edit-book-dialog";
 import { useState } from "react";
@@ -66,6 +70,8 @@ export default function BookDetail() {
   const remoteBooks = useRemoteBooks();
   const deleteBook = useDeleteRemoteBook();
   const deleteScene = useDeleteRemoteScene();
+  const addBook = useAddRemoteBook();
+  const saveScene = useSaveRemoteScene();
 
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
@@ -117,24 +123,171 @@ export default function BookDetail() {
   const demoChapters = CHAPTERS[book.id] || [];
   const currentDemoChapter = demoChapters.find(c => c.chapterNumber === currentChapter);
 
+  const UNDO_WINDOW_MS = 8000;
+
+  const restoreBook = async (
+    snapshot: RemoteBook,
+    sceneSnapshots: RemoteScene[],
+  ) => {
+    try {
+      const recreated = await addBook.mutateAsync({
+        title: snapshot.title,
+        author: snapshot.author,
+        format: snapshot.format,
+        source: snapshot.source,
+        demoBookId: snapshot.demoBookId,
+        coverGradient: snapshot.coverGradient,
+        visualStyle: snapshot.visualStyle,
+        spoilerMode: snapshot.spoilerMode,
+        currentChapter: snapshot.currentChapter,
+        currentPage: snapshot.currentPage,
+        currentAudioTimestamp: snapshot.currentAudioTimestamp,
+        progress: snapshot.progress,
+        userNote: snapshot.userNote,
+        tagline: snapshot.tagline,
+        heroImage: snapshot.heroImage,
+        coverUrl: snapshot.coverUrl,
+        totalChapters: snapshot.totalChapters,
+      });
+      let failed = 0;
+      if (sceneSnapshots.length > 0) {
+        const results = await Promise.all(
+          sceneSnapshots.map((s) =>
+            saveScene
+              .mutateAsync({
+                userBookId: recreated.id,
+                chapterNumber: s.chapterNumber,
+                sceneIndex: s.sceneIndex,
+                title: s.title,
+                summary: s.summary ?? undefined,
+                narration: s.narration ?? undefined,
+                location: s.location ?? undefined,
+                mood: s.mood ?? undefined,
+                characters: s.characters,
+                gradientColors: s.gradientColors,
+                imagePrompt: s.imagePrompt ?? undefined,
+                imageUrl: s.imageUrl,
+                visualStyle: s.visualStyle ?? undefined,
+              })
+              .then(() => true as const)
+              .catch(() => false as const),
+          ),
+        );
+        failed = results.filter((ok) => !ok).length;
+      }
+      if (failed > 0) {
+        toast({
+          title: "Book partially restored",
+          description: `"${snapshot.title}" is back, but ${failed} of ${sceneSnapshots.length} saved scenes couldn't be restored.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Book restored",
+          description: `"${snapshot.title}" is back on your shelf.`,
+        });
+      }
+      navigate(`/book/${recreated.id}`);
+    } catch (err) {
+      toast({
+        title: "Couldn't restore book",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const restoreScene = async (snapshot: RemoteScene) => {
+    try {
+      await saveScene.mutateAsync({
+        userBookId: snapshot.userBookId,
+        chapterNumber: snapshot.chapterNumber,
+        sceneIndex: snapshot.sceneIndex,
+        title: snapshot.title,
+        summary: snapshot.summary ?? undefined,
+        narration: snapshot.narration ?? undefined,
+        location: snapshot.location ?? undefined,
+        mood: snapshot.mood ?? undefined,
+        characters: snapshot.characters,
+        gradientColors: snapshot.gradientColors,
+        imagePrompt: snapshot.imagePrompt ?? undefined,
+        imageUrl: snapshot.imageUrl,
+        visualStyle: snapshot.visualStyle ?? undefined,
+      });
+      toast({ title: "Scene restored" });
+    } catch (err) {
+      toast({
+        title: "Couldn't restore scene",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteBook = async () => {
     if (!remoteBook) return;
+    // Need an authoritative scene list so Undo can rebuild the full book.
+    let authoritativeScenes: RemoteScene[] = scenes;
+    if (!scenesQ.isSuccess) {
+      const r = await scenesQ.refetch();
+      if (r.isError || !r.data) {
+        toast({
+          title: "Couldn't delete book",
+          description:
+            "We couldn't load the saved scenes for this book. Please try again.",
+          variant: "destructive",
+        });
+        setDeleteBookOpen(false);
+        return;
+      }
+      authoritativeScenes = r.data;
+    }
+
+    // Snapshots live only in this closure and are nulled after the undo window.
+    let bookSnapshot: RemoteBook | null = { ...remoteBook };
+    let sceneSnapshots: RemoteScene[] | null = authoritativeScenes.map((s) => ({
+      ...s,
+    }));
+
     try {
       // Delete scenes first so nothing is left orphaned
-      if (scenes.length > 0) {
+      if (sceneSnapshots.length > 0) {
         await Promise.all(
-          scenes.map((s) =>
+          sceneSnapshots.map((s) =>
             deleteScene.mutateAsync(s.id).catch(() => {}),
           ),
         );
       }
       await deleteBook.mutateAsync(remoteBook.id);
-      toast({
+      const t = toast({
         title: "Book deleted",
-        description: `"${remoteBook.title}" has been removed from your shelf.`,
+        description: `"${bookSnapshot.title}" has been removed from your shelf.`,
+        duration: UNDO_WINDOW_MS,
+        action: (
+          <ToastAction
+            altText="Undo book deletion"
+            onClick={() => {
+              const bs = bookSnapshot;
+              const ss = sceneSnapshots;
+              bookSnapshot = null;
+              sceneSnapshots = null;
+              t.dismiss();
+              if (bs) restoreBook(bs, ss ?? []);
+            }}
+          >
+            Undo
+          </ToastAction>
+        ),
       });
+      // Drop the snapshot once the undo window expires.
+      window.setTimeout(() => {
+        bookSnapshot = null;
+        sceneSnapshots = null;
+      }, UNDO_WINDOW_MS);
       navigate("/library");
     } catch (err) {
+      bookSnapshot = null;
+      sceneSnapshots = null;
       toast({
         title: "Couldn't delete book",
         description: err instanceof Error ? err.message : "Please try again.",
@@ -146,10 +299,37 @@ export default function BookDetail() {
 
   const handleDeleteScene = async () => {
     if (!deleteSceneId) return;
+    const found = scenes.find((s) => s.id === deleteSceneId);
+    // Snapshot lives only in this closure and is nulled after the undo window.
+    let sceneSnapshot: RemoteScene | null = found ? { ...found } : null;
     try {
       await deleteScene.mutateAsync(deleteSceneId);
-      toast({ title: "Scene removed" });
+      if (sceneSnapshot) {
+        const t = toast({
+          title: "Scene removed",
+          duration: UNDO_WINDOW_MS,
+          action: (
+            <ToastAction
+              altText="Undo scene deletion"
+              onClick={() => {
+                const snap = sceneSnapshot;
+                sceneSnapshot = null;
+                t.dismiss();
+                if (snap) restoreScene(snap);
+              }}
+            >
+              Undo
+            </ToastAction>
+          ),
+        });
+        window.setTimeout(() => {
+          sceneSnapshot = null;
+        }, UNDO_WINDOW_MS);
+      } else {
+        toast({ title: "Scene removed" });
+      }
     } catch (err) {
+      sceneSnapshot = null;
       toast({
         title: "Couldn't delete scene",
         description: err instanceof Error ? err.message : "Please try again.",
@@ -171,6 +351,14 @@ export default function BookDetail() {
   const chapterEntries = [...scenesByChapter.entries()].sort((a, b) => b[0] - a[0]);
 
   const isDeletingBook = deleteBook.isPending || deleteScene.isPending;
+  // Block the destructive action only while the scenes query is actively in
+  // flight. On error we still allow the user to confirm — handleDeleteBook
+  // will attempt an explicit refetch and surface a real error if needed.
+  const scenesLoading =
+    isSignedIn &&
+    !!remoteBookId &&
+    (scenesQ.isLoading || scenesQ.isFetching) &&
+    !scenesQ.isSuccess;
 
   return (
     <Layout>
@@ -517,9 +705,10 @@ export default function BookDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{remoteBook?.title}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the book and all{" "}
+              This will remove the book and all{" "}
               {scenes.length > 0 ? `${scenes.length} saved ` : ""}
-              scenes from your library. This cannot be undone.
+              scenes from your library. You'll have a few seconds to undo
+              from the toast before it's gone for good.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -529,13 +718,18 @@ export default function BookDetail() {
                 e.preventDefault();
                 handleDeleteBook();
               }}
-              disabled={isDeletingBook}
+              disabled={isDeletingBook || scenesLoading}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDeletingBook ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Deleting…
+                </>
+              ) : scenesLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Loading scenes…
                 </>
               ) : (
                 "Delete book"
@@ -554,8 +748,8 @@ export default function BookDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this scene?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{sceneToDelete?.title}" will be permanently removed. This cannot
-              be undone.
+              "{sceneToDelete?.title}" will be removed. You'll have a few
+              seconds to undo from the toast before it's gone for good.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
