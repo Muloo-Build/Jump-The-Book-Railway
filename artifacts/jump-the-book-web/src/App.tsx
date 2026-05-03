@@ -4,6 +4,7 @@ import {
   SignIn,
   SignUp,
   Show,
+  useAuth,
   useClerk,
 } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
@@ -19,7 +20,7 @@ import {
   QueryClientProvider,
   useQueryClient,
 } from "@tanstack/react-query";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, setApiTokenGetter } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -148,6 +149,21 @@ function SignUpPage() {
   );
 }
 
+// Bridges Clerk's session token into the plain `apiFetch` helper so every
+// request carries `Authorization: Bearer <jwt>`. Cookie-only auth silently
+// breaks on mobile Safari (ITP) and inside in-app browsers, which is why
+// "books appear to save but the library stays empty" — the POST sometimes
+// works but the follow-up GET drops the cookie and returns 401.
+function ClerkAuthBridge() {
+  const { getToken, isLoaded } = useAuth();
+  useEffect(() => {
+    if (!isLoaded) return;
+    setApiTokenGetter(() => getToken());
+    return () => setApiTokenGetter(null);
+  }, [getToken, isLoaded]);
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -216,6 +232,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkAuthBridge />
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
           {/* App-wide safety net so a single render-time throw can't

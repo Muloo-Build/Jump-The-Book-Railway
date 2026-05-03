@@ -105,6 +105,22 @@ export default function BookDetail() {
   });
   const webCover = needsWebCover ? enrichment.coverUrl : null;
 
+  // Don't flash "Book not found" while the books list is still loading —
+  // most commonly seen right after Add to Library navigates here before the
+  // ["me","books"] cache has populated.
+  const booksStillLoading =
+    isSignedIn && (remoteBooks.isLoading || remoteBooks.isFetching) && !book;
+  if (booksStillLoading) {
+    return (
+      <Layout>
+        <div className="container py-24 text-center text-sm text-muted-foreground inline-flex items-center gap-2 justify-center">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading book…
+        </div>
+      </Layout>
+    );
+  }
+
   if (!book) {
     return (
       <Layout>

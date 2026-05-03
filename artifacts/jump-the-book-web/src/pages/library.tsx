@@ -19,6 +19,7 @@ import NowReadingHero from "@/components/now-reading-hero";
 import SceneLibrary from "@/components/scene-library";
 import WelcomeHero from "@/components/welcome-hero";
 import SnapCoverButton from "@/components/snap-cover-button";
+import BookSearch from "@/components/book-search";
 
 const norm = (s: string) => s.trim().toLowerCase();
 
@@ -252,24 +253,61 @@ export default function Library() {
             )}
           </div>
           {!hasBooks ? (
-            <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center gap-3">
-              <p className="text-muted-foreground mb-2">
-                Your library is empty.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Link href="/setup-book">
-                  <div className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-primary/90 transition-colors">
-                    <Sparkles className="mr-2 h-4 w-4" /> Smart Setup
+            <Show
+              when="signed-in"
+              fallback={
+                <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center gap-3">
+                  <p className="text-muted-foreground mb-2">
+                    Your library is empty.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Link href="/setup-book">
+                      <div className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-primary/90 transition-colors">
+                        <Sparkles className="mr-2 h-4 w-4" /> Smart Setup
+                      </div>
+                    </Link>
+                    <SnapCoverButton className="h-10 px-4 text-sm" />
+                    <Link href="/upload">
+                      <div className="inline-flex items-center justify-center rounded-md border border-border h-10 px-4 py-2 font-medium hover:bg-card transition-colors">
+                        <Plus className="mr-2 h-4 w-4" /> Upload a file
+                      </div>
+                    </Link>
                   </div>
-                </Link>
-                <SnapCoverButton className="h-10 px-4 text-sm" />
-                <Link href="/upload">
-                  <div className="inline-flex items-center justify-center rounded-md border border-border h-10 px-4 py-2 font-medium hover:bg-card transition-colors">
-                    <Plus className="mr-2 h-4 w-4" /> Upload a file
-                  </div>
-                </Link>
+                </div>
+              }
+            >
+              {/* Signed-in empty state: surface the title-search inline so
+                  adding a book is one tap away — no extra page, no hidden
+                  wizard. Snap-a-cover and Upload still live below for the
+                  other flows. */}
+              <div className="rounded-2xl border border-border/50 bg-card/30 p-6 md:p-8 space-y-6">
+                <div className="space-y-1">
+                  <h3 className="font-serif text-xl font-semibold">
+                    Add your first book
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Search any title — we'll do the rest.
+                  </p>
+                </div>
+                <BookSearch />
+                <div className="pt-2 border-t border-border/40 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>Or:</span>
+                  <SnapCoverButton className="h-8 px-3 text-xs" />
+                  <Link
+                    href="/upload"
+                    className="inline-flex items-center justify-center rounded-md border border-border/50 h-8 px-3 text-xs font-medium hover:bg-card transition-colors"
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Upload a file
+                  </Link>
+                  <Link
+                    href="/setup-book"
+                    className="inline-flex items-center justify-center rounded-md border border-border/50 h-8 px-3 text-xs font-medium hover:bg-card transition-colors"
+                  >
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Guided setup
+                  </Link>
+                </div>
               </div>
-            </div>
+            </Show>
           ) : filteredLibrary.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border/50 p-10 text-center text-sm text-muted-foreground">
               No books match “{q}”.{" "}
