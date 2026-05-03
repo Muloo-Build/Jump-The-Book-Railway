@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import StreakBadge from "@/components/streak-badge";
 import { cn } from "@/lib/utils";
 
 interface LayoutProps {
@@ -226,6 +227,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               </Link>
             </Show>
             <Show when="signed-in">
+              <StreakBadge />
               <UserMenu />
             </Show>
           </div>

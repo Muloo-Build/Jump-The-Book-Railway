@@ -4,6 +4,7 @@ import scenesRouter from "./scenes";
 import storageRouter from "./storage";
 import meRouter from "./me";
 import biblesRouter from "./bibles";
+import companionRouter from "./companion";
 import passageRouter from "./passage";
 import coverRouter from "./cover";
 import shareRouter from "./share";
@@ -25,6 +26,7 @@ router.use(scenesRouter);
 router.use(passageRouter);
 router.use(coverRouter);
 router.use(biblesRouter);
+router.use(companionRouter);
 router.use(meRouter);
 
 export default router;

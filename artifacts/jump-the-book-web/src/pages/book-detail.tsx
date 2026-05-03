@@ -50,6 +50,7 @@ import {
   type RemoteBook,
 } from "@/hooks/useApiLibrary";
 import EditBookDialog from "@/components/edit-book-dialog";
+import BookCompanion from "@/components/book-companion";
 import { useState } from "react";
 
 // User-book IDs from the remote API are UUIDs. Demo books use slugs ("alice").
@@ -602,6 +603,21 @@ export default function BookDetail() {
                     </Card>
                   )
                 )}
+              </motion.div>
+            )}
+
+            {isSignedIn && remoteBookId && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+              >
+                <BookCompanion
+                  bookId={remoteBookId}
+                  bookTitle={book.title}
+                  currentChapter={currentChapter}
+                  hasBible={!!bible}
+                />
               </motion.div>
             )}
 

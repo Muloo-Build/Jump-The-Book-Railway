@@ -6,12 +6,126 @@ import {
   userBooksTable,
   userScenesTable,
 } from "@workspace/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { requireAuth, type AuthedRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
 router.use(requireAuth);
+
+// ── /me/streak ───────────────────────────────────────────────────────────────
+// Reading streak = consecutive UTC days with at least one "activity" event.
+// Activity = a generated scene OR a book added/updated. Computed live from
+// existing tables — no separate streak ledger to keep in sync.
+//
+// Returns:
+//   currentStreak   number of consecutive days ending today (or yesterday if
+//                   today has no activity yet — keeps the streak alive until
+//                   midnight UTC the next day)
+//   longestStreak   max run ever
+//   todayActive     did the user do something today (UTC)?
+//   lastActiveDate  YYYY-MM-DD of the most recent activity, or null
+router.get("/me/streak", async (req, res) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+
+    // Pull every distinct UTC activity day from the last 18 months. Capping
+    // the window keeps the query bounded for power users without ever
+    // affecting "current streak" answers (a >18-month gap is not a streak).
+    const cutoff = new Date(Date.now() - 1000 * 60 * 60 * 24 * 540);
+
+    const sceneDays = await db
+      .selectDistinct({
+        day: sql<string>`to_char(${userScenesTable.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+      })
+      .from(userScenesTable)
+      .where(
+        and(
+          eq(userScenesTable.userId, userId),
+          gte(userScenesTable.createdAt, cutoff),
+        ),
+      );
+
+    const bookDays = await db
+      .selectDistinct({
+        day: sql<string>`to_char(${userBooksTable.updatedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+      })
+      .from(userBooksTable)
+      .where(
+        and(
+          eq(userBooksTable.userId, userId),
+          gte(userBooksTable.updatedAt, cutoff),
+        ),
+      );
+
+    const activeSet = new Set<string>();
+    for (const r of sceneDays) if (r.day) activeSet.add(r.day);
+    for (const r of bookDays) if (r.day) activeSet.add(r.day);
+
+    if (activeSet.size === 0) {
+      res.json({
+        currentStreak: 0,
+        longestStreak: 0,
+        todayActive: false,
+        lastActiveDate: null,
+      });
+      return;
+    }
+
+    // ymd helper using UTC so client timezones can't fragment a streak.
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
+    const today = ymd(new Date());
+    const yesterday = ymd(new Date(Date.now() - 86_400_000));
+
+    const todayActive = activeSet.has(today);
+    // Streak anchor: today if active today, otherwise yesterday (so the
+    // streak doesn't drop the moment a user wakes up — they have all day
+    // to keep it). If even yesterday wasn't active, current streak = 0.
+    let cursor: string | null = todayActive
+      ? today
+      : activeSet.has(yesterday)
+        ? yesterday
+        : null;
+
+    let currentStreak = 0;
+    if (cursor) {
+      const cursorDate = new Date(cursor + "T00:00:00Z");
+      while (activeSet.has(ymd(cursorDate))) {
+        currentStreak += 1;
+        cursorDate.setUTCDate(cursorDate.getUTCDate() - 1);
+      }
+    }
+
+    // Longest streak: walk sorted days, count consecutive runs.
+    const sortedDays = [...activeSet].sort();
+    let longestStreak = 1;
+    let run = 1;
+    for (let i = 1; i < sortedDays.length; i += 1) {
+      const prev = new Date(sortedDays[i - 1] + "T00:00:00Z");
+      const curr = new Date(sortedDays[i] + "T00:00:00Z");
+      const diffDays = Math.round(
+        (curr.getTime() - prev.getTime()) / 86_400_000,
+      );
+      if (diffDays === 1) {
+        run += 1;
+        if (run > longestStreak) longestStreak = run;
+      } else {
+        run = 1;
+      }
+    }
+    if (currentStreak > longestStreak) longestStreak = currentStreak;
+
+    res.json({
+      currentStreak,
+      longestStreak,
+      todayActive,
+      lastActiveDate: sortedDays[sortedDays.length - 1] ?? null,
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /me/streak failed");
+    res.status(500).json({ error: "Failed to load streak" });
+  }
+});
 
 // ── Validation helpers ───────────────────────────────────────────────────────
 const VISUAL_STYLES = new Set([
