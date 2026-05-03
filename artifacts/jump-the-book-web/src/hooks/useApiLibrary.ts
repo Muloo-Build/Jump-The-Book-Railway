@@ -287,6 +287,11 @@ export function useDeleteOrphanScenes() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["me", "scenes"] });
       qc.invalidateQueries({ queryKey: ["me", "orphan-scenes"] });
+      // Also refresh the books list — if the client's orphan classification
+      // disagreed with the server (stale book list), this re-syncs it so
+      // any "Unknown book" group that should have been a real book row
+      // disappears from the UI on the next render.
+      qc.invalidateQueries({ queryKey: ["me", "books"] });
     },
   });
 }

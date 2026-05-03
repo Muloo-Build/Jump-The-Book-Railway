@@ -949,14 +949,20 @@ router.post("/me/orphan-scenes/claim", async (req, res) => {
   }
 });
 
-// Delete every orphan scene for a given (orphaned) user_book_id.
+// Delete every scene saved against a given user_book_id. The endpoint is
+// named "orphan-scenes" because that's the primary use case (scenes whose
+// book row no longer exists), but the operation — "remove every scene row
+// scoped to (userId, userBookId)" — is always safe regardless of whether
+// the book row still exists. We log the latter case as a soft signal that
+// the client's orphan classification disagreed with the server (e.g. a
+// stale /me/books cache during a duplicate-merge), but we still honour
+// the user's intent: the scenes go away. The book row itself is left
+// untouched — to delete the book, callers use DELETE /me/books/:id.
 router.delete("/me/orphan-scenes/:userBookId", async (req, res) => {
   try {
     const userId = (req as unknown as AuthedRequest).userId;
     const orphanId = req.params.userBookId;
 
-    // Refuse to operate on ids that still have a live book row — the user
-    // should DELETE /me/books/:id (which cascades) for those.
     const [stillExists] = await db
       .select({ id: userBooksTable.id })
       .from(userBooksTable)
@@ -968,10 +974,10 @@ router.delete("/me/orphan-scenes/:userBookId", async (req, res) => {
       )
       .limit(1);
     if (stillExists) {
-      res
-        .status(409)
-        .json({ error: "Book row still exists. Use DELETE /me/books/:id." });
-      return;
+      req.log.info(
+        { userId, userBookId: orphanId },
+        "DELETE /me/orphan-scenes called for a book row that still exists — deleting scenes only, leaving book row untouched",
+      );
     }
 
     const removed = await db
