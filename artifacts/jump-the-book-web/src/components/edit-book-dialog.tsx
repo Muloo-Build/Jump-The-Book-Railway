@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Loader2, Pencil, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Pencil, Sparkles, BookOpen, Search, ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
   usePatchRemoteBook,
   type RemoteBook,
 } from "@/hooks/useApiLibrary";
+import { searchOpenLibrary, type OpenLibrarySearchResult } from "@/lib/openLibrary";
 
 type Mode =
   | { kind: "edit"; book: RemoteBook }
@@ -50,11 +51,14 @@ export default function EditBookDialog({
   const [heroImage, setHeroImage] = useState("");
   const [totalChapters, setTotalChapters] = useState("");
 
-  // Seed form whenever the dialog opens with new data so reopening on a
-  // different book doesn't carry stale values across. We depend ONLY on
-  // stable identifiers (kind + the row id), never on `mode` itself —
-  // callers pass fresh inline object literals every render, so depending
-  // on `mode` would wipe in-progress edits the moment the parent re-renders.
+  // Claim-orphan specific state
+  const [authorQuery, setAuthorQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<OpenLibrarySearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedResult, setSelectedResult] = useState<OpenLibrarySearchResult | null>(null);
+  const [manualMode, setManualMode] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
   const modeKey =
     mode.kind === "edit" ? `edit:${mode.book.id}` : `claim:${mode.orphanUserBookId}`;
   useEffect(() => {
@@ -73,34 +77,71 @@ export default function EditBookDialog({
       setTagline("");
       setHeroImage("");
       setTotalChapters("");
+      setAuthorQuery("");
+      setSearchResults([]);
+      setSelectedResult(null);
+      setManualMode(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, modeKey]);
 
+  // OpenLibrary author search for claim-orphan mode
+  useEffect(() => {
+    if (mode.kind !== "claim-orphan" || manualMode) return;
+    const q = authorQuery.trim();
+    if (q.length < 3) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setSearching(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const r = await searchOpenLibrary(`author:${q}`, controller.signal);
+        if (!controller.signal.aborted) {
+          setSearchResults(r);
+          setSearching(false);
+        }
+      } catch {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 350);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [authorQuery, mode.kind, manualMode]);
+
   const isClaim = mode.kind === "claim-orphan";
   const pending = patch.isPending || claim.isPending;
-  const canSave = title.trim().length > 0 && author.trim().length > 0;
+
+  // For claim mode: either a result is selected or manual mode with title+author filled
+  const canSave = isClaim
+    ? selectedResult !== null || (manualMode && title.trim().length > 0 && author.trim().length > 0)
+    : title.trim().length > 0 && author.trim().length > 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSave || pending) return;
     try {
-      const trimmedTotal = totalChapters.trim();
-      const totalChaptersValue =
-        trimmedTotal === "" ? null : Number.parseInt(trimmedTotal, 10);
-      if (
-        totalChaptersValue !== null &&
-        (!Number.isFinite(totalChaptersValue) || totalChaptersValue < 0)
-      ) {
-        toast({
-          title: "Invalid chapter count",
-          description: "Total chapters must be a positive whole number.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       if (mode.kind === "edit") {
+        const trimmedTotal = totalChapters.trim();
+        const totalChaptersValue =
+          trimmedTotal === "" ? null : Number.parseInt(trimmedTotal, 10);
+        if (
+          totalChaptersValue !== null &&
+          (!Number.isFinite(totalChaptersValue) || totalChaptersValue < 0)
+        ) {
+          toast({
+            title: "Invalid chapter count",
+            description: "Total chapters must be a positive whole number.",
+            variant: "destructive",
+          });
+          return;
+        }
         const body: Record<string, unknown> = {
           title: title.trim(),
           author: author.trim(),
@@ -114,20 +155,24 @@ export default function EditBookDialog({
         });
         toast({
           title: "Book updated",
-          description: `“${updated.title}” saved.`,
+          description: `"${updated.title}" saved.`,
         });
         onSaved?.(updated);
       } else {
+        const claimTitle = selectedResult ? selectedResult.title : title.trim();
+        const claimAuthor = selectedResult ? selectedResult.author : author.trim();
+        const claimHeroImage = selectedResult
+          ? (selectedResult.coverUrlLarge ?? selectedResult.coverUrl ?? null)
+          : null;
         const result = await claim.mutateAsync({
           userBookId: mode.orphanUserBookId,
-          title: title.trim(),
-          author: author.trim(),
-          tagline: tagline.trim() || null,
-          heroImage: heroImage.trim() || null,
+          title: claimTitle,
+          author: claimAuthor,
+          heroImage: claimHeroImage,
         });
         toast({
           title: "Book recovered",
-          description: `${result.movedSceneCount} ${result.movedSceneCount === 1 ? "scene" : "scenes"} moved into “${result.book.title}”.`,
+          description: `${result.movedSceneCount} ${result.movedSceneCount === 1 ? "scene" : "scenes"} moved into "${result.book.title}".`,
         });
         onSaved?.(result.book);
       }
@@ -161,84 +206,133 @@ export default function EditBookDialog({
           </DialogTitle>
           <DialogDescription>
             {isClaim
-              ? `These ${mode.kind === "claim-orphan" ? mode.sceneCount : ""} scenes lost their book. Tell us what they belong to and we'll put it back on your shelf.`
+              ? `These ${mode.kind === "claim-orphan" ? mode.sceneCount : ""} scenes lost their book. Search by author to find it, or enter the title manually.`
               : "Fix the title, author, or cover when something looks off."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-book-title">Title</Label>
-            <Input
-              id="edit-book-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. The Name of the Wind"
-              autoFocus
-              required
+          {isClaim && !manualMode ? (
+            <ClaimSearchPanel
+              authorQuery={authorQuery}
+              setAuthorQuery={setAuthorQuery}
+              searching={searching}
+              results={searchResults}
+              selected={selectedResult}
+              onSelect={(r) => {
+                setSelectedResult(r);
+                setSearchResults([]);
+              }}
+              onClearSelection={() => setSelectedResult(null)}
+              onManual={() => { setManualMode(true); setSelectedResult(null); }}
             />
-          </div>
+          ) : isClaim && manualMode ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="claim-title">Title</Label>
+                <Input
+                  id="claim-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. The Name of the Wind"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="claim-author">Author</Label>
+                <Input
+                  id="claim-author"
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  placeholder="e.g. Patrick Rothfuss"
+                  required
+                />
+              </div>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-amber-300 underline underline-offset-2"
+                onClick={() => setManualMode(false)}
+              >
+                ← Back to search
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-book-title">Title</Label>
+                <Input
+                  id="edit-book-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. The Name of the Wind"
+                  autoFocus
+                  required
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-book-author">Author</Label>
-            <Input
-              id="edit-book-author"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="e.g. Patrick Rothfuss"
-              required
-            />
-          </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-book-author">Author</Label>
+                <Input
+                  id="edit-book-author"
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  placeholder="e.g. Patrick Rothfuss"
+                  required
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-book-tagline">
-              Tagline{" "}
-              <span className="text-muted-foreground/70 text-xs">
-                (optional)
-              </span>
-            </Label>
-            <Textarea
-              id="edit-book-tagline"
-              value={tagline}
-              onChange={(e) => setTagline(e.target.value)}
-              placeholder="A short one-liner shown on the book page."
-              rows={2}
-            />
-          </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-book-tagline">
+                  Tagline{" "}
+                  <span className="text-muted-foreground/70 text-xs">
+                    (optional)
+                  </span>
+                </Label>
+                <Textarea
+                  id="edit-book-tagline"
+                  value={tagline}
+                  onChange={(e) => setTagline(e.target.value)}
+                  placeholder="A short one-liner shown on the book page."
+                  rows={2}
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-book-chapters">
-                Total chapters{" "}
-                <span className="text-muted-foreground/70 text-xs">
-                  (optional)
-                </span>
-              </Label>
-              <Input
-                id="edit-book-chapters"
-                type="number"
-                min={0}
-                value={totalChapters}
-                onChange={(e) => setTotalChapters(e.target.value)}
-                placeholder="—"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-book-cover">
-                Cover URL{" "}
-                <span className="text-muted-foreground/70 text-xs">
-                  (optional)
-                </span>
-              </Label>
-              <Input
-                id="edit-book-cover"
-                type="url"
-                value={heroImage}
-                onChange={(e) => setHeroImage(e.target.value)}
-                placeholder="https://…"
-              />
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-book-chapters">
+                    Total chapters{" "}
+                    <span className="text-muted-foreground/70 text-xs">
+                      (optional)
+                    </span>
+                  </Label>
+                  <Input
+                    id="edit-book-chapters"
+                    type="number"
+                    min={0}
+                    value={totalChapters}
+                    onChange={(e) => setTotalChapters(e.target.value)}
+                    placeholder="—"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-book-cover">
+                    Cover URL{" "}
+                    <span className="text-muted-foreground/70 text-xs">
+                      (optional)
+                    </span>
+                  </Label>
+                  <Input
+                    id="edit-book-cover"
+                    type="url"
+                    value={heroImage}
+                    onChange={(e) => setHeroImage(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
@@ -269,5 +363,130 @@ export default function EditBookDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface ClaimSearchPanelProps {
+  authorQuery: string;
+  setAuthorQuery: (v: string) => void;
+  searching: boolean;
+  results: OpenLibrarySearchResult[];
+  selected: OpenLibrarySearchResult | null;
+  onSelect: (r: OpenLibrarySearchResult) => void;
+  onClearSelection: () => void;
+  onManual: () => void;
+}
+
+function ClaimSearchPanel({
+  authorQuery,
+  setAuthorQuery,
+  searching,
+  results,
+  selected,
+  onSelect,
+  onClearSelection,
+  onManual,
+}: ClaimSearchPanelProps) {
+  return (
+    <div className="space-y-3">
+      {selected ? (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+          {(selected.coverUrl) && (
+            <img
+              src={selected.coverUrl}
+              alt=""
+              className="w-12 h-16 object-cover rounded-md shrink-0"
+              onError={(e) => (e.currentTarget.style.display = "none")}
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="font-serif font-semibold text-sm leading-tight line-clamp-2">{selected.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{selected.author}</p>
+            {selected.firstPublishYear && (
+              <p className="text-xs text-muted-foreground/70">{selected.firstPublishYear}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="text-xs text-muted-foreground hover:text-destructive shrink-0"
+          >
+            Change
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="claim-author-search">Author name</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="claim-author-search"
+                value={authorQuery}
+                onChange={(e) => setAuthorQuery(e.target.value)}
+                placeholder="e.g. Patrick Rothfuss"
+                className="pl-9"
+                autoFocus
+                autoComplete="off"
+              />
+              {searching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Type the author's name to find matching books from Open Library.
+            </p>
+          </div>
+
+          {results.length > 0 && (
+            <div className="max-h-52 overflow-y-auto rounded-xl border border-border/40 divide-y divide-border/30">
+              {results.map((r) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => onSelect(r)}
+                  className="w-full flex items-center gap-3 p-2.5 hover:bg-muted/40 transition-colors text-left"
+                >
+                  <div className="w-10 h-14 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
+                    {r.coverUrl ? (
+                      <img
+                        src={r.coverUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => (e.currentTarget.style.display = "none")}
+                      />
+                    ) : (
+                      <BookOpen className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium line-clamp-1">{r.title}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{r.author}</p>
+                    {r.firstPublishYear && (
+                      <p className="text-xs text-muted-foreground/60">{r.firstPublishYear}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {authorQuery.trim().length >= 3 && !searching && results.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-2">
+              No matches found.
+            </p>
+          )}
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={onManual}
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-amber-300 transition-colors"
+      >
+        <ChevronDown className="w-3 h-3" />
+        Can't find it? Enter title manually
+      </button>
+    </div>
   );
 }

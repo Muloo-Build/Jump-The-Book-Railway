@@ -901,6 +901,31 @@ router.post("/me/books/:id/scenes", async (req, res) => {
   }
 });
 
+// Delete a single scene by id, scoped to the signed-in user.
+router.delete("/me/scenes/:id", async (req, res) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const sceneId = req.params.id;
+    const result = await db
+      .delete(userScenesTable)
+      .where(
+        and(
+          eq(userScenesTable.id, sceneId),
+          eq(userScenesTable.userId, userId),
+        ),
+      )
+      .returning({ id: userScenesTable.id, userBookId: userScenesTable.userBookId });
+    if (result.length === 0) {
+      res.status(404).json({ error: "Scene not found" });
+      return;
+    }
+    res.json({ ok: true, userBookId: result[0]!.userBookId });
+  } catch (err) {
+    req.log.error({ err }, "DELETE /me/scenes/:id failed");
+    res.status(500).json({ error: "Failed to delete scene" });
+  }
+});
+
 // ── Orphan scene recovery ────────────────────────────────────────────────────
 // Scenes whose `user_book_id` no longer matches any row in `user_books` for
 // this user can happen when a book row was deleted from somewhere other than

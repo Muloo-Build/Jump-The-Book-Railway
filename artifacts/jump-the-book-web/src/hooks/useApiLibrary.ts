@@ -132,7 +132,10 @@ export function useDeleteRemoteBook() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch<{ ok: true }>(`/me/books/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      qc.setQueryData<RemoteBook[]>(["me", "books"], (prev) =>
+        prev ? prev.filter((b) => b.id !== id) : [],
+      );
       qc.invalidateQueries({ queryKey: ["me", "books"] });
     },
   });
@@ -314,6 +317,34 @@ export function useDeleteOrphanScenes() {
       // any "Unknown book" group that should have been a real book row
       // disappears from the UI on the next render.
       qc.invalidateQueries({ queryKey: ["me", "books"] });
+    },
+  });
+}
+
+export function useDeleteRemoteScene() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (sceneId: string) => {
+      const r = await apiFetch<{ ok: true; userBookId: string }>(
+        `/me/scenes/${sceneId}`,
+        { method: "DELETE" },
+      );
+      return r;
+    },
+    onSuccess: (data, sceneId) => {
+      // Remove the scene immediately from both caches so the UI updates
+      // without waiting for a refetch.
+      qc.setQueryData<RemoteScene[]>(
+        ["me", "books", data.userBookId, "scenes"],
+        (prev) => (prev ? prev.filter((s) => s.id !== sceneId) : []),
+      );
+      qc.setQueryData<RemoteScene[]>(["me", "scenes"], (prev) =>
+        prev ? prev.filter((s) => s.id !== sceneId) : [],
+      );
+      qc.invalidateQueries({
+        queryKey: ["me", "books", data.userBookId, "scenes"],
+      });
+      qc.invalidateQueries({ queryKey: ["me", "scenes"] });
     },
   });
 }

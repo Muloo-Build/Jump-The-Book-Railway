@@ -1,10 +1,20 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { useLibrary } from "@/lib/library";
 import { DEMO_BOOKS, CHAPTERS } from "@/data/books";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   MapPin,
   Image as ImageIcon,
@@ -15,6 +25,8 @@ import {
   Pencil,
   PlayCircle,
   RefreshCw,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import BookMetadata from "@/components/book-metadata";
@@ -25,7 +37,14 @@ import {
 } from "@/hooks/useOpenLibraryEnrichment";
 import { useToast } from "@/hooks/use-toast";
 import { useBookBible } from "@/hooks/useBookBible";
-import { useIsSignedIn, useRemoteBooks } from "@/hooks/useApiLibrary";
+import {
+  useIsSignedIn,
+  useRemoteBooks,
+  useRemoteBookScenes,
+  useDeleteRemoteBook,
+  useDeleteRemoteScene,
+  type RemoteScene,
+} from "@/hooks/useApiLibrary";
 import EditBookDialog from "@/components/edit-book-dialog";
 import { useState } from "react";
 
@@ -36,23 +55,22 @@ const UUID_RE =
 
 export default function BookDetail() {
   const { id } = useParams<{ id: string }>();
+  const [, navigate] = useLocation();
   const { userLibrary, getPosition } = useLibrary();
   const isSignedIn = useIsSignedIn();
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteBookOpen, setDeleteBookOpen] = useState(false);
+  const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
 
-  // The remote book row (when signed in) is the source of truth for the
-  // server-side edit form. We look it up by remoteId so demo-mapped books
-  // (slug URL like "alice") still resolve to their server row.
   const remoteBooks = useRemoteBooks();
+  const deleteBook = useDeleteRemoteBook();
+  const deleteScene = useDeleteRemoteScene();
 
   const demoBook = DEMO_BOOKS.find((b) => b.id === id);
   const userBook = userLibrary.find((b) => b.id === id);
   const book = userBook || demoBook;
 
-  // Find the matching server-side RemoteBook so the edit dialog can mutate
-  // the canonical row. The user-library item carries `remoteId` for
-  // demo-mapped books; for uploaded/manual books the URL `id` IS the UUID.
   const remoteBookId =
     userBook && (UUID_RE.test(id) ? id : userBook.remoteId ?? null);
   const remoteBook =
@@ -60,10 +78,6 @@ export default function BookDetail() {
       ? remoteBooks.data.find((b) => b.id === remoteBookId)
       : undefined;
 
-  // Bibles are keyed by user_books.id (UUID). For uploaded/manual books the
-  // URL `id` is already that UUID; for demo-mapped books (slug URL like
-  // "alice") we need the remote UUID stored on the library item. Only fetch
-  // when signed in and we actually have a UUID to look up.
   const bibleBookId =
     isSignedIn && userBook
       ? UUID_RE.test(id)
@@ -73,10 +87,10 @@ export default function BookDetail() {
   const bibleQ = useBookBible(bibleBookId);
   const bible = bibleQ.data?.bible ?? null;
 
-  // Pull a cover from Open Library when the book has no built-in image.
-  // The hook also drives <BookMetadata>, so they share one cached lookup.
-  // Prefer a server-persisted cover URL; only hit Open Library when neither a
-  // bundled heroImage nor a saved coverUrl exists for this book.
+  // Fetch scenes for this book (only when signed in and we have a remote id)
+  const scenesQ = useRemoteBookScenes(remoteBookId ?? null);
+  const scenes = scenesQ.data ?? [];
+
   const persistedCover = book?.coverUrl ?? null;
   const needsWebCover = !!book && !book.heroImage && !persistedCover;
   const enrichment = useOpenLibraryEnrichment(book?.title, book?.author, {
@@ -100,9 +114,63 @@ export default function BookDetail() {
   const position = getPosition(book.id);
   const currentChapter = position?.chapter || book.currentChapter || 1;
   
-  // For demo books, we have pre-baked chapters
   const demoChapters = CHAPTERS[book.id] || [];
   const currentDemoChapter = demoChapters.find(c => c.chapterNumber === currentChapter);
+
+  const handleDeleteBook = async () => {
+    if (!remoteBook) return;
+    try {
+      // Delete scenes first so nothing is left orphaned
+      if (scenes.length > 0) {
+        await Promise.all(
+          scenes.map((s) =>
+            deleteScene.mutateAsync(s.id).catch(() => {}),
+          ),
+        );
+      }
+      await deleteBook.mutateAsync(remoteBook.id);
+      toast({
+        title: "Book deleted",
+        description: `"${remoteBook.title}" has been removed from your shelf.`,
+      });
+      navigate("/library");
+    } catch (err) {
+      toast({
+        title: "Couldn't delete book",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+    setDeleteBookOpen(false);
+  };
+
+  const handleDeleteScene = async () => {
+    if (!deleteSceneId) return;
+    try {
+      await deleteScene.mutateAsync(deleteSceneId);
+      toast({ title: "Scene removed" });
+    } catch (err) {
+      toast({
+        title: "Couldn't delete scene",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+    setDeleteSceneId(null);
+  };
+
+  const sceneToDelete = scenes.find((s) => s.id === deleteSceneId);
+
+  // Group scenes by chapter for display
+  const scenesByChapter = new Map<number, RemoteScene[]>();
+  for (const s of scenes) {
+    const arr = scenesByChapter.get(s.chapterNumber) ?? [];
+    arr.push(s);
+    scenesByChapter.set(s.chapterNumber, arr);
+  }
+  const chapterEntries = [...scenesByChapter.entries()].sort((a, b) => b[0] - a[0]);
+
+  const isDeletingBook = deleteBook.isPending || deleteScene.isPending;
 
   return (
     <Layout>
@@ -167,6 +235,19 @@ export default function BookDetail() {
                 <RefreshCw className="w-3 h-3" />
                 Refresh cover
               </button>
+            )}
+
+            {isSignedIn && remoteBook && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteBookOpen(true)}
+                className="mt-4 w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Delete book
+              </Button>
             )}
           </div>
 
@@ -374,6 +455,50 @@ export default function BookDetail() {
                 </Link>
               </div>
             </motion.div>
+
+            {/* Saved scenes */}
+            {scenes.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="space-y-4"
+              >
+                <h3 className="font-serif text-xl font-semibold">Saved Scenes</h3>
+                <div className="space-y-5">
+                  {chapterEntries.map(([chapterNumber, chScenes]) => {
+                    const sorted = [...chScenes].sort((a, b) => a.sceneIndex - b.sceneIndex);
+                    return (
+                      <div key={chapterNumber} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground/80 font-medium">
+                            Chapter {chapterNumber}
+                          </p>
+                          <Link
+                            href={`/playback/${book.id}?chapter=${chapterNumber}`}
+                            className="text-xs text-amber-300/80 hover:text-amber-300 inline-flex items-center gap-1"
+                          >
+                            <PlayCircle className="w-3 h-3" />
+                            Play trailer
+                          </Link>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {sorted.map((scene) => (
+                            <SceneTileWithDelete
+                              key={scene.id}
+                              scene={scene}
+                              bookId={book.id}
+                              chapterNumber={chapterNumber}
+                              onDeleteRequest={() => setDeleteSceneId(scene.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
       </div>
@@ -385,7 +510,136 @@ export default function BookDetail() {
           mode={{ kind: "edit", book: remoteBook }}
         />
       )}
+
+      {/* Delete book confirmation */}
+      <AlertDialog open={deleteBookOpen} onOpenChange={setDeleteBookOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{remoteBook?.title}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the book and all{" "}
+              {scenes.length > 0 ? `${scenes.length} saved ` : ""}
+              scenes from your library. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingBook}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteBook();
+              }}
+              disabled={isDeletingBook}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingBook ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete book"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete scene confirmation */}
+      <AlertDialog
+        open={!!deleteSceneId}
+        onOpenChange={(open) => !open && setDeleteSceneId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this scene?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{sceneToDelete?.title}" will be permanently removed. This cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteScene.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteScene();
+              }}
+              disabled={deleteScene.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteScene.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Removing…
+                </>
+              ) : (
+                "Delete scene"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
+  );
+}
+
+function SceneTileWithDelete({
+  scene,
+  bookId,
+  chapterNumber,
+  onDeleteRequest,
+}: {
+  scene: RemoteScene;
+  bookId: string;
+  chapterNumber: number;
+  onDeleteRequest: () => void;
+}) {
+  const grad = scene.gradientColors;
+  const bg =
+    grad.length >= 2
+      ? `linear-gradient(135deg, ${grad[0]}, ${grad[grad.length - 1]})`
+      : `linear-gradient(135deg, #2a1a4e, #1a1a2e)`;
+
+  return (
+    <div className="relative group">
+      <Link href={`/experience/${bookId}?chapter=${chapterNumber}`}>
+        <div
+          className="aspect-square overflow-hidden rounded-xl border border-white/5 transition-all cursor-pointer hover:border-amber-400/40"
+          style={{ background: bg }}
+        >
+          {scene.imageUrl && (
+            <img
+              src={scene.imageUrl}
+              alt={scene.title}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent rounded-xl" />
+          <div className="absolute bottom-0 left-0 right-0 p-3 space-y-1">
+            <p className="text-[10px] text-amber-300/90 font-medium uppercase tracking-wider">
+              Ch {scene.chapterNumber}
+            </p>
+            <p className="text-white font-serif font-semibold line-clamp-2 leading-tight text-sm">
+              {scene.title}
+            </p>
+          </div>
+        </div>
+      </Link>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDeleteRequest();
+        }}
+        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/80 text-white"
+        title="Delete scene"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
   );
 }
 
