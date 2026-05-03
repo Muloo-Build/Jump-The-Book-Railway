@@ -90,6 +90,66 @@ uri = "file://artifacts/jump-the-book-web/src/assets/covers/sherlock.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "9hpREh6w09SG7Lu4h_VOO"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-cute.png"
+type = "image"
+title = "bunny cute"
+
+[[generated]]
+id = "XU2olZvxH3MyiT02XMZYu"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-whimsical.png"
+type = "image"
+title = "bunny whimsical"
+
+[[generated]]
+id = "ko6B-pBriNe_W-Oynu9yw"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-geometric.png"
+type = "image"
+title = "bunny geometric"
+
+[[generated]]
+id = "_uBcr525YfZn6-zurZXTQ"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-scifi.png"
+type = "image"
+title = "bunny scifi"
+
+[[generated]]
+id = "MZuAkTZzOU3OlrGTD_JuS"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-fantasy.png"
+type = "image"
+title = "bunny fantasy"
+
+[[generated]]
+id = "X-svLUNB5HXPWCyMMG_AI"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-pixel.png"
+type = "image"
+title = "bunny pixel"
+
+[[generated]]
+id = "wtC_5p9L7sClgtsmlDm8z"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-comic.png"
+type = "image"
+title = "bunny comic"
+
+[[generated]]
+id = "iNMaOhNLeuIddziOi7M4z"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-watercolor.png"
+type = "image"
+title = "bunny watercolor"
+
+[[generated]]
+id = "W7HBVjxcwQxj1NkYB_d5C"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-gothic.png"
+type = "image"
+title = "bunny gothic"
+
+[[generated]]
+id = "SFRXbgwtmPeQcQItjK0Tt"
+uri = "file://artifacts/jump-the-book-web/public/avatars/bunny-cosmic.png"
+type = "image"
+title = "bunny cosmic"
+
 [[outputs]]
 id = "XieLZpR1-U_jKTnjGl8Y9"
 uri = "file://app-store/icon/icon-1024.png"

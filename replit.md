@@ -46,6 +46,7 @@ The project is structured as a pnpm workspace monorepo.
     *   **Auth Provider:** Clerk (`@clerk/express`, `@clerk/react`).
     *   **Middleware:** `clerkMiddleware` and `requireAuth` (`/api/me/*`) enforce authenticated access.
     *   **Onboarding:** A 3-step wizard (`/onboarding`) for new users to set visual style, spoiler mode, and add an optional first book.
+    *   **Account page (`/account`):** Bunny avatar picker (10 styles in `public/avatars/bunny-*.png`, allow-list mirrored in `data/avatars.ts` and `me.ts`), multi-select "default visual styles" with a separate "primary" promotion (singular `defaultVisualStyle` is kept as canonical for back-compat; plural `defaultVisualStyles` is the multi-select pool — empty array means "use the singular default"), and a Reading Profile (favourite genres, platforms, reading pace, about-me free text). Two debounced auto-save cards live on the page; `useUpdateRemoteUser` invalidates the `["me"]` query on success (rather than blindly writing the response into the cache) to avoid out-of-order PATCH responses overwriting newer in-flight edits across cards. Avatar PATCH writes the cache directly for instant header swap. Header avatar in `components/layout.tsx` prefers the chosen bunny over the Clerk photo.
 
 4.  **Content Enrichment:**
     *   **Open Library Integration:** `useOpenLibraryEnrichment` hook searches and fetches book cover URLs and details from Open Library, with local storage caching.

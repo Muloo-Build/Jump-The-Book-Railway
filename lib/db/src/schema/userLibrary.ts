@@ -8,15 +8,36 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const appUsersTable = pgTable("app_users", {
   userId: text("user_id").primaryKey(),
   email: text("email"),
+  // Picked bunny avatar id (e.g. "cute", "scifi"). Nullable = falls back to
+  // initials / Clerk photo. Stored loose as text rather than an enum so we
+  // can ship new bunny styles without a migration.
+  avatarId: text("avatar_id"),
   defaultVisualStyle: text("default_visual_style")
     .notNull()
     .default("fantasy-illustration"),
+  // Multi-select pool of visual styles the user is happy generating in.
+  // Empty array = "use the singular defaultVisualStyle". When populated, new
+  // scenes pick a style from this pool. Singular field is kept as the
+  // primary/canonical default so nothing else has to migrate.
+  defaultVisualStyles: jsonb("default_visual_styles")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
   spoilerMode: text("spoiler_mode").notNull().default("no-spoilers"),
   readingMode: text("reading_mode").notNull().default("reading"),
+  // Reading profile (optional, all default to empty).
+  favoriteGenres: jsonb("favorite_genres")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  readingPlatforms: jsonb("reading_platforms")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  readingPace: text("reading_pace"),
+  aboutMe: text("about_me").notNull().default(""),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

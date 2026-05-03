@@ -25,6 +25,26 @@ const VISUAL_STYLES = new Set([
 const SPOILER_MODES = new Set(["no-spoilers", "light-guidance", "full-companion"]);
 const READING_MODES = new Set(["reading", "listening", "both"]);
 const BOOK_SOURCES = new Set(["demo", "upload", "manual"]);
+// Loose allow-list for the bunny avatar gallery — kept in sync with
+// `data/avatars.ts` on the web. Leaving the column un-enumed in the DB lets
+// us add new bunnies later without a migration; the validator here just
+// stops anyone from POSTing arbitrary strings.
+const AVATAR_IDS = new Set([
+  "cute",
+  "whimsical",
+  "geometric",
+  "scifi",
+  "fantasy",
+  "pixel",
+  "comic",
+  "watercolor",
+  "gothic",
+  "cosmic",
+]);
+const READING_PACES = new Set(["slow", "steady", "voracious"]);
+const MAX_GENRES = 12;
+const MAX_PLATFORMS = 8;
+const MAX_ABOUT_ME = 600;
 
 function isFiniteInt(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && Number.isInteger(n);
@@ -53,17 +73,27 @@ async function ensureUser(userId: string) {
 
 // ── /me ──────────────────────────────────────────────────────────────────────
 
+function serializeUser(user: typeof appUsersTable.$inferSelect) {
+  return {
+    userId: user.userId,
+    avatarId: user.avatarId,
+    defaultVisualStyle: user.defaultVisualStyle,
+    defaultVisualStyles: (user.defaultVisualStyles as string[]) ?? [],
+    spoilerMode: user.spoilerMode,
+    readingMode: user.readingMode,
+    favoriteGenres: (user.favoriteGenres as string[]) ?? [],
+    readingPlatforms: (user.readingPlatforms as string[]) ?? [],
+    readingPace: user.readingPace,
+    aboutMe: user.aboutMe ?? "",
+    onboarded: !!user.onboardedAt,
+    onboardedAt: user.onboardedAt?.toISOString() ?? null,
+  };
+}
+
 router.get("/me", async (req, res) => {
   try {
     const user = await ensureUser((req as unknown as AuthedRequest).userId);
-    res.json({
-      userId: user.userId,
-      defaultVisualStyle: user.defaultVisualStyle,
-      spoilerMode: user.spoilerMode,
-      readingMode: user.readingMode,
-      onboarded: !!user.onboardedAt,
-      onboardedAt: user.onboardedAt?.toISOString() ?? null,
-    });
+    res.json(serializeUser(user));
   } catch (err) {
     req.log.error({ err }, "GET /me failed");
     res.status(500).json({ error: "Failed to load user" });
@@ -71,10 +101,36 @@ router.get("/me", async (req, res) => {
 });
 
 interface PatchMeBody {
+  avatarId?: string | null;
   defaultVisualStyle?: string;
+  defaultVisualStyles?: string[];
   spoilerMode?: string;
   readingMode?: string;
+  favoriteGenres?: string[];
+  readingPlatforms?: string[];
+  readingPace?: string | null;
+  aboutMe?: string;
   markOnboarded?: boolean;
+}
+
+// String-array sanitiser: trims, drops empties/duplicates (case-insensitive),
+// caps length and individual tag length so we never store unbounded user
+// input in the jsonb column.
+function sanitizeTagArray(input: unknown, maxItems: number): string[] | null {
+  if (!Array.isArray(input)) return null;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of input) {
+    if (typeof raw !== "string") continue;
+    const v = raw.trim().slice(0, 60);
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+    if (out.length >= maxItems) break;
+  }
+  return out;
 }
 
 router.patch("/me", async (req, res) => {
@@ -103,20 +159,70 @@ router.patch("/me", async (req, res) => {
       }
       updates.readingMode = body.readingMode;
     }
+    if (body.avatarId !== undefined) {
+      if (body.avatarId === null || body.avatarId === "") {
+        updates.avatarId = null;
+      } else if (typeof body.avatarId !== "string" || !AVATAR_IDS.has(body.avatarId)) {
+        res.status(400).json({ error: "Invalid avatarId" });
+        return;
+      } else {
+        updates.avatarId = body.avatarId;
+      }
+    }
+    if (body.defaultVisualStyles !== undefined) {
+      if (!Array.isArray(body.defaultVisualStyles)) {
+        res.status(400).json({ error: "defaultVisualStyles must be an array" });
+        return;
+      }
+      const seen = new Set<string>();
+      const cleaned: string[] = [];
+      for (const s of body.defaultVisualStyles) {
+        if (typeof s !== "string" || !VISUAL_STYLES.has(s) || seen.has(s)) continue;
+        seen.add(s);
+        cleaned.push(s);
+      }
+      updates.defaultVisualStyles = cleaned;
+    }
+    if (body.favoriteGenres !== undefined) {
+      const cleaned = sanitizeTagArray(body.favoriteGenres, MAX_GENRES);
+      if (cleaned == null) {
+        res.status(400).json({ error: "favoriteGenres must be an array" });
+        return;
+      }
+      updates.favoriteGenres = cleaned;
+    }
+    if (body.readingPlatforms !== undefined) {
+      const cleaned = sanitizeTagArray(body.readingPlatforms, MAX_PLATFORMS);
+      if (cleaned == null) {
+        res.status(400).json({ error: "readingPlatforms must be an array" });
+        return;
+      }
+      updates.readingPlatforms = cleaned;
+    }
+    if (body.readingPace !== undefined) {
+      if (body.readingPace === null || body.readingPace === "") {
+        updates.readingPace = null;
+      } else if (typeof body.readingPace !== "string" || !READING_PACES.has(body.readingPace)) {
+        res.status(400).json({ error: "Invalid readingPace" });
+        return;
+      } else {
+        updates.readingPace = body.readingPace;
+      }
+    }
+    if (body.aboutMe !== undefined) {
+      if (typeof body.aboutMe !== "string") {
+        res.status(400).json({ error: "aboutMe must be a string" });
+        return;
+      }
+      updates.aboutMe = body.aboutMe.slice(0, MAX_ABOUT_ME);
+    }
     if (body.markOnboarded === true) updates.onboardedAt = new Date();
     const [updated] = await db
       .update(appUsersTable)
       .set(updates)
       .where(eq(appUsersTable.userId, (req as unknown as AuthedRequest).userId))
       .returning();
-    res.json({
-      userId: updated!.userId,
-      defaultVisualStyle: updated!.defaultVisualStyle,
-      spoilerMode: updated!.spoilerMode,
-      readingMode: updated!.readingMode,
-      onboarded: !!updated!.onboardedAt,
-      onboardedAt: updated!.onboardedAt?.toISOString() ?? null,
-    });
+    res.json(serializeUser(updated!));
   } catch (err) {
     req.log.error({ err }, "PATCH /me failed");
     res.status(500).json({ error: "Failed to update user" });

@@ -5,9 +5,15 @@ import type { SpoilerMode, VisualStyle } from "@/data/books";
 
 export interface RemoteUser {
   userId: string;
+  avatarId: string | null;
   defaultVisualStyle: VisualStyle;
+  defaultVisualStyles: VisualStyle[];
   spoilerMode: SpoilerMode;
   readingMode: "reading" | "listening" | "both";
+  favoriteGenres: string[];
+  readingPlatforms: string[];
+  readingPace: "slow" | "steady" | "voracious" | null;
+  aboutMe: string;
   onboarded: boolean;
   onboardedAt: string | null;
 }
@@ -75,7 +81,17 @@ export function useUpdateRemoteUser() {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
-    onSuccess: (data) => qc.setQueryData(["me"], data),
+    // Invalidate (refetch) instead of optimistically writing the response
+    // into the cache. Two cards on the Account page can each fire debounced
+    // PATCHes that overlap in flight; an out-of-order response could
+    // otherwise overwrite the cache with another card's older snapshot and
+    // visually revert their unsaved edits. A refetch always lands the
+    // freshest server state. Callers that need an instant cache update
+    // (e.g. the avatar picker, where the header should swap immediately)
+    // can still `setQueryData` manually after `await mutateAsync(...)`.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me"] });
+    },
   });
 }
 

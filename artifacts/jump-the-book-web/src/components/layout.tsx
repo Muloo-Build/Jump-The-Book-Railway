@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { LogOut, User as UserIcon, Settings, Search } from "lucide-react";
 import { Show, useUser, useClerk } from "@clerk/react";
+import { useRemoteUser } from "@/hooks/useApiLibrary";
+import { avatarUrl } from "@/data/avatars";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +25,12 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 function UserMenu() {
   const { user } = useUser();
   const { signOut } = useClerk();
+  // Bunny avatar wins over Clerk photo when the user has picked one. We
+  // don't gate the query on signed-in here — useRemoteUser already returns
+  // `undefined` data for signed-out users, and this component only renders
+  // inside <Show when="signed-in">, so we always have a Clerk session.
+  const remote = useRemoteUser();
+  const bunny = avatarUrl(remote.data?.avatarId ?? null);
   const initials = (() => {
     const f = user?.firstName?.[0] ?? "";
     const l = user?.lastName?.[0] ?? "";
@@ -34,14 +42,20 @@ function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="h-9 w-9 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-200 font-medium text-sm flex items-center justify-center hover:bg-amber-400/25 transition-colors"
+          className="h-9 w-9 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-200 font-medium text-sm flex items-center justify-center hover:bg-amber-400/25 transition-colors overflow-hidden"
           aria-label="Account menu"
         >
-          {/* Clerk's `imageUrl` is always populated — it returns a generic
-              silhouette placeholder when the user has no real photo. Use
-              `hasImage` to detect a real Google/uploaded photo and fall back
-              to initials otherwise. */}
-          {user?.hasImage && user.imageUrl ? (
+          {bunny ? (
+            <img
+              src={bunny}
+              alt=""
+              className="h-full w-full rounded-full object-cover"
+            />
+          ) : user?.hasImage && user.imageUrl ? (
+            // Clerk's `imageUrl` is always populated — it returns a generic
+            // silhouette placeholder when the user has no real photo. Use
+            // `hasImage` to detect a real Google/uploaded photo and fall back
+            // to initials otherwise.
             <img
               src={user.imageUrl}
               alt=""
