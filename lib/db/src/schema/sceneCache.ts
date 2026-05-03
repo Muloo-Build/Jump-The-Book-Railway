@@ -1,7 +1,7 @@
 import { pgTable, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 
 export const SCENE_CACHE_VERSION = 1;
-export const IMAGE_CACHE_VERSION = 1;
+export const IMAGE_CACHE_VERSION = 2;
 
 export const sceneCacheTable = pgTable(
   "scene_cache",
@@ -38,8 +38,7 @@ export const imageCacheTable = pgTable(
     sceneIndex: integer("scene_index").notNull(),
     visualStyle: text("visual_style").notNull(),
     promptHash: text("prompt_hash").notNull(),
-    objectPath: text("object_path"),
-    imageB64: text("image_b64"),
+    objectPath: text("object_path").notNull(),
     bytes: integer("bytes").notNull(),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   },

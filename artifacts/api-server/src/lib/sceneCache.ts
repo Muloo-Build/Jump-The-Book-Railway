@@ -168,14 +168,12 @@ export async function saveCachedImage(
       visualStyle: p.visualStyle,
       promptHash,
       objectPath: opts.objectPath,
-      imageB64: null,
       bytes: opts.bytes,
     })
     .onConflictDoUpdate({
       target: imageCacheTable.cacheKey,
       set: {
         objectPath: opts.objectPath,
-        imageB64: null,
         bytes: opts.bytes,
         generatedAt: new Date(),
       },
