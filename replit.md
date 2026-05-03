@@ -63,14 +63,19 @@ The project is structured as a pnpm workspace monorepo.
     *   **Safety suffix:** All image prompts append a stylized-only / no-photoreal / no-recognizable-people / no-trademarks clause (`SAFETY_SUFFIX` in `routes/scenes.ts`). Versioned via `SAFETY_POLICY_VERSION`; bump it whenever the policy text changes.
     *   **Image cache key (v3)** includes a `consistencySignature` derived from the safety policy version + resolved per-scene character clause, so different bibles (or two users) cannot collide on the same key.
 
-7.  **PWA / Offline:**
+7.  **Anonymous Smart Setup & Shareable Scenes:**
+    *   **Anonymous Smart Setup:** The `/setup-book` wizard works without sign-in. The full draft (book metadata + bible) is auto-persisted in localStorage under `@jtb_pending_book_setup_v1`. When the user clicks "Save", we redirect to `/sign-up?redirect_url=/setup-book?claim=1`; on return, an auto-claim effect re-fires the same save logic, clears the pending draft, and lands the user on their book.
+    *   **Shareable scenes:** Scene cards in `/comic/:id` have a Share button that builds a URL pointing at the api-server's `GET /api/share/scene` endpoint. That endpoint renders OG/Twitter meta tags from query params (sanitized + HTML-escaped + img URLs validated as http/https) and `<meta refresh>`-redirects real users to the SPA `/scene-share` page. No auth, no DB lookup — all data is in the URL.
+    *   **Public route ordering:** `routes/index.ts` mounts public routers (health, share, storage, scenes, passage, cover) BEFORE routers that apply `requireAuth` at the router level (me, bibles). Otherwise the auth middleware intercepts requests for routes it doesn't even own.
+
+8.  **PWA / Offline:**
     *   `public/manifest.webmanifest` + theme/apple-touch-icon links in `index.html` make the web app installable.
     *   `public/sw.js` registered in `main.tsx` (prod-only) — cache-first for `/api/storage/objects/scene-images/*` (`jtb-scenes-v1`) so previously viewed scenes are available offline; network-first with cache fallback for the app shell (`jtb-shell-v1`); pure passthrough for API JSON and third-party.
 
-8.  **Book Parsing Limits:**
+9.  **Book Parsing Limits:**
     *   EPUB and PDF parsers cover full novels (up to 200 chapters, 12000 chars per chapter, PDF page limit 1500). EPUB yields to the event loop every 10 chapters to keep the UI responsive.
 
-9.  **Mobile App Integration:**
+10. **Mobile App Integration:**
     *   A separate Expo mobile app consumes the same API.
     *   Shared code for data models (`RemoteUser`, `RemoteBook`, `RemoteScene`) and API client (`Orval-generated React Query hooks`) is synced between web and mobile repos via a GitHub Actions workflow.
 

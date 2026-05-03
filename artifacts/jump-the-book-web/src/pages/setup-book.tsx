@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useUser } from "@clerk/react";
 import Layout from "@/components/layout";
@@ -67,6 +67,53 @@ const DEFAULT_VALUE: BibleEditorValue = {
   avoidNotes: "",
 };
 
+// localStorage key for in-progress (anonymous) Smart Setup drafts. Lets
+// signed-out users use the wizard, then claim their work after sign-up.
+// Bumped if the schema changes shape.
+const PENDING_SETUP_KEY = "@jtb_pending_book_setup_v1";
+
+interface PendingSetup {
+  title: string;
+  author: string;
+  series: string;
+  bookNumber: string;
+  format: string;
+  chapter: string;
+  excerpt: string;
+  whatJustHappened: string;
+  pickedCoverUrl: string | null;
+  bibleValue: BibleEditorValue;
+  step: number;
+  savedAt: number;
+}
+
+function readPendingSetup(): PendingSetup | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PENDING_SETUP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingSetup;
+    if (typeof parsed.title !== "string") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingSetup(s: PendingSetup): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PENDING_SETUP_KEY, JSON.stringify(s));
+  } catch {}
+}
+
+function clearPendingSetup(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(PENDING_SETUP_KEY);
+  } catch {}
+}
+
 export default function SetupBook() {
   const search = useSearch();
   const params = new URLSearchParams(search);
@@ -77,19 +124,39 @@ export default function SetupBook() {
   const { addBook, settings } = useLibrary();
   const { toast } = useToast();
 
-  // Wizard state
-  const [step, setStep] = useState(1);
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [series, setSeries] = useState("");
-  const [bookNumber, setBookNumber] = useState<string>("");
-  const [format, setFormat] = useState("Paperback");
-  const [chapter, setChapter] = useState("1");
-  const [excerpt, setExcerpt] = useState("");
-  const [whatJustHappened, setWhatJustHappened] = useState("");
-  const [pickedCoverUrl, setPickedCoverUrl] = useState<string | null>(null);
+  // Hydrate from a pending anonymous draft so signed-out users (or post-
+  // sign-up users coming back via ?claim=1) don't lose their work. Skip
+  // hydration in edit-existing-bible mode — that flow uses its own data.
+  const initialPending = useMemo<PendingSetup | null>(
+    () => (editingBookId ? null : readPendingSetup()),
+    [editingBookId],
+  );
 
-  const [bibleValue, setBibleValue] = useState<BibleEditorValue>(DEFAULT_VALUE);
+  const claimMode = params.get("claim") === "1";
+
+  // Wizard state
+  const [step, setStep] = useState<number>(
+    () => initialPending?.step ?? 1,
+  );
+  const [title, setTitle] = useState(initialPending?.title ?? "");
+  const [author, setAuthor] = useState(initialPending?.author ?? "");
+  const [series, setSeries] = useState(initialPending?.series ?? "");
+  const [bookNumber, setBookNumber] = useState<string>(
+    initialPending?.bookNumber ?? "",
+  );
+  const [format, setFormat] = useState(initialPending?.format ?? "Paperback");
+  const [chapter, setChapter] = useState(initialPending?.chapter ?? "1");
+  const [excerpt, setExcerpt] = useState(initialPending?.excerpt ?? "");
+  const [whatJustHappened, setWhatJustHappened] = useState(
+    initialPending?.whatJustHappened ?? "",
+  );
+  const [pickedCoverUrl, setPickedCoverUrl] = useState<string | null>(
+    initialPending?.pickedCoverUrl ?? null,
+  );
+
+  const [bibleValue, setBibleValue] = useState<BibleEditorValue>(
+    initialPending?.bibleValue ?? DEFAULT_VALUE,
+  );
 
   // ── Edit-existing-bible mode ────────────────────────────────────────────
   const existingBibleQ = useBookBible(editingBookId);
@@ -188,11 +255,28 @@ export default function SetupBook() {
 
   const handleSaveAndContinue = async () => {
     if (!isSignedIn) {
-      toast({
-        title: "Sign in to save your book bible",
-        description: "Your story profile is saved across devices.",
+      // Persist the entire wizard state so we can claim it after sign-up.
+      writePendingSetup({
+        title,
+        author,
+        series,
+        bookNumber,
+        format,
+        chapter,
+        excerpt,
+        whatJustHappened,
+        pickedCoverUrl,
+        bibleValue,
+        step,
+        savedAt: Date.now(),
       });
-      setLocation("/sign-in");
+      const claimUrl = `/setup-book?claim=1`;
+      const redirect = encodeURIComponent(claimUrl);
+      toast({
+        title: "Sign up to save your book bible",
+        description: "Your draft is saved — we'll finish setting it up after you sign in.",
+      });
+      setLocation(`/sign-up?redirect_url=${redirect}`);
       return;
     }
 
@@ -263,6 +347,9 @@ export default function SetupBook() {
         }
       }
 
+      // Claim succeeded (or normal save) — wipe any pending anonymous draft.
+      clearPendingSetup();
+
       toast({
         title: "Book bible saved",
         description: "Your story profile is ready.",
@@ -302,34 +389,63 @@ export default function SetupBook() {
     }
   };
 
-  // ── Auth gate ───────────────────────────────────────────────────────────
-  if (isLoaded && !isSignedIn) {
+  // ── Auto-claim: post-sign-up bounce-back ────────────────────────────────
+  // When the user returns with ?claim=1 after signing up, finish the save
+  // they kicked off anonymously. The ref guards against re-firing across
+  // re-renders. On failure we surface the wizard with the hydrated data so
+  // the user can fix and retry; on success the existing redirect handles it.
+  const autoClaimStarted = useRef(false);
+  const [claimInFlight, setClaimInFlight] = useState(false);
+  const [claimFailed, setClaimFailed] = useState(false);
+
+  // Stale/empty claim recovery: ?claim=1 with no usable draft should drop
+  // back to the wizard cleanly instead of dead-ending.
+  const claimHasNothingToDo =
+    claimMode && (!initialPending || !initialPending.title?.trim() || !initialPending.author?.trim());
+  useEffect(() => {
+    if (!claimHasNothingToDo) return;
+    setLocation("/setup-book");
+  }, [claimHasNothingToDo, setLocation]);
+
+  useEffect(() => {
+    if (!claimMode) return;
+    if (!isLoaded || !isSignedIn) return;
+    if (autoClaimStarted.current) return;
+    if (!title.trim() || !author.trim()) return; // nothing meaningful to claim
+    autoClaimStarted.current = true;
+    setClaimInFlight(true);
+    (async () => {
+      try {
+        await handleSaveAndContinue();
+      } catch {
+        // handleSaveAndContinue already toasts; just unblock the UI.
+        setClaimFailed(true);
+      } finally {
+        setClaimInFlight(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claimMode, isLoaded, isSignedIn]);
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  // While auto-claiming, show a saving state. If it fails we drop into the
+  // normal wizard with the user's data so they can edit and retry.
+  if (claimMode && isSignedIn && claimInFlight && !claimFailed) {
     return (
       <Layout>
         <div className="container max-w-xl mx-auto py-24 text-center">
-          <Sparkles className="w-12 h-12 mx-auto text-amber-300 mb-4" />
+          <Loader2 className="w-12 h-12 mx-auto animate-spin text-amber-300 mb-4" />
           <h1 className="font-serif text-3xl font-bold mb-3">
-            Sign in to set up a book
+            Saving your book bible…
           </h1>
-          <p className="text-muted-foreground mb-8">
-            Smart Setup saves your book bible so every scene is grounded in the
-            same story context — across devices.
+          <p className="text-muted-foreground">
+            We're finishing the setup you started before signing in.
           </p>
-          <div className="flex justify-center gap-3">
-            <Button onClick={() => setLocation("/sign-up")}>Get started</Button>
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/sign-in")}
-            >
-              Sign in
-            </Button>
-          </div>
         </div>
       </Layout>
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <Layout>
       <div className="container max-w-3xl mx-auto px-4 py-12 space-y-8">

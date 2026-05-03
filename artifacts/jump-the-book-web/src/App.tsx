@@ -40,6 +40,7 @@ import SetupBook from "@/pages/setup-book";
 import Playback from "@/pages/playback";
 import Discover from "@/pages/discover";
 import Account from "@/pages/account";
+import SceneShare from "@/pages/scene-share";
 
 // In production the Clerk proxy runs on the current host; derive the
 // publishable key from window.location so the same build serves multiple
@@ -240,6 +241,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/comic/:id" component={Comic} />
               <Route path="/playback/:id" component={Playback} />
               <Route path="/help" component={Help} />
+              <Route path="/scene-share" component={SceneShare} />
               <Route component={NotFound} />
             </Switch>
           </ErrorBoundary>

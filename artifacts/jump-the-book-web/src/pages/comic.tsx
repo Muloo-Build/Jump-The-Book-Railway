@@ -7,8 +7,89 @@ import { useRemoteBooks, useRemoteBookScenes } from "@/hooks/useApiLibrary";
 import { DEMO_BOOKS, CHAPTERS, SCENE_IMAGES } from "@/data/books";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Share2, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+
+/**
+ * Build a shareable URL that hits the api-server's `/api/share/scene`
+ * endpoint. That endpoint returns OG-tagged HTML for crawlers and redirects
+ * real users to the SPA `/scene-share` page. Image URLs are made absolute
+ * because OG meta tags require it.
+ */
+function buildShareUrl(
+  scene: GeneratedScene,
+  bookTitle: string,
+  bookAuthor: string,
+): string {
+  const imgAbs = scene.imageUrl
+    ? scene.imageUrl.startsWith("http")
+      ? scene.imageUrl
+      : `${window.location.origin}${scene.imageUrl}`
+    : "";
+  const params = new URLSearchParams();
+  if (scene.title) params.set("title", scene.title);
+  if (scene.narration) params.set("narration", scene.narration);
+  if (bookTitle) params.set("book", bookTitle);
+  if (bookAuthor) params.set("author", bookAuthor);
+  if (scene.mood) params.set("mood", scene.mood);
+  if (scene.location) params.set("location", scene.location);
+  if (imgAbs) params.set("img", imgAbs);
+  return `${window.location.origin}/api/share/scene?${params.toString()}`;
+}
+
+function SceneShareButton({
+  scene,
+  bookTitle,
+  bookAuthor,
+}: {
+  scene: GeneratedScene;
+  bookTitle: string;
+  bookAuthor: string;
+}) {
+  const { toast } = useToast();
+
+  async function handleShare() {
+    const url = buildShareUrl(scene, bookTitle, bookAuthor);
+    const nav = navigator as Navigator & {
+      share?: (data: { title?: string; text?: string; url?: string }) => Promise<void>;
+    };
+    if (typeof nav.share === "function") {
+      try {
+        await nav.share({
+          title: scene.title,
+          text: scene.narration,
+          url,
+        });
+        return;
+      } catch {
+        /* user canceled or share failed — fall through to clipboard */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Share link copied" });
+    } catch {
+      toast({
+        title: "Couldn't copy link",
+        description: "Long-press the address bar after we open the share page.",
+        variant: "destructive",
+      });
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleShare}
+      className="text-white/80 hover:text-white hover:bg-white/10"
+    >
+      <Share2 className="w-4 h-4 mr-1.5" /> Share
+    </Button>
+  );
+}
 
 export default function Comic() {
   const { id } = useParams<{ id: string }>();
@@ -136,7 +217,14 @@ export default function Comic() {
                         style={{ background: `linear-gradient(to bottom right, ${scene.gradientColors[0]}, ${scene.gradientColors[1]})` }}
                       />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8">
+                    <div className="absolute top-2 right-2 z-10">
+                      <SceneShareButton
+                        scene={scene}
+                        bookTitle={book.title}
+                        bookAuthor={book.author}
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8 pointer-events-none">
                       <h3 className="font-serif text-2xl text-white font-semibold drop-shadow-md mb-2">
                         {scene.title}
                       </h3>
