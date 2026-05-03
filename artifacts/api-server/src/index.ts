@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { backfillSceneImageUrls } from "./lib/backfillSceneImageUrls";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  // Fire-and-forget: link any saved scenes to their already-generated images
+  // that didn't get persisted because the user navigated away mid-paint.
+  void backfillSceneImageUrls();
 });

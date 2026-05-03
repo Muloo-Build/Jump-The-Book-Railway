@@ -4,26 +4,18 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const isServe =
-  process.argv.includes("serve") ||
-  process.argv.includes("dev") ||
-  process.argv.includes("preview");
-
+// Always honour PORT when present so the workflow's assigned port (e.g. 21282)
+// is bound — `pnpm vite` does not pass "dev" as argv, so an isServe check
+// would silently fall back to vite's default 5173 and the workflow would fail
+// the port-open health check.
 const rawPort = process.env.PORT;
 let port: number | undefined;
-
-if (isServe) {
-  if (!rawPort) {
-    throw new Error(
-      "PORT environment variable is required but was not provided.",
-    );
-  }
-
-  port = Number(rawPort);
-
-  if (Number.isNaN(port) || port <= 0) {
+if (rawPort) {
+  const parsed = Number(rawPort);
+  if (Number.isNaN(parsed) || parsed <= 0) {
     throw new Error(`Invalid PORT value: "${rawPort}"`);
   }
+  port = parsed;
 }
 
 const basePath = process.env.BASE_PATH ?? "/";

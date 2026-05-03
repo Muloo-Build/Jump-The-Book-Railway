@@ -112,7 +112,13 @@ export default function Generate() {
     const runScenes: GeneratedScene[] = [];
 
     const persistScene = (i: number) => {
-      if (!active) return;
+      // Note: intentionally NOT gated on `active`. If the user navigates away
+      // (or backgrounds the tab on mobile) before all images finish, in-flight
+      // image generations still complete server-side and call back here with
+      // the resolved imageUrl. The upsert is idempotent (server uses
+      // COALESCE on conflict), and skipping the write would leave the saved
+      // scene row pointing at no image even though the bytes exist in App
+      // Storage — exactly the "blank tile" bug we just fixed.
       if (!isSignedIn || !runRemoteBookId) return;
       const scene = runScenes[i];
       if (!scene) return;
@@ -201,7 +207,9 @@ export default function Generate() {
             scenes.forEach((_, i) => persistScene(i));
           },
           onImageReady: (sceneIndex, imageUrl) => {
-            if (!active) return;
+            // Intentionally NOT gated on `active` — see persistScene comment.
+            // The image bytes are already in App Storage; we must link them to
+            // the saved scene row even if the user navigated away mid-paint.
             const cur = runScenes[sceneIndex];
             if (cur) {
               runScenes[sceneIndex] = { ...cur, imageUrl };
