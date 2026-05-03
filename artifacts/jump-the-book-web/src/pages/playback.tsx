@@ -340,7 +340,7 @@ export default function Playback() {
             <Button
               size="icon"
               onClick={togglePlay}
-              className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)] w-12 h-12 rounded-full"
+              className="bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] w-12 h-12 rounded-full"
             >
               {playing ? (
                 <Pause className="w-5 h-5" />

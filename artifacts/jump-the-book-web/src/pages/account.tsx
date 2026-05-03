@@ -155,10 +155,10 @@ function AvatarPickerCard({
                 aria-pressed={active}
                 aria-label={`Select ${opt.name} bunny avatar`}
                 title={opt.blurb}
-                className={`group relative aspect-square rounded-2xl overflow-hidden border transition-all bg-black/20 ${
+                className={`group relative aspect-square rounded-2xl overflow-hidden border transition-all bg-card/40 ${
                   active
                     ? "border-primary ring-2 ring-primary/40"
-                    : "border-white/10 hover:border-white/30"
+                    : "border-border/40 hover:border-border"
                 } ${busy && !isBusy ? "opacity-50" : ""}`}
               >
                 <img
@@ -167,14 +167,14 @@ function AvatarPickerCard({
                   loading="lazy"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2 py-1.5">
-                  <span className="text-[11px] font-medium text-white/90">
+                <div className="absolute inset-x-0 bottom-0 bg-black/55 backdrop-blur-sm px-2 py-1">
+                  <span className="text-[10px] uppercase tracking-[0.15em] font-mono text-white/85 block text-center">
                     {opt.name}
                   </span>
                 </div>
                 {active && (
-                  <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow">
-                    <Check className="w-3 h-3 text-black" />
+                  <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-[0_0_0_2px_rgba(8,8,11,0.6)]">
+                    <Check className="w-3 h-3 text-primary-foreground" />
                   </div>
                 )}
                 {isBusy && (
@@ -275,8 +275,8 @@ function ChipMultiSelect({
                 active
                   ? "border-primary bg-primary/15 text-[var(--jtb-accent-hi)]"
                   : disabled
-                    ? "border-white/5 text-muted-foreground/40 cursor-not-allowed"
-                    : "border-white/15 text-foreground/80 hover:border-white/30 hover:text-foreground"
+                    ? "border-border/30 text-muted-foreground/40 cursor-not-allowed"
+                    : "border-border/70 text-foreground/80 hover:border-border hover:text-foreground"
               }`}
             >
               {tag}
@@ -483,7 +483,7 @@ function PreferencesCard() {
                   className={`group relative overflow-hidden rounded-xl border text-left transition-all ${
                     active
                       ? "border-primary ring-2 ring-primary/40"
-                      : "border-white/10 hover:border-white/30"
+                      : "border-border/40 hover:border-border"
                   }`}
                 >
                   <button
@@ -512,7 +512,7 @@ function PreferencesCard() {
                   </button>
                   {active && (
                     <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center pointer-events-none">
-                      <Check className="w-3 h-3 text-black" />
+                      <Check className="w-3 h-3 text-primary-foreground" />
                     </div>
                   )}
                   {/* "Make primary" appears only on selected, non-primary
@@ -527,7 +527,7 @@ function PreferencesCard() {
                         setPrimaryStyle(s);
                         setDirty(true);
                       }}
-                      className="absolute top-1.5 left-1.5 px-1.5 h-5 rounded-full bg-black/70 hover:bg-primary hover:text-black text-[var(--jtb-accent-hi)] text-[10px] font-semibold uppercase tracking-wider inline-flex items-center gap-1 transition-colors"
+                      className="absolute top-1.5 left-1.5 px-1.5 h-5 rounded-full bg-black/70 hover:bg-primary hover:text-primary-foreground text-[var(--jtb-accent-hi)] text-[10px] font-semibold uppercase tracking-wider inline-flex items-center gap-1 transition-colors"
                       aria-label={`Make ${VISUAL_STYLE_LABELS[s]} my primary style`}
                     >
                       <Star className="w-3 h-3" />
@@ -564,7 +564,7 @@ function PreferencesCard() {
                   className={`block w-full text-left p-4 rounded-xl border transition-all ${
                     active
                       ? "border-primary bg-primary/5"
-                      : "border-white/10 hover:border-white/30"
+                      : "border-border/40 hover:border-border"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -572,7 +572,7 @@ function PreferencesCard() {
                       className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                         active
                           ? "border-primary bg-primary"
-                          : "border-white/30"
+                          : "border-border"
                       }`}
                     >
                       {active && (
@@ -613,7 +613,7 @@ function PreferencesCard() {
                   className={`p-4 rounded-xl border text-left transition-all ${
                     active
                       ? "border-primary bg-primary/5"
-                      : "border-white/10 hover:border-white/30"
+                      : "border-border/40 hover:border-border"
                   }`}
                 >
                   <Icon
@@ -781,7 +781,7 @@ function ReadingProfileCard() {
                   className={`p-3 rounded-xl border text-left transition-all ${
                     active
                       ? "border-primary bg-primary/5"
-                      : "border-white/10 hover:border-white/30"
+                      : "border-border/40 hover:border-border"
                   }`}
                 >
                   <div className="font-medium text-sm">

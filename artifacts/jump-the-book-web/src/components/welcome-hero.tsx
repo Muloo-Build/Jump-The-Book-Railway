@@ -106,7 +106,7 @@ export default function WelcomeHero({ nowReading, totalBooks }: Props) {
           {nowReading ? (
             <Link
               href={continueHref}
-              className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
             >
               <BookOpen className="w-4 h-4" />
               Continue reading
@@ -114,7 +114,7 @@ export default function WelcomeHero({ nowReading, totalBooks }: Props) {
           ) : (
             <Link
               href="/setup-book"
-              className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
             >
               <Sparkles className="w-4 h-4" />
               Add a book

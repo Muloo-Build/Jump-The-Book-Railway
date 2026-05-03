@@ -135,7 +135,7 @@ export default function CoverPicker({
                 {isSelected && (
                   <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
                     <div className="rounded-full bg-primary p-1">
-                      <Check className="w-3 h-3 text-black" />
+                      <Check className="w-3 h-3 text-primary-foreground" />
                     </div>
                   </div>
                 )}

@@ -151,7 +151,7 @@ export default function NowReadingHero({ book, latestScene }: Props) {
           <div className="flex flex-wrap gap-2 pt-1">
             <Link
               href={resumeHref}
-              className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
             >
               <Play className="w-4 h-4" />
               Resume

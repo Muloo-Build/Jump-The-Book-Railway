@@ -205,7 +205,7 @@ export default function Discover() {
           </div>
           <Link
             href="/setup-book"
-            className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors shrink-0"
+            className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors shrink-0"
           >
             <Wand2 className="w-4 h-4" />
             Open Smart Setup

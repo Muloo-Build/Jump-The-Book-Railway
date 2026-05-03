@@ -170,7 +170,7 @@ export default function Library() {
               <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
                 <Link
                   href="/setup-book"
-                  className="inline-flex items-center justify-center rounded-md bg-primary text-black h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
+                  className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
                 >
                   <Sparkles className="w-4 h-4 mr-2" />
                   Add a book
@@ -196,7 +196,7 @@ export default function Library() {
             <div className="flex gap-2 flex-shrink-0">
               <Link
                 href="/sign-up"
-                className="inline-flex items-center justify-center rounded-md bg-primary text-black h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
+                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
               >
                 Get started
               </Link>
@@ -347,7 +347,7 @@ export default function Library() {
                 </p>
                 <Link
                   href="/discover"
-                  className="inline-flex items-center gap-2 rounded-md bg-primary text-black hover:bg-[var(--jtb-accent-hi)] h-9 px-4 text-sm font-semibold transition-colors"
+                  className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-9 px-4 text-sm font-semibold transition-colors"
                 >
                   Browse the catalogue
                 </Link>

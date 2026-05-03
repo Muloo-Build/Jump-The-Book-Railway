@@ -254,7 +254,7 @@ export default function CoverPickerDialog({
                     disabled={
                       adding || !titleQ.trim() || !authorQ.trim()
                     }
-                    className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)]"
+                    className="bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)]"
                   >
                     {adding ? (
                       <>
@@ -324,7 +324,7 @@ export default function CoverPickerDialog({
                         </div>
                         {active && (
                           <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                            <Check className="w-3 h-3 text-black" />
+                            <Check className="w-3 h-3 text-primary-foreground" />
                           </div>
                         )}
                       </div>
@@ -350,7 +350,7 @@ export default function CoverPickerDialog({
             type="button"
             disabled={!selected || adding || search.isLoading}
             onClick={() => selected && handleAdd(selected)}
-            className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)]"
+            className="bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)]"
           >
             {adding ? (
               <>

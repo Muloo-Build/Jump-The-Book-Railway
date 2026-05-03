@@ -360,7 +360,7 @@ export default function EditBookDialog({
             <Button
               type="submit"
               disabled={!canSave || pending}
-              className="bg-primary text-black hover:bg-[var(--jtb-accent-hi)]"
+              className="bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)]"
             >
               {pending ? (
                 <>
