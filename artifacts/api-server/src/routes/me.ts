@@ -542,9 +542,14 @@ async function mergeDuplicateBooksForUser(
         // uniqueIndex on (userBookId, chapterNumber, sceneIndex) so a blind
         // UPDATE could fail; this NOT EXISTS guard skips conflicts.
         // user_scenes has no updated_at column; only the user_book_id moves.
+        // NOTE: Postgres rejects table-qualified column names on the LHS of
+        // SET (e.g. `SET "user_scenes"."user_book_id" = ...`), so the SET
+        // column must be the bare column name. Qualifying it here is what
+        // was crashing every GET /me/books with a 500 — making the library
+        // appear empty after adding a book.
         await tx.execute(sql`
           UPDATE ${userScenesTable}
-          SET ${userScenesTable.userBookId} = ${canonical.id}
+          SET user_book_id = ${canonical.id}
           WHERE ${userScenesTable.userBookId} = ${dup.id}
             AND NOT EXISTS (
               SELECT 1 FROM ${userScenesTable} c
@@ -564,8 +569,8 @@ async function mergeDuplicateBooksForUser(
         // two pointing at canonical).
         await tx.execute(sql`
           UPDATE ${bookBiblesTable}
-          SET ${bookBiblesTable.userBookId} = ${canonical.id},
-              ${bookBiblesTable.updatedAt} = NOW()
+          SET user_book_id = ${canonical.id},
+              updated_at = NOW()
           WHERE ${bookBiblesTable.userBookId} = ${dup.id}
             AND NOT EXISTS (
               SELECT 1 FROM ${bookBiblesTable} c

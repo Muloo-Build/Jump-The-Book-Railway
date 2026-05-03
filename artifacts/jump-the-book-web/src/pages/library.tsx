@@ -132,8 +132,11 @@ export default function Library() {
         <ReadingStats nowReading={nowReading} />
 
         <Show when="signed-in">
-          {hasBooks ? (
-            // Softer banner once they have books — this is now a quiet "add another"
+          {hasBooks && (
+            // Quiet "add another" banner only when the shelf already has books.
+            // When empty we let the inline search card below speak for itself
+            // instead of stacking three competing CTAs (top buttons, big
+            // banner, search card) on the same screen.
             <div className="rounded-xl border border-border/50 bg-card/30 p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <Sparkles className="w-4 h-4 text-[var(--jtb-accent-hi)]/80 shrink-0" />
@@ -149,34 +152,6 @@ export default function Library() {
                 >
                   Add a book
                 </Link>
-              </div>
-            </div>
-          ) : (
-            // Bigger banner only when the library is empty
-            <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
-              <div className="space-y-2 max-w-2xl">
-                <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-sm font-medium">
-                  <Sparkles className="w-4 h-4" />
-                  Your shelf, brought to life
-                </div>
-                <h3 className="font-serif text-xl font-semibold">
-                  Every book you're reading — in one place.
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Paperback, Kindle, Audible, library copy — track them all on
-                  one shelf. Then, for any chapter you've reached, we'll paint
-                  a cinematic scene of the moment. Spoiler-free, always.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
-                <Link
-                  href="/setup-book"
-                  className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
-                >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Add a book
-                </Link>
-                <SnapCoverButton className="h-10 px-4 text-sm" />
               </div>
             </div>
           )}
