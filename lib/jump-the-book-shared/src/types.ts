@@ -48,6 +48,9 @@ export interface UserLibraryItem {
   sourceType?: "demo" | "user-added" | "user-writing";
   tagline?: string;
   heroImage?: string;
+  // Resolved cover URL (Open Library or any CDN). When present, the tile
+  // renders this directly and skips the per-browser OL lookup.
+  coverUrl?: string | null;
   // Backend user_books.id (UUID). Present for remote-backed items (signed-in
   // users); local/demo items use slug ids and have no remote id yet.
   remoteId?: string;
@@ -99,6 +102,7 @@ export interface RemoteBook {
   userNote: string;
   tagline: string | null;
   heroImage: string | null;
+  coverUrl: string | null;
   totalChapters: number | null;
   createdAt: string;
   updatedAt: string;
@@ -138,6 +142,7 @@ export interface AddBookInput {
   userNote?: string;
   tagline?: string | null;
   heroImage?: string | null;
+  coverUrl?: string | null;
   totalChapters?: number | null;
 }
 
@@ -164,6 +169,7 @@ export function remoteBookToUserLibraryItem(r: RemoteBook): UserLibraryItem {
     sourceType: r.source === "demo" ? "demo" : "user-added",
     tagline: r.tagline ?? undefined,
     heroImage: r.heroImage ?? undefined,
+    coverUrl: r.coverUrl ?? null,
     remoteId: r.id,
   };
 }

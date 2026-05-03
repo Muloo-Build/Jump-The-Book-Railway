@@ -29,6 +29,7 @@ export interface RemoteBook {
   userNote: string;
   tagline: string | null;
   heroImage: string | null;
+  coverUrl: string | null;
   totalChapters: number | null;
   createdAt: string;
   updatedAt: string;
@@ -106,6 +107,7 @@ export interface AddBookInput {
   userNote?: string;
   tagline?: string | null;
   heroImage?: string | null;
+  coverUrl?: string | null;
   totalChapters?: number | null;
 }
 

@@ -53,6 +53,10 @@ export const userBooksTable = pgTable(
     userNote: text("user_note").notNull().default(""),
     tagline: text("tagline"),
     heroImage: text("hero_image"),
+    // Resolved Open Library cover URL (or any other CDN URL). Persisted so
+    // we never re-hit OL for the same book — first request that resolves a
+    // cover writes it here and every subsequent read uses it.
+    coverUrl: text("cover_url"),
     totalChapters: integer("total_chapters"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

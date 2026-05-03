@@ -20,15 +20,19 @@ interface Props {
 export default function NowReadingHero({ book, latestScene }: Props) {
   const localCover = book.heroImage;
   const hasLocalCover = !!localCover;
+  const persistedCover = book.coverUrl ?? null;
+  // Only ask Open Library when neither a bundled cover nor a server-cached
+  // cover URL is available — otherwise we'd hit OL on every hero render.
+  const needsOl = !hasLocalCover && !persistedCover;
   const enrichment = useOpenLibraryEnrichment(book.title, book.author, {
-    enabled: !hasLocalCover,
+    enabled: needsOl,
   });
   const cover =
     hasLocalCover && localCover
       ? localCover.startsWith("http") || localCover.startsWith("/")
         ? localCover
         : null
-      : enrichment.coverUrl;
+      : (persistedCover ?? enrichment.coverUrl);
 
   const progress = Math.max(0, Math.min(100, book.progress ?? 0));
   const chapter = latestScene?.chapterNumber ?? book.currentChapter ?? 1;

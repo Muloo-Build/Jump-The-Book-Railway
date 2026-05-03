@@ -131,6 +131,7 @@ function remoteBookToItem(b: RemoteBook): UserLibraryItem & {
     sourceType: b.source === "demo" ? "demo" : "user-added",
     tagline: b.tagline ?? undefined,
     heroImage: b.heroImage ?? undefined,
+    coverUrl: b.coverUrl ?? null,
     remoteId: b.id,
     demoBookId: b.demoBookId,
     source: b.source,
@@ -281,6 +282,7 @@ export function useLibrary() {
           userNote: item.userNote,
           tagline: item.tagline ?? null,
           heroImage: item.heroImage ?? null,
+          coverUrl: item.coverUrl ?? null,
         });
         return created.id;
       }

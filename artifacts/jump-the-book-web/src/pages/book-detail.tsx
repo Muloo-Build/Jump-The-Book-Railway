@@ -75,7 +75,10 @@ export default function BookDetail() {
 
   // Pull a cover from Open Library when the book has no built-in image.
   // The hook also drives <BookMetadata>, so they share one cached lookup.
-  const needsWebCover = !!book && !book.heroImage;
+  // Prefer a server-persisted cover URL; only hit Open Library when neither a
+  // bundled heroImage nor a saved coverUrl exists for this book.
+  const persistedCover = book?.coverUrl ?? null;
+  const needsWebCover = !!book && !book.heroImage && !persistedCover;
   const enrichment = useOpenLibraryEnrichment(book?.title, book?.author, {
     enabled: needsWebCover,
   });
@@ -131,7 +134,15 @@ export default function BookDetail() {
                     onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                 ))}
-              {!book.heroImage && webCover && (
+              {!book.heroImage && persistedCover && (
+                <img
+                  src={persistedCover}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              )}
+              {!book.heroImage && !persistedCover && webCover && (
                 <img
                   src={webCover}
                   alt=""

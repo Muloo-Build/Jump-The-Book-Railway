@@ -143,10 +143,93 @@ function serializeBook(b: typeof userBooksTable.$inferSelect) {
     userNote: b.userNote,
     tagline: b.tagline,
     heroImage: b.heroImage,
+    coverUrl: b.coverUrl,
     totalChapters: b.totalChapters,
     createdAt: b.createdAt.toISOString(),
     updatedAt: b.updatedAt.toISOString(),
   };
+}
+
+// ── Open Library cover resolver ──────────────────────────────────────────────
+// Tiny fire-and-forget helper that looks a book up on Open Library and
+// persists the resolved cover URL on the user_books row. Called whenever a
+// row is created (or refreshed) without a coverUrl. Errors are swallowed —
+// the row simply stays without a cover and the client falls back to its own
+// per-browser OL lookup. Concurrent lookups for the same row are deduped via
+// `pendingCoverLookups` so two simultaneous adds don't double-fire.
+const pendingCoverLookups = new Set<string>();
+
+interface OpenLibraryDoc {
+  title?: string;
+  author_name?: string[];
+  cover_i?: number;
+}
+
+async function resolveCoverUrlFromOpenLibrary(
+  title: string,
+  author: string,
+): Promise<string | null> {
+  const q = `${title} ${author}`.trim();
+  if (!q) return null;
+  const url =
+    "https://openlibrary.org/search.json?limit=10" +
+    `&fields=title,author_name,cover_i&q=${encodeURIComponent(q)}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6_000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { docs?: OpenLibraryDoc[] };
+    const docs = data.docs ?? [];
+    const lowerT = title.toLowerCase();
+    const lastA = author.split(" ").pop()?.toLowerCase() ?? "";
+    const top =
+      docs.find(
+        (d) =>
+          (d.title ?? "").toLowerCase() === lowerT &&
+          (d.author_name ?? []).some((a) => a.toLowerCase().includes(lastA)) &&
+          d.cover_i,
+      ) ?? docs.find((d) => d.cover_i);
+    if (!top?.cover_i) return null;
+    return `https://covers.openlibrary.org/b/id/${top.cover_i}-L.jpg`;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function scheduleCoverResolve(
+  bookId: string,
+  userId: string,
+  title: string,
+  author: string,
+  log: { info: (...a: unknown[]) => void; error: (...a: unknown[]) => void },
+): void {
+  if (pendingCoverLookups.has(bookId)) return;
+  pendingCoverLookups.add(bookId);
+  // Fire-and-forget — never await, never block the request response.
+  void (async () => {
+    try {
+      const coverUrl = await resolveCoverUrlFromOpenLibrary(title, author);
+      if (!coverUrl) return;
+      await db
+        .update(userBooksTable)
+        .set({ coverUrl, updatedAt: new Date() })
+        .where(
+          and(
+            eq(userBooksTable.id, bookId),
+            eq(userBooksTable.userId, userId),
+            sql`${userBooksTable.coverUrl} IS NULL`,
+          ),
+        );
+      log.info({ bookId, title, author }, "resolved+stored cover URL");
+    } catch (err) {
+      log.error({ err, bookId }, "background cover resolve failed");
+    } finally {
+      pendingCoverLookups.delete(bookId);
+    }
+  })();
 }
 
 // Dedup key for a stored book row. Demo books group by their canonical
@@ -355,6 +438,7 @@ interface PostBookBody {
   userNote?: string;
   tagline?: string | null;
   heroImage?: string | null;
+  coverUrl?: string | null;
   totalChapters?: number | null;
 }
 
@@ -437,6 +521,15 @@ router.post("/me/books", async (req, res) => {
       if (body.format && body.format !== existing.format) patch.format = body.format;
       if (body.heroImage && body.heroImage.trim()) patch.heroImage = body.heroImage;
       if (body.tagline && body.tagline.trim()) patch.tagline = body.tagline;
+      // Only fill coverUrl when the existing row has none — never clobber a
+      // previously-resolved cover with a new client guess.
+      if (
+        body.coverUrl &&
+        body.coverUrl.trim() &&
+        !existing.coverUrl
+      ) {
+        patch.coverUrl = body.coverUrl.trim();
+      }
       if (body.coverGradient && body.coverGradient.length > 0) patch.coverGradient = body.coverGradient;
       if (body.totalChapters != null && body.totalChapters !== existing.totalChapters) patch.totalChapters = body.totalChapters;
       if (
@@ -450,10 +543,21 @@ router.post("/me/books", async (req, res) => {
         .set(patch)
         .where(eq(userBooksTable.id, existing.id))
         .returning();
-      res.json({ book: serializeBook(refreshed ?? existing), deduped: true });
+      const finalRow = refreshed ?? existing;
+      // Kick off a background OL lookup if we still don't have a cover for
+      // this row — by definition this is dedup, so we may have an old row
+      // from before coverUrl was tracked.
+      if (!finalRow.coverUrl) {
+        scheduleCoverResolve(finalRow.id, userId, finalRow.title, finalRow.author, req.log);
+      }
+      res.json({ book: serializeBook(finalRow), deduped: true });
       return;
     }
 
+    const initialCoverUrl =
+      typeof body.coverUrl === "string" && body.coverUrl.trim()
+        ? body.coverUrl.trim()
+        : null;
     const [created] = await db
       .insert(userBooksTable)
       .values({
@@ -473,9 +577,16 @@ router.post("/me/books", async (req, res) => {
         userNote: body.userNote ?? "",
         tagline: body.tagline ?? null,
         heroImage: body.heroImage ?? null,
+        coverUrl: initialCoverUrl,
         totalChapters: body.totalChapters ?? null,
       })
       .returning();
+    // If the client didn't supply a cover URL, look one up in the background
+    // and persist it so the next read for any device shows the real cover
+    // with zero network calls.
+    if (!initialCoverUrl && created) {
+      scheduleCoverResolve(created.id, userId, created.title, created.author, req.log);
+    }
     res.status(201).json({ book: serializeBook(created!) });
   } catch (err) {
     req.log.error({ err }, "POST /me/books failed");
@@ -560,6 +671,7 @@ router.patch("/me/books/:id", async (req, res) => {
       "totalChapters",
       "tagline",
       "heroImage",
+      "coverUrl",
       "coverGradient",
     ];
     for (const f of fields) {

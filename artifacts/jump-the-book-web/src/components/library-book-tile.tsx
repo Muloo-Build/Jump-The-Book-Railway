@@ -18,6 +18,9 @@ export interface LibraryBookTileBook {
   author: string;
   coverGradient: string[];
   heroImage?: string;
+  // Server-persisted cover URL (Open Library / CDN). When set we render this
+  // directly and skip the Open Library lookup entirely.
+  coverUrl?: string | null;
   currentChapter: number;
   progress?: number;
   tagline?: string;
@@ -34,14 +37,17 @@ export default function LibraryBookTile({ book, index, hasBible = false }: Props
   const progress = Math.max(0, Math.min(100, book.progress ?? 0));
   const localCover = book.heroImage;
   const hasLocalCover = !!localCover;
+  const persistedCover = book.coverUrl ?? null;
   const { toast } = useToast();
 
-  // Only call Open Library when this book has no built-in cover.
-  // Cached + shared with the book detail hero so it's a single network call.
+  // Only call Open Library when we have neither a built-in (heroImage) nor a
+  // server-persisted (coverUrl) cover. Once the server has resolved a cover
+  // for this book row, every subsequent render is a zero-network paint.
+  const needsOl = !hasLocalCover && !persistedCover;
   const enrichment = useOpenLibraryEnrichment(book.title, book.author, {
-    enabled: !hasLocalCover,
+    enabled: needsOl,
   });
-  const webCover = !hasLocalCover ? enrichment.coverUrl : null;
+  const webCover = needsOl ? enrichment.coverUrl : null;
 
   const handleRefresh = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -82,7 +88,18 @@ export default function LibraryBookTile({ book, index, hasBible = false }: Props
                   }}
                 />
               )}
-            {!hasLocalCover && webCover && (
+            {!hasLocalCover && persistedCover && (
+              <img
+                src={persistedCover}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+            {needsOl && webCover && (
               <img
                 src={webCover}
                 alt=""
@@ -106,7 +123,7 @@ export default function LibraryBookTile({ book, index, hasBible = false }: Props
                 <Wand2 className="w-3 h-3" /> Bible
               </div>
             )}
-            {!hasLocalCover && (
+            {needsOl && (
               <button
                 type="button"
                 onClick={handleRefresh}

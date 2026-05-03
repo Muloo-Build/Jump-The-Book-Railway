@@ -98,6 +98,9 @@ export interface Book {
   visualStyle: VisualStyle;
   tagline: string;
   heroImage?: string;
+  // Optional resolved cover URL for demo books — lets us hardcode a real
+  // Open Library cover so the Classics row is instant on first paint.
+  coverUrl?: string | null;
 }
 
 export interface UserLibraryItem {
@@ -118,6 +121,9 @@ export interface UserLibraryItem {
   sourceType?: "demo" | "user-added" | "user-writing";
   tagline?: string;
   heroImage?: string;
+  // Resolved cover URL (Open Library or any CDN). When present, the tile
+  // renders this directly and skips the per-browser OL lookup.
+  coverUrl?: string | null;
   // Backend user_books.id (UUID). Present for remote-backed items (signed-in
   // users); local/demo items use slug ids and have no remote id yet.
   remoteId?: string;

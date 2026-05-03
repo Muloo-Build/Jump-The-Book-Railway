@@ -79,7 +79,9 @@ export default function BookSearch() {
         visualStyle: settings.defaultVisualStyle,
         progress: 0,
         coverGradient: pickGradient(r.key),
-        heroImage: r.coverUrl ?? undefined,
+        // Persist the resolved cover URL on the server row so we never need
+        // to hit Open Library again for this book on any device.
+        coverUrl: r.coverUrlLarge ?? r.coverUrl ?? null,
       });
       toast({
         title: "Added to library",
