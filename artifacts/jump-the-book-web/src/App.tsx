@@ -22,6 +22,7 @@ import {
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useRemoteUser } from "@/hooks/useApiLibrary";
 
 import NotFound from "@/pages/not-found";
@@ -214,29 +215,34 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
-          <Switch>
-            <Route path="/" component={HomeRedirect} />
-            <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
-            <Route path="/onboarding">
-              <ProtectedRoute>
-                <Onboarding />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/account/*?" component={Account} />
-            <Route path="/library" component={Library} />
-            <Route path="/discover" component={Discover} />
-            <Route path="/upload" component={Upload} />
-            <Route path="/setup-book" component={SetupBook} />
-            <Route path="/generate" component={Generate} />
-            <Route path="/book/:id" component={BookDetail} />
-            <Route path="/position/:id" component={Position} />
-            <Route path="/experience/:id" component={Experience} />
-            <Route path="/comic/:id" component={Comic} />
-            <Route path="/playback/:id" component={Playback} />
-            <Route path="/help" component={Help} />
-            <Route component={NotFound} />
-          </Switch>
+          {/* App-wide safety net so a single render-time throw can't
+           *  white-screen the user. The boundary lives inside the providers
+           *  so the recovery UI still has Clerk + tooltip context. */}
+          <ErrorBoundary>
+            <Switch>
+              <Route path="/" component={HomeRedirect} />
+              <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/sign-up/*?" component={SignUpPage} />
+              <Route path="/onboarding">
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/account/*?" component={Account} />
+              <Route path="/library" component={Library} />
+              <Route path="/discover" component={Discover} />
+              <Route path="/upload" component={Upload} />
+              <Route path="/setup-book" component={SetupBook} />
+              <Route path="/generate" component={Generate} />
+              <Route path="/book/:id" component={BookDetail} />
+              <Route path="/position/:id" component={Position} />
+              <Route path="/experience/:id" component={Experience} />
+              <Route path="/comic/:id" component={Comic} />
+              <Route path="/playback/:id" component={Playback} />
+              <Route path="/help" component={Help} />
+              <Route component={NotFound} />
+            </Switch>
+          </ErrorBoundary>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

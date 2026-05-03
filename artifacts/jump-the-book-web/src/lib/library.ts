@@ -4,6 +4,7 @@ import type { SpoilerMode, UserLibraryItem, VisualStyle } from "@/data/books";
 import {
   useAddRemoteBook,
   useDeleteRemoteBook,
+  useDeleteAllRemoteBooks,
   usePatchRemoteBook,
   useRemoteBooks,
   useRemoteUser,
@@ -174,6 +175,7 @@ export function useLibrary() {
   const updateRemoteUser = useUpdateRemoteUser();
   const addRemoteBook = useAddRemoteBook();
   const deleteRemoteBook = useDeleteRemoteBook();
+  const deleteAllRemoteBooks = useDeleteAllRemoteBooks();
   const patchRemoteBook = usePatchRemoteBook();
 
   useEffect(() => {
@@ -333,6 +335,31 @@ export function useLibrary() {
     [signedIn, remoteBooks.data, deleteRemoteBook],
   );
 
+  /**
+   * Wipe the entire library. Signed-in users hit the bulk-delete endpoint
+   * (which cascades to scenes); signed-out users just clear localStorage
+   * for books, positions, sessions and active book selection. Resolves with
+   * the number of remote rows removed so the caller can show a toast.
+   */
+  const clearLibrary = useCallback(async (): Promise<number> => {
+    if (signedIn) {
+      const r = await deleteAllRemoteBooks.mutateAsync();
+      return r.deleted;
+    }
+    const removed = localLibrary.length;
+    setLocalLibrary([]);
+    writeJSON(STORAGE_KEY, []);
+    setPositions({});
+    writeJSON(POSITIONS_KEY, {});
+    setSessions([]);
+    writeJSON(SESSIONS_KEY, []);
+    setStreak(defaultStreak);
+    writeJSON(STREAK_KEY, defaultStreak);
+    setActiveBookIdState(null);
+    if (typeof window !== "undefined") localStorage.removeItem(ACTIVE_BOOK_KEY);
+    return removed;
+  }, [signedIn, deleteAllRemoteBooks, localLibrary.length]);
+
   const updateProgress = useCallback(
     (id: string, progress: number) => {
       if (signedIn) {
@@ -476,6 +503,7 @@ export function useLibrary() {
       isUserLoaded: isLoaded,
       addBook,
       removeBook,
+      clearLibrary,
       updateProgress,
       setActiveBookId,
       updateSettings,
@@ -498,6 +526,7 @@ export function useLibrary() {
       remoteUser.data?.onboarded,
       addBook,
       removeBook,
+      clearLibrary,
       updateProgress,
       setActiveBookId,
       updateSettings,

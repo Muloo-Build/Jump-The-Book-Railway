@@ -138,6 +138,26 @@ export function useDeleteRemoteBook() {
   });
 }
 
+/**
+ * Wipe every book (and its cascading scenes) for the signed-in user. Powers
+ * the "Reset library" danger action on the account page. We blow away both
+ * the books and scene-library caches because deleting books cascades to
+ * scenes and any cached scene rows would now be orphaned.
+ */
+export function useDeleteAllRemoteBooks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: true; deleted: number }>(`/me/books`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me", "books"] });
+      qc.invalidateQueries({ queryKey: ["me", "scenes"] });
+    },
+  });
+}
+
 export function usePatchRemoteBook() {
   const qc = useQueryClient();
   return useMutation({

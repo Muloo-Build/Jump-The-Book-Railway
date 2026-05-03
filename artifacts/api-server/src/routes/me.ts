@@ -698,6 +698,24 @@ router.patch("/me/books/:id", async (req, res) => {
   }
 });
 
+// Bulk delete — wipes every book (and via FK cascade, every scene) for the
+// caller. Used by the "Reset library" destructive action on the account
+// page. Returns the number of rows removed so the UI can show a precise
+// confirmation toast.
+router.delete("/me/books", async (req, res) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const result = await db
+      .delete(userBooksTable)
+      .where(eq(userBooksTable.userId, userId))
+      .returning({ id: userBooksTable.id });
+    res.json({ ok: true, deleted: result.length });
+  } catch (err) {
+    req.log.error({ err }, "DELETE /me/books (bulk) failed");
+    res.status(500).json({ error: "Failed to clear library" });
+  }
+});
+
 router.delete("/me/books/:id", async (req, res) => {
   try {
     const id = req.params.id;

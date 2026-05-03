@@ -332,6 +332,26 @@ export default function Library() {
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Loading your scenes…
               </div>
+            ) : totalScenes === 0 ? (
+              // Empty state — without it the section was just a header with
+              // "0 total" floating in space, leaving signed-in newcomers with
+              // no idea how to populate it.
+              <div className="rounded-2xl border border-dashed border-border/50 bg-card/20 p-8 text-center space-y-3">
+                <p className="font-serif text-lg">
+                  No scenes yet — pick a book to start visualizing.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Open any book and tap{" "}
+                  <span className="text-amber-300/90">Generate scenes</span>{" "}
+                  to bring a chapter to life.
+                </p>
+                <Link
+                  href="/discover"
+                  className="inline-flex items-center gap-2 rounded-md bg-amber-400 text-black hover:bg-amber-300 h-9 px-4 text-sm font-semibold transition-colors"
+                >
+                  Browse the catalogue
+                </Link>
+              </div>
             ) : (
               <div id="scenes">
                 <SceneLibrary

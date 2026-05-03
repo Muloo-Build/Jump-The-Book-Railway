@@ -33,6 +33,25 @@ export default function Experience() {
 
   const book = userLibrary.find((b) => b.id === id) || DEMO_BOOKS.find((b) => b.id === id);
 
+  // Keyboard navigation — left/right arrows step scenes, escape exits the
+  // cinematic view. Without this, keyboard users were forced to mouse to the
+  // tiny floating chevrons every time.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setCurrentIndex((i) => Math.min(scenes.length - 1, i + 1));
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setCurrentIndex((i) => Math.max(0, i - 1));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [scenes.length]);
+
   useEffect(() => {
     if (!book) return;
 
@@ -187,21 +206,25 @@ export default function Experience() {
 
         {/* Navigation Controls */}
         <div className="absolute inset-0 flex justify-between items-center z-30 pointer-events-none px-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Previous scene"
             className="h-16 w-16 rounded-full bg-black/20 hover:bg-black/50 backdrop-blur-md text-white pointer-events-auto border border-white/10"
             disabled={currentIndex === 0}
-            onClick={() => setCurrentIndex(i => Math.max(0, i - 1))}
+            onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
           >
             <ChevronLeft className="w-8 h-8" />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Next scene"
             className="h-16 w-16 rounded-full bg-black/20 hover:bg-black/50 backdrop-blur-md text-white pointer-events-auto border border-white/10"
             disabled={currentIndex === scenes.length - 1}
-            onClick={() => setCurrentIndex(i => Math.min(scenes.length - 1, i + 1))}
+            onClick={() =>
+              setCurrentIndex((i) => Math.min(scenes.length - 1, i + 1))
+            }
           >
             <ChevronRight className="w-8 h-8" />
           </Button>
