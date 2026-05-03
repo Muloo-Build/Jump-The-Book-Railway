@@ -1,4 +1,11 @@
-import express, { type Express, type Request } from "express";
+import path from "node:path";
+import { existsSync } from "node:fs";
+import express, {
+  type Express,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -78,5 +85,24 @@ app.use(
 );
 
 app.use("/api", router);
+
+const webDistDir =
+  process.env.WEB_DIST_DIR ??
+  path.resolve(import.meta.dirname, "../../jump-the-book-web/dist/public");
+
+if (existsSync(webDistDir)) {
+  const indexHtml = path.join(webDistDir, "index.html");
+  app.use(express.static(webDistDir, { index: false }));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(indexHtml);
+  });
+} else {
+  logger.warn(
+    { webDistDir },
+    "Web build directory not found; SPA will not be served.",
+  );
+}
 
 export default app;
