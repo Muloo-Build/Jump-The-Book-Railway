@@ -20,6 +20,20 @@ import {
 } from "@/hooks/useApiLibrary";
 import { searchOpenLibrary, type OpenLibrarySearchResult } from "@/lib/openLibrary";
 
+const COVER_GRADIENTS: string[][] = [
+  ["#1a1525", "#2d2440", "#453560"],
+  ["#1a2a35", "#1f3a4a", "#2c5364"],
+  ["#2a1820", "#4a2030", "#6b2848"],
+  ["#1f2a1a", "#2c402a", "#3f5a3a"],
+  ["#28203a", "#3a2c5a", "#4d3a7a"],
+];
+
+function pickCoverGradient(seed: string): string[] {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  return COVER_GRADIENTS[Math.abs(hash) % COVER_GRADIENTS.length];
+}
+
 type Mode =
   | { kind: "edit"; book: RemoteBook }
   | {
@@ -390,21 +404,34 @@ function ClaimSearchPanel({
   return (
     <div className="space-y-3">
       {selected ? (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
-          {(selected.coverUrl) && (
-            <img
-              src={selected.coverUrl}
-              alt=""
-              className="w-12 h-16 object-cover rounded-md shrink-0"
-              onError={(e) => (e.currentTarget.style.display = "none")}
-            />
-          )}
+        <div className="flex gap-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+          <div
+            className="w-20 h-28 flex-shrink-0 rounded-md overflow-hidden bg-muted"
+            style={{
+              background: `linear-gradient(135deg, ${pickCoverGradient(selected.key).join(", ")})`,
+            }}
+          >
+            {selected.coverUrlLarge || selected.coverUrl ? (
+              <img
+                src={selected.coverUrlLarge ?? selected.coverUrl ?? ""}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                <BookOpen className="w-5 h-5" />
+              </div>
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <p className="font-serif font-semibold text-sm leading-tight line-clamp-2">{selected.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{selected.author}</p>
-            {selected.firstPublishYear && (
-              <p className="text-xs text-muted-foreground/70">{selected.firstPublishYear}</p>
-            )}
+            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{selected.author}</p>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              {[selected.firstPublishYear, selected.pageCount ? `${selected.pageCount} pages` : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
           </div>
           <button
             type="button"
@@ -439,32 +466,46 @@ function ClaimSearchPanel({
           </div>
 
           {results.length > 0 && (
-            <div className="max-h-52 overflow-y-auto rounded-xl border border-border/40 divide-y divide-border/30">
+            <div className="max-h-80 overflow-y-auto rounded-xl border border-border/40 divide-y divide-border/30">
               {results.map((r) => (
                 <button
                   key={r.key}
                   type="button"
                   onClick={() => onSelect(r)}
-                  className="w-full flex items-center gap-3 p-2.5 hover:bg-muted/40 transition-colors text-left"
+                  className="w-full flex gap-3 p-3 hover:bg-muted/40 transition-colors text-left"
                 >
-                  <div className="w-10 h-14 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
+                  <div
+                    className="w-16 h-24 flex-shrink-0 rounded-md overflow-hidden bg-muted"
+                    style={{
+                      background: `linear-gradient(135deg, ${pickCoverGradient(r.key).join(", ")})`,
+                    }}
+                  >
                     {r.coverUrl ? (
                       <img
                         src={r.coverUrl}
                         alt=""
                         className="w-full h-full object-cover"
+                        loading="lazy"
                         onError={(e) => (e.currentTarget.style.display = "none")}
                       />
                     ) : (
-                      <BookOpen className="w-4 h-4 text-muted-foreground" />
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium line-clamp-1">{r.title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{r.author}</p>
-                    {r.firstPublishYear && (
-                      <p className="text-xs text-muted-foreground/60">{r.firstPublishYear}</p>
-                    )}
+                    <p className="font-serif font-semibold text-sm leading-tight line-clamp-2">
+                      {r.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                      {r.author}
+                    </p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">
+                      {[r.firstPublishYear, r.pageCount ? `${r.pageCount} pages` : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
                   </div>
                 </button>
               ))}
