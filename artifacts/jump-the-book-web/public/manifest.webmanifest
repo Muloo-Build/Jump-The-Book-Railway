@@ -1,0 +1,24 @@
+{
+  "name": "Jump the Book",
+  "short_name": "Jump the Book",
+  "description": "See the worlds you read. Spoiler-safe AI scene visualizations for the book you're on.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0613",
+  "theme_color": "#0a0613",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

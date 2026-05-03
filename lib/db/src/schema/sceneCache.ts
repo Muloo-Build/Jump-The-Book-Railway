@@ -1,7 +1,7 @@
 import { pgTable, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 
 export const SCENE_CACHE_VERSION = 1;
-export const IMAGE_CACHE_VERSION = 2;
+export const IMAGE_CACHE_VERSION = 3;
 
 export const sceneCacheTable = pgTable(
   "scene_cache",

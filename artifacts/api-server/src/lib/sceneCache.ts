@@ -44,6 +44,14 @@ export interface ImageKeyParams {
   sceneIndex: number;
   visualStyle: string;
   prompt: string;
+  /**
+   * Stable signature for any prompt enrichment that influences the rendered
+   * image but is NOT in `prompt` itself — currently the bible-derived
+   * character visual traits and any safety/policy version. Different
+   * enrichments must produce different cache keys so two users with
+   * different bibles never share the same generated image.
+   */
+  consistencySignature?: string;
 }
 
 function sha(s: string): string {
@@ -74,6 +82,9 @@ export function makeSceneCacheKey(p: SceneBundleParams): string {
 
 export function makeImageCacheKey(p: ImageKeyParams): string {
   const promptHash = sha(p.prompt.trim()).slice(0, 16);
+  const sigHash = p.consistencySignature
+    ? sha(p.consistencySignature.trim()).slice(0, 12)
+    : "nosig";
   const raw = [
     `v${IMAGE_CACHE_VERSION}`,
     p.bookTitle.trim().toLowerCase(),
@@ -82,6 +93,7 @@ export function makeImageCacheKey(p: ImageKeyParams): string {
     String(p.sceneIndex),
     p.visualStyle,
     promptHash,
+    `sig:${sigHash}`,
   ].join("|");
   return `image_v${IMAGE_CACHE_VERSION}_${sha(raw).slice(0, 32)}`;
 }

@@ -6,9 +6,18 @@ export interface ParsedEpub {
   chapters: { title: string; text: string }[];
 }
 
+// Hard ceilings to keep memory/upload sane while still covering full novels.
+// Most novels are 30–60 chapters; 200 covers anything reasonable.
+const MAX_CHAPTERS = 200;
+// Per-chapter excerpt length passed to the AI. 12k chars ≈ ~3000 tokens —
+// enough to ground the model in late-book chapters without blowing the
+// context budget when we slice this further server-side.
+const MAX_CHARS_PER_CHAPTER = 12000;
+
 /**
  * Parse an EPUB ArrayBuffer (works in browsers via JSZip).
- * Extracts title, author, and up to 10 chapter excerpts (4000 chars each).
+ * Extracts title, author, and chapter excerpts for the whole book so readers
+ * mid-novel get useful context (not just the first 10 chapters).
  */
 export async function parseEpubFromArrayBuffer(
   arrayBuffer: ArrayBuffer,
@@ -41,7 +50,8 @@ export async function parseEpubFromArrayBuffer(
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const chapters: { title: string; text: string }[] = [];
-  for (let i = 0; i < Math.min(htmlFiles.length, 10); i++) {
+  const limit = Math.min(htmlFiles.length, MAX_CHAPTERS);
+  for (let i = 0; i < limit; i++) {
     const raw = await htmlFiles[i].async("string");
     const titleMatch = raw.match(/<h[1-3][^>]*>([^<]+)<\/h[1-3]>/i);
     const chTitle = titleMatch ? titleMatch[1].trim() : `Chapter ${chapters.length + 1}`;
@@ -58,7 +68,12 @@ export async function parseEpubFromArrayBuffer(
       .replace(/\s{2,}/g, " ")
       .trim();
     if (stripped.length > 200) {
-      chapters.push({ title: chTitle, text: stripped.slice(0, 4000) });
+      chapters.push({ title: chTitle, text: stripped.slice(0, MAX_CHARS_PER_CHAPTER) });
+    }
+    // Yield to the event loop every 10 chapters so the UI stays responsive
+    // when parsing large novels.
+    if (i > 0 && i % 10 === 0) {
+      await new Promise((r) => setTimeout(r, 0));
     }
   }
   return { title, author, chapters };

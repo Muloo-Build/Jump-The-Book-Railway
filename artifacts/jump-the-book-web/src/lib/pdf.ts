@@ -10,9 +10,12 @@ export interface ParsedPdf {
 }
 
 const CHAPTER_HEADING = /^\s*(chapter|prologue|epilogue|part|book)\s+[ivxlcdm0-9]+/i;
-const MAX_CHAPTERS = 20;
-const MAX_CHARS_PER_CHAPTER = 4000;
+// Allow full-novel coverage so mid-book readers get useful context.
+const MAX_CHAPTERS = 200;
+const MAX_CHARS_PER_CHAPTER = 12000;
 const MIN_TOTAL_TEXT_CHARS = 400;
+const FALLBACK_CHUNK_SIZE = 12000;
+const FALLBACK_MAX_CHUNKS = 100;
 
 function cleanText(s: string): string {
   return s
@@ -56,12 +59,15 @@ function splitIntoChapters(pages: string[]): { title: string; text: string }[] {
 function fallbackByLength(pages: string[]): { title: string; text: string }[] {
   const all = cleanText(pages.join(" "));
   if (all.length < 200) return [];
-  const chunkSize = 4000;
   const chapters: { title: string; text: string }[] = [];
-  for (let i = 0; i < all.length && chapters.length < 10; i += chunkSize) {
+  for (
+    let i = 0;
+    i < all.length && chapters.length < FALLBACK_MAX_CHUNKS;
+    i += FALLBACK_CHUNK_SIZE
+  ) {
     chapters.push({
       title: `Chapter ${chapters.length + 1}`,
-      text: all.slice(i, i + chunkSize),
+      text: all.slice(i, i + FALLBACK_CHUNK_SIZE),
     });
   }
   return chapters;
@@ -90,7 +96,7 @@ export async function parsePdfFromArrayBuffer(
     }
 
     const pages: string[] = [];
-    const pageLimit = Math.min(pdf.numPages, 300);
+    const pageLimit = Math.min(pdf.numPages, 1500);
     let totalChars = 0;
 
     for (let pageNum = 1; pageNum <= pageLimit; pageNum++) {

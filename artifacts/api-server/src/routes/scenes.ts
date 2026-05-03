@@ -103,6 +103,84 @@ const STYLE_DESCRIPTIONS: Record<string, string> = {
   "fantasy-illustration": "rich detailed fantasy oil painting, luminous colours, intricate world-building details, painterly textures",
 };
 
+// Universal safety suffix appended to every image prompt. Pushes the model
+// toward stylized illustration (never photoreal) and away from recognizable
+// likenesses of real or trademarked people. This is a copyright-safety
+// guardrail, not a hard filter — content moderation upstream still applies.
+const SAFETY_SUFFIX =
+  "Stylized illustration only — no photorealistic depictions, no recognizable real people, no celebrity likeness, no trademarked logos. No text, no words, no letters, purely visual artwork.";
+
+// Bumped whenever the SAFETY_SUFFIX or any other always-on prompt enrichment
+// changes. Mixed into the image cache-key signature so an updated policy
+// invalidates pre-existing renderings even when prompt + style + scene are
+// otherwise identical.
+const SAFETY_POLICY_VERSION = "v1";
+
+/**
+ * Build a stable visual signature for each character in the bible.
+ * When the same character appears in scene N and scene N+1 the model now
+ * receives the SAME description string in both image prompts, which is the
+ * cheapest available lever for visual consistency without per-character
+ * reference images.
+ *
+ * The map keys are lowercased character names AND aliases.
+ */
+function buildCharacterVisualMap(bible: BookBibleRow | null): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!bible) return map;
+  const chars = asCharList(bible.characterProfiles);
+  for (const c of chars) {
+    const traits = (c.visualTraits ?? []).filter((t) => t && t.trim().length > 0);
+    if (traits.length === 0 && !c.description) continue;
+    const sig = traits.length > 0 ? traits.join(", ") : (c.description ?? "");
+    if (!sig.trim()) continue;
+    const phrase = `${c.name} (${sig})`;
+    map.set(c.name.toLowerCase().trim(), phrase);
+    for (const alias of c.aliases ?? []) {
+      if (alias && alias.trim()) {
+        map.set(alias.toLowerCase().trim(), phrase);
+      }
+    }
+  }
+  return map;
+}
+
+/** Pull the consistent visual signatures for any characters in this scene. */
+function characterConsistencyClause(
+  sceneCharacters: string[] | undefined,
+  visualMap: Map<string, string>,
+): string {
+  if (!Array.isArray(sceneCharacters) || sceneCharacters.length === 0) return "";
+  if (visualMap.size === 0) return "";
+  const seen = new Set<string>();
+  const phrases: string[] = [];
+  for (const name of sceneCharacters) {
+    const key = String(name ?? "").toLowerCase().trim();
+    if (!key || seen.has(key)) continue;
+    const sig = visualMap.get(key);
+    if (sig) {
+      seen.add(key);
+      phrases.push(sig);
+    }
+  }
+  if (phrases.length === 0) return "";
+  return ` Render characters with these EXACT consistent visual traits across every scene of this book: ${phrases.join("; ")}.`;
+}
+
+/**
+ * Build the deterministic cache-key signature for everything we ADD to the
+ * raw `imagePrompt` server-side: the safety policy version + the resolved
+ * character consistency clause. Two requests with the same base prompt but
+ * different bibles or policy versions must NOT collide.
+ */
+function imageConsistencySignature(
+  sceneCharacters: string[] | undefined,
+  visualMap: Map<string, string>,
+): string {
+  const clause = characterConsistencyClause(sceneCharacters, visualMap);
+  return `safety:${SAFETY_POLICY_VERSION}|consistency:${clause}`;
+}
+
 function clampSceneCount(n: unknown): number {
   if (typeof n !== "number" || !Number.isFinite(n)) return 0;
   return Math.max(1, Math.min(5, Math.floor(n)));
@@ -233,18 +311,23 @@ router.post("/scenes/generate", requireAuth, async (req, res) => {
         "scene cache hit",
       );
 
+      // Recompute keys here using the current bible-derived visual map so
+      // cached scene bundles still produce consistency-aware image keys after
+      // any bible edit. We deliberately ignore `s.imageCacheKey` from the
+      // bundle for this reason.
+      const visualMapForCacheHit = buildCharacterVisualMap(bible);
       const enriched = await Promise.all(
         scenes.map(async (s, i) => {
-          const key =
-            s.imageCacheKey ??
-            makeImageCacheKey({
-              bookTitle,
-              author,
-              chapterNumber,
-              sceneIndex: i,
-              visualStyle,
-              prompt: s.imagePrompt ?? "",
-            });
+          const sig = imageConsistencySignature(s.characters, visualMapForCacheHit);
+          const key = makeImageCacheKey({
+            bookTitle,
+            author,
+            chapterNumber,
+            sceneIndex: i,
+            visualStyle,
+            prompt: s.imagePrompt ?? "",
+            consistencySignature: sig,
+          });
           const img = await getCachedImage(key);
           if (!img) return { ...s, imageCacheKey: key };
           return {
@@ -328,17 +411,23 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
       };
     });
 
-    const sceneListWithKeys: CachedScene[] = sceneList.map((s, i) => ({
-      ...s,
-      imageCacheKey: makeImageCacheKey({
-        bookTitle,
-        author,
-        chapterNumber,
-        sceneIndex: i,
-        visualStyle,
-        prompt: s.imagePrompt,
-      }),
-    }));
+    const visualMap = buildCharacterVisualMap(bible);
+
+    const sceneListWithKeys: CachedScene[] = sceneList.map((s, i) => {
+      const sig = imageConsistencySignature(s.characters, visualMap);
+      return {
+        ...s,
+        imageCacheKey: makeImageCacheKey({
+          bookTitle,
+          author,
+          chapterNumber,
+          sceneIndex: i,
+          visualStyle,
+          prompt: s.imagePrompt,
+          consistencySignature: sig,
+        }),
+      };
+    });
 
     if (sceneListWithKeys.length > 0) {
       await saveSceneBundle(cacheKey, bundleParams, sceneListWithKeys);
@@ -352,7 +441,9 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
     if (generateImage && sceneListWithKeys.length > 0) {
       const first = sceneListWithKeys[0];
       const styleDesc = STYLE_DESCRIPTIONS[visualStyle] ?? "illustrated";
-      const fullPrompt = `${styleDesc}. ${first.imagePrompt} No text, no words, no letters, purely visual artwork.`;
+      const firstSig = imageConsistencySignature(first.characters, visualMap);
+      const consistency = characterConsistencyClause(first.characters, visualMap);
+      const fullPrompt = `${styleDesc}. ${first.imagePrompt}${consistency} ${SAFETY_SUFFIX}`;
       try {
         const buffer = await generateImageBuffer(fullPrompt, "1024x1024");
         const objectPath = await objectStorage.uploadBufferAsObjectEntity(buffer, "image/png");
@@ -366,6 +457,7 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
               sceneIndex: 0,
               visualStyle,
               prompt: first.imagePrompt,
+              consistencySignature: firstSig,
             },
             { objectPath, bytes: buffer.length },
           );
@@ -400,10 +492,19 @@ interface ImageBody {
   chapterNumber?: number;
   sceneIndex?: number;
   cacheKey?: string;
+  /**
+   * Names of characters present in this scene. When provided alongside a
+   * `bookBibleId`, the server enriches the prompt with stable visual
+   * signatures from the bible so the same character looks the same across
+   * every scene of the book.
+   */
+  sceneCharacters?: string[];
+  bookBibleId?: string;
 }
 
 router.post("/scenes/image", requireAuth, async (req, res) => {
   try {
+    const requesterId = (req as AuthedRequest).userId;
     const {
       prompt,
       style = "fantasy-illustration",
@@ -412,6 +513,8 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
       chapterNumber,
       sceneIndex,
       cacheKey: providedKey,
+      sceneCharacters,
+      bookBibleId,
     } = req.body as ImageBody;
 
     if (!prompt) {
@@ -431,6 +534,38 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
       return;
     }
 
+    // ── Bible lookup for character visual consistency ────────────────────────
+    // Done BEFORE computing the cache key so the key incorporates the bible-
+    // derived consistency signature. Otherwise two users with different
+    // bibles (or one user before/after editing their bible) would collide on
+    // the same key and serve each other's images.
+    let bibleForImage: BookBibleRow | null = null;
+    if (typeof bookBibleId === "string" && bookBibleId.length > 0) {
+      const rows = await db
+        .select()
+        .from(bookBiblesTable)
+        .where(eq(bookBiblesTable.id, bookBibleId))
+        .limit(1);
+      const candidate = rows[0] ?? null;
+      if (candidate && candidate.userId === requesterId) {
+        bibleForImage = candidate;
+      } else if (candidate) {
+        req.log.warn(
+          { bookBibleId, owner: candidate.userId, requesterId },
+          "image: bible ownership mismatch, ignoring",
+        );
+      }
+    }
+    const visualMapForImage = buildCharacterVisualMap(bibleForImage);
+    const consistencySignature = imageConsistencySignature(
+      sceneCharacters,
+      visualMapForImage,
+    );
+    const consistency = characterConsistencyClause(
+      sceneCharacters,
+      visualMapForImage,
+    );
+
     // SECURITY: never trust a client-provided cache key; recompute from canonical inputs.
     const cacheKey = makeImageCacheKey({
       bookTitle,
@@ -439,6 +574,7 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
       sceneIndex,
       visualStyle: style,
       prompt,
+      consistencySignature,
     });
     if (providedKey && providedKey !== cacheKey) {
       req.log.warn(
@@ -465,7 +601,7 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
 
     // ── Generate ─────────────────────────────────────────────────────────────
     const styleDesc = STYLE_DESCRIPTIONS[style] ?? "illustrated artwork";
-    const fullPrompt = `${styleDesc}. ${prompt} No text, no words, no letters, purely visual artwork.`;
+    const fullPrompt = `${styleDesc}. ${prompt}${consistency} ${SAFETY_SUFFIX}`;
     let buffer: Buffer;
     try {
       buffer = await generateImageBuffer(fullPrompt, "1024x1024");
@@ -483,7 +619,15 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
     const objectPath = await objectStorage.uploadBufferAsObjectEntity(buffer, "image/png");
     await saveCachedImage(
       cacheKey,
-      { bookTitle, author, chapterNumber, sceneIndex, visualStyle: style, prompt },
+      {
+        bookTitle,
+        author,
+        chapterNumber,
+        sceneIndex,
+        visualStyle: style,
+        prompt,
+        consistencySignature,
+      },
       { objectPath, bytes: buffer.length },
     );
     req.log.info(

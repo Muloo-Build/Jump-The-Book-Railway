@@ -58,7 +58,19 @@ The project is structured as a pnpm workspace monorepo.
     *   **React Query:** Used for data fetching, caching, and synchronization with the API (`useApiLibrary.ts`).
     *   **Auth-aware Library Hook:** `useLibrary()` abstracts data access, using React Query for signed-in users and localStorage for signed-out users.
 
-6.  **Mobile App Integration:**
+6.  **Image Generation Safety & Consistency:**
+    *   **Character visual consistency:** When the bible includes `characterProfiles[].visualTraits`, every image prompt re-states the same visual signature for any character that appears in the scene, so the same character looks the same across scenes of the same book.
+    *   **Safety suffix:** All image prompts append a stylized-only / no-photoreal / no-recognizable-people / no-trademarks clause (`SAFETY_SUFFIX` in `routes/scenes.ts`). Versioned via `SAFETY_POLICY_VERSION`; bump it whenever the policy text changes.
+    *   **Image cache key (v3)** includes a `consistencySignature` derived from the safety policy version + resolved per-scene character clause, so different bibles (or two users) cannot collide on the same key.
+
+7.  **PWA / Offline:**
+    *   `public/manifest.webmanifest` + theme/apple-touch-icon links in `index.html` make the web app installable.
+    *   `public/sw.js` registered in `main.tsx` (prod-only) — cache-first for `/api/storage/objects/scene-images/*` (`jtb-scenes-v1`) so previously viewed scenes are available offline; network-first with cache fallback for the app shell (`jtb-shell-v1`); pure passthrough for API JSON and third-party.
+
+8.  **Book Parsing Limits:**
+    *   EPUB and PDF parsers cover full novels (up to 200 chapters, 12000 chars per chapter, PDF page limit 1500). EPUB yields to the event loop every 10 chapters to keep the UI responsive.
+
+9.  **Mobile App Integration:**
     *   A separate Expo mobile app consumes the same API.
     *   Shared code for data models (`RemoteUser`, `RemoteBook`, `RemoteScene`) and API client (`Orval-generated React Query hooks`) is synced between web and mobile repos via a GitHub Actions workflow.
 
