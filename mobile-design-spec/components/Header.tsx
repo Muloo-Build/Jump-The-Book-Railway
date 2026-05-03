@@ -1,26 +1,25 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import { Logo } from "../Logo";
-import { colors, fontFamily, space } from "../tokens";
+import { View, StyleSheet } from "react-native";
+import { LogoCrescent } from "../Logo";
+import { Wordmark } from "./Wordmark";
+import { colors, space } from "../tokens";
 
 interface Props {
-  onLogoPress?: () => void;
+  /** Right-side actions (e.g. <IconButton>). */
   right?: React.ReactNode;
+  /** Hide the bottom hairline (used in cinematic / minimal screens). */
+  noBorder?: boolean;
 }
 
 /**
- * Top header with bunny logo + wordmark "Jump the Book" (italic gold "the").
- * Mirrors artifacts/jump-the-book-web/src/components/layout.tsx header.
+ * Standard mobile screen header: bunny mark + "Jump the Book" wordmark on the
+ * left, optional actions on the right. Mirrors mobile-screens.jsx → MobShell
+ * non-minimal header path.
  */
-export function Header({ onLogoPress, right }: Props) {
+export function Header({ right, noBorder }: Props) {
   return (
-    <View style={styles.bar}>
-      <Pressable style={styles.brand} onPress={onLogoPress} hitSlop={8}>
-        <Logo size={28} />
-        <Text style={styles.wordmark}>
-          Jump <Text style={styles.italic}>the</Text> Book
-        </Text>
-      </Pressable>
+    <View style={[styles.bar, !noBorder && styles.border]}>
+      <Wordmark size={14} mark={<LogoCrescent size={22} />} gap={10} />
       <View style={styles.right}>{right}</View>
     </View>
   );
@@ -28,24 +27,16 @@ export function Header({ onLogoPress, right }: Props) {
 
 const styles = StyleSheet.create({
   bar: {
-    height: 56,
-    paddingHorizontal: space.screenX,
+    height: 44,
+    paddingHorizontal: space.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
     backgroundColor: colors.bg,
   },
-  brand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  wordmark: {
-    fontFamily: fontFamily.serif,
-    fontSize: 18,
-    color: colors.text,
+  border: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  italic: {
-    fontFamily: fontFamily.serifItalic,
-    color: colors.goldSoft,
-  },
-  right: { flexDirection: "row", alignItems: "center", gap: 8 },
+  right: { flexDirection: "row", alignItems: "center", gap: 4 },
 });

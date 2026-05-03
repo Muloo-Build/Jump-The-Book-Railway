@@ -1,20 +1,26 @@
 import React from "react";
 import { View, StyleSheet, ViewStyle } from "react-native";
-import { colors, radius, space } from "../tokens";
+import { colors, radius, shadows, space } from "../tokens";
 
 interface Props {
   children: React.ReactNode;
   style?: ViewStyle | ViewStyle[];
   padded?: boolean;
+  /** Use the deeper "raise" surface for hover/popover-style cards. */
+  raised?: boolean;
 }
 
-/**
- * Dark card with subtle border. NEVER uses shadow — the dark theme uses
- * borders for separation, not elevation.
- */
-export function Card({ children, style, padded = true }: Props) {
+export function Card({ children, style, padded = true, raised }: Props) {
   return (
-    <View style={[styles.card, padded && styles.padded, style]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: raised ? colors.bgRaise : colors.bgCard },
+        padded && styles.padded,
+        shadows.card,
+        style,
+      ]}
+    >
       {children}
     </View>
   );
@@ -22,7 +28,6 @@ export function Card({ children, style, padded = true }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.bgElevated,
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,

@@ -4,7 +4,7 @@ import { colors } from "../tokens";
 
 interface Props {
   children: React.ReactNode;
-  /** When true, content goes edge-to-edge (e.g. cinematic playback). */
+  /** When true, content renders edge-to-edge (e.g. cinematic playback). */
   fullBleed?: boolean;
 }
 

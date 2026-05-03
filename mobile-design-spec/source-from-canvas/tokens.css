@@ -1,0 +1,73 @@
+/* Jump the Book — Design Tokens
+   Refined black + warm gold. Cinematic + literary.
+   ──────────────────────────────────────────────── */
+
+:root {
+  /* Ink — layered near-blacks with a hint of warm violet undertone */
+  --ink-900: #08080B;        /* deepest — page bg */
+  --ink-800: #0F1015;        /* card bg */
+  --ink-700: #16171E;        /* elevated card */
+  --ink-600: #1E1F28;        /* hover/popover */
+  --ink-500: #2A2B36;        /* divider strong */
+  --ink-400: #3A3B47;        /* divider */
+  --ink-300: #5A5B68;        /* muted text */
+  --ink-200: #8A8B97;        /* secondary text */
+  --ink-100: #C7C8D1;        /* primary text */
+  --paper:   #EDE6D3;        /* off-white, warm */
+  --paper-2: #F5EFDF;
+
+  /* Gold — antique brass, the accent system */
+  --gold-50:  #FBF3DC;
+  --gold-100: #F2E1B0;
+  --gold-200: #E6C885;       /* highlight */
+  --gold-300: #D4B26B;
+  --gold-400: #C9A96A;       /* primary */
+  --gold-500: #B0904D;
+  --gold-600: #8E7339;
+  --gold-700: #6B552A;
+  --gold-800: #463818;
+
+  /* Tones (semantic) */
+  --bg:        var(--ink-900);
+  --bg-card:   var(--ink-800);
+  --bg-raise:  var(--ink-700);
+  --border:    rgba(201,169,106,0.10);
+  --border-strong: rgba(201,169,106,0.22);
+  --text:      var(--paper);
+  --text-dim:  #9D958A;
+  --text-mute: #6B6258;
+  --accent:    var(--gold-400);
+  --accent-hi: var(--gold-200);
+  --accent-lo: var(--gold-700);
+
+  /* Type */
+  --font-serif: "Cormorant Garamond", "EB Garamond", Georgia, serif;
+  --font-sans:  "Inter", -apple-system, system-ui, sans-serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* Radii + shadows */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 22px;
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px rgba(0,0,0,0.35);
+  --shadow-2: 0 1px 0 rgba(255,255,255,0.05) inset, 0 14px 40px rgba(0,0,0,0.5);
+  --glow-gold: 0 0 0 1px rgba(201,169,106,0.25), 0 6px 30px rgba(201,169,106,0.18);
+}
+
+/* Light mode overrides — used only when [data-theme="light"] is set */
+[data-theme="light"] {
+  --bg:        #F6F1E2;
+  --bg-card:   #FFFBF0;
+  --bg-raise:  #FFFFFF;
+  --border:    rgba(70,56,24,0.10);
+  --border-strong: rgba(70,56,24,0.18);
+  --text:      #1A1610;
+  --text-dim:  #5A4F3A;
+  --text-mute: #8A7E66;
+  --accent:    #8E7339;
+  --accent-hi: #B0904D;
+  --accent-lo: #463818;
+  --shadow-1: 0 1px 2px rgba(70,56,24,0.06), 0 6px 20px rgba(70,56,24,0.08);
+  --shadow-2: 0 2px 6px rgba(70,56,24,0.08), 0 14px 40px rgba(70,56,24,0.14);
+}

@@ -1,51 +1,113 @@
-# Jump the Book — Mobile Design Spec
+# Jump the Book — Mobile Design Pack
 
-Drop-in design system for the `jumptheboo_mobile` (Expo / React Native) repo
-to make the iOS app look identical to the web app at
-`artifacts/jump-the-book-web`.
-
-Everything in this folder is **copy-paste ready** for the mobile repo. The
-files use plain React Native (no Tailwind, no NativeWind required) so they
-work in any Expo project.
-
-## What's in here
-
-```
-mobile-design-spec/
-├── README.md                ← this file
-├── DESIGN_SPEC.md           ← high-level visual rules (read first)
-├── tokens.ts                ← colours, spacing, radii, typography
-├── fonts.ts                 ← expo-font loader (Playfair + Plus Jakarta)
-├── Logo.tsx                 ← react-native-svg bunny logo
-└── components/
-    ├── ScreenBackground.tsx ← dark midnight scaffold every screen sits on
-    ├── Header.tsx           ← top bar with bunny + screen title
-    ├── PrimaryButton.tsx    ← amber pill button ("Add a book")
-    ├── GhostButton.tsx      ← outlined dark button ("Upload")
-    ├── Card.tsx             ← dark card with subtle border
-    ├── BookTile.tsx         ← tall gradient book cover tile
-    ├── SceneTile.tsx        ← rectangular gradient scene tile
-    ├── SectionHeading.tsx   ← serif "My books" / "Classics" headings
-    └── Pill.tsx             ← amber-tinted info pill ("Save your collection")
-```
+Drop-in design system for the `jumptheboo_mobile` (Expo / React Native)
+repo. Makes the iOS app look like the design canvas (the source files
+are included in `source-from-canvas/`).
 
 ## Quick install in the mobile repo
 
 ```bash
 # from the root of jumptheboo_mobile
-npm i react-native-svg expo-font expo-linear-gradient @expo-google-fonts/playfair-display @expo-google-fonts/plus-jakarta-sans
+npx expo install \
+  expo-font expo-linear-gradient \
+  react-native-svg \
+  lucide-react-native \
+  @expo-google-fonts/cormorant-garamond \
+  @expo-google-fonts/inter \
+  @expo-google-fonts/jetbrains-mono
 
-# copy the files
+# copy the design folder
 mkdir -p src/design
 cp -r /path/to/this/mobile-design-spec/* ./src/design/
 ```
 
-Then import tokens and components anywhere:
+In `App.tsx`:
 
 ```tsx
-import { colors, type, space, radius } from "@/design/tokens";
-import { Logo } from "@/design/Logo";
-import { PrimaryButton } from "@/design/components/PrimaryButton";
+import { useEffect } from "react";
+import * as SplashScreen from "expo-splash-screen";
+import { useBrandFonts } from "@/design/fonts";
+import { NavigationContainer } from "@react-navigation/native";
+import { navigationTheme } from "@/design/tokens";
+
+SplashScreen.preventAutoHideAsync();
+
+export default function App() {
+  const ready = useBrandFonts();
+  useEffect(() => { if (ready) SplashScreen.hideAsync(); }, [ready]);
+  if (!ready) return null;
+  return (
+    <NavigationContainer theme={navigationTheme}>
+      {/* … your stack here … */}
+    </NavigationContainer>
+  );
+}
 ```
 
-Read `DESIGN_SPEC.md` next for the rules of how these pieces fit together.
+Then drop a variant straight into a screen:
+
+```tsx
+import { MobLibEditorial } from "@/design/variants/MobLibEditorial";
+export default function LibraryScreen() {
+  return <MobLibEditorial />;
+}
+```
+
+## What's in here
+
+```
+mobile-design-spec/
+├── README.md               ← you are here
+├── DESIGN_SPEC.md          ← visual rules (read this next)
+├── tokens.ts               ← colours, type, spacing, radii, shadows
+├── fonts.ts                ← expo-font loader (Cormorant + Inter + JetBrains Mono)
+├── Logo.tsx                ← 4 logo marks (Crescent is the default)
+│
+├── components/
+│   ├── MobShell.tsx        ← screen wrapper with header + tab bar
+│   ├── ScreenBackground.tsx
+│   ├── Header.tsx
+│   ├── Wordmark.tsx        ← "Jump the Book" wordmark
+│   ├── BottomTabBar.tsx    ← Library / Scenes / Upload / Settings
+│   ├── IconButton.tsx
+│   ├── Button.tsx          ← primary | ghost | quiet × sm | md | lg
+│   ├── Card.tsx
+│   ├── SectionHeading.tsx
+│   ├── Tag.tsx             ← mono uppercase eyebrow tag
+│   ├── Chip.tsx
+│   ├── ProgressBar.tsx
+│   ├── BookCover.tsx       ← procedural placeholder cover
+│   └── SceneArt.tsx        ← procedural placeholder scene art
+│
+├── variants/               ← drop straight into a screen
+│   ├── MobLibEditorial.tsx       (recommended default library)
+│   ├── MobLibMinimal.tsx
+│   ├── MobLibCinematic.tsx
+│   ├── MobLibSceneFirst.tsx
+│   ├── MobReadHero.tsx           (recommended default reading mode)
+│   └── MobReadFilm.tsx
+│
+├── source-from-canvas/     ← original .jsx + .css from the design canvas
+│   ├── tokens.css
+│   ├── primitives.jsx
+│   ├── mobile-screens.jsx
+│   ├── logos.jsx
+│   ├── web-screens.jsx
+│   └── ios-frame.jsx
+│
+└── uploads/                ← exported design canvas screenshots
+```
+
+## The most important things to know
+
+1. **Antique brass gold (`#C9A96A`)**, not bright amber. This is a
+   common mistake — the gold is dusty and warm, never neon.
+2. **Three fonts**: Cormorant Garamond (serif), Inter (sans), and
+   **JetBrains Mono for metadata** — the mono uppercase eyebrows are
+   the signature look (e.g. `CH. 14 · SCENE 02`).
+3. **Gold-tinted borders** — always `rgba(201,169,106,0.10)` or
+   `0.22`, never neutral grey.
+4. **Pick one library variant + one reading variant** and stick with
+   it. Don't ship four versions of the same screen.
+
+Read `DESIGN_SPEC.md` next.
