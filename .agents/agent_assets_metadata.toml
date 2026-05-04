@@ -215,3 +215,9 @@ id = "d3cIdiQ-55WqYfkxvn9sD"
 uri = "file://mobile-design-spec/README.md"
 type = "text"
 title = "Install + usage guide"
+
+[[outputs]]
+id = "O8PISPbqnYKDvCZg4EHkf"
+uri = "file://.local/mobile-handoff-notes.md"
+type = "text"
+title = "Mobile App Handoff Notes"
