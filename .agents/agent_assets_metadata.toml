@@ -227,3 +227,21 @@ id = "MfbSyD6gJZlLPOnQKrBHH"
 uri = "file://MOBILE_HANDOFF.md"
 type = "text"
 title = "Mobile App Handoff Document"
+
+[[outputs]]
+id = "HTAS0Sr6gAxsE7i6jxvk5"
+uri = "file://mobile-handoff.tar.gz"
+type = "unspecified"
+title = "Mobile Handoff Bundle (archive)"
+
+[[outputs]]
+id = "_wUUSrG-SBv6U2Yjyn-t1"
+uri = "file://mobile-handoff/SETUP.md"
+type = "text"
+title = "Setup Guide (where each file goes)"
+
+[[outputs]]
+id = "90IwY69lqckVNu_8Xb4jn"
+uri = "file://mobile-handoff/README.md"
+type = "text"
+title = "Full Handoff Doc"
