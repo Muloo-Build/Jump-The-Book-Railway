@@ -8,6 +8,8 @@ The project aims to provide an immersive and interactive reading experience by i
 
 I prefer iterative development, with small, focused changes. Please ask before making any major architectural changes or introducing new dependencies. I prefer clear and concise explanations for any complex logic or decisions.
 
+**This web app is mobile-first** — designed primarily for Android users. The iOS version is a separate Expo/React Native project on Replit that shares the same API. All UI decisions should prioritize mobile viewport, touch targets, and mobile browser behavior (especially Android Chrome).
+
 # System Architecture
 
 The project is structured as a pnpm workspace monorepo.
