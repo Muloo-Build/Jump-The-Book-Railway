@@ -121,47 +121,145 @@ export interface SeriesInfo {
   }[];
 }
 
-export async function fetchSeriesInfo(
-  workKey: string,
+interface EditionsResponse {
+  entries?: Array<{
+    series?: string[];
+    title?: string;
+  }>;
+}
+
+interface SearchDocWithSeries extends OpenLibraryDoc {
+  series?: string[];
+}
+
+interface SearchResponseWithSeries {
+  docs: SearchDocWithSeries[];
+  numFound: number;
+}
+
+function cleanSeriesName(raw: string): string {
+  return raw
+    .replace(/\s*[#(]\s*\d+.*$/, "")
+    .replace(/,?\s*(?:book|volume|part|no\.?|number)\s*\d+.*$/i, "")
+    .replace(/\s*\(\s*\)/, "")
+    .trim();
+}
+
+function isAscii(s: string): boolean {
+  return /^[\x20-\x7E]+$/.test(s);
+}
+
+function escapeFieldValue(v: string): string {
+  return v.replace(/"/g, "");
+}
+
+async function tryEditionsSeries(
+  workPath: string,
   signal?: AbortSignal,
-): Promise<SeriesInfo | null> {
-  const key = workKey.startsWith("/") ? workKey : `/${workKey}`;
-  let workRes: Response;
+): Promise<string | null> {
   try {
-    workRes = await fetch(`${WORK_URL}${key}.json`, { signal });
-  } catch {
-    return null;
-  }
-  if (!workRes.ok) return null;
-  let workData: Record<string, unknown>;
-  try {
-    workData = (await workRes.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const links = workData.links as Array<{ title?: string; url?: string }> | undefined;
-  const seriesSubjects = Array.isArray(workData.subjects)
-    ? (workData.subjects as string[]).filter(
-        (s) => /series/i.test(s) || /trilogy/i.test(s) || /saga/i.test(s),
-      )
-    : [];
-
-  const seriesName = seriesSubjects[0] ??
-    (links && links.length > 0 ? links[0]?.title : null) ??
-    null;
-
-  if (!seriesName) return null;
-
-  try {
-    const searchRes = await fetch(
-      `${SEARCH_URL}?q=${encodeURIComponent(seriesName)}&limit=20&fields=key,title,author_name,cover_i`,
+    const res = await fetch(
+      `${WORK_URL}${workPath}/editions.json?limit=20&fields=series,title`,
       { signal },
     );
-    if (!searchRes.ok) return { seriesName, books: [] };
-    const searchData = (await searchRes.json()) as OpenLibraryResponse;
-    const books = searchData.docs
-      .filter((d) => d.title && d.author_name && d.author_name.length > 0)
+    if (!res.ok) return null;
+    const data = (await res.json()) as EditionsResponse;
+    const entries = data.entries ?? [];
+    let fallback: string | null = null;
+    for (const ed of entries) {
+      if (Array.isArray(ed.series) && ed.series.length > 0) {
+        const cleaned = cleanSeriesName(ed.series[0]);
+        if (cleaned.length > 1) {
+          if (isAscii(cleaned)) return cleaned;
+          if (!fallback) fallback = cleaned;
+        }
+      }
+    }
+    return fallback;
+  } catch {}
+  return null;
+}
+
+async function trySearchSeries(
+  title: string,
+  authorHint: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      limit: "5",
+      fields: "key,title,author_name,series",
+    });
+    if (authorHint) {
+      params.set("q", `title:"${escapeFieldValue(title)}" author:"${escapeFieldValue(authorHint)}"`);
+    } else {
+      params.set("q", escapeFieldValue(title));
+    }
+    const res = await fetch(`${SEARCH_URL}?${params.toString()}`, { signal });
+    if (!res.ok) return null;
+    const data = (await res.json()) as SearchResponseWithSeries;
+    for (const doc of data.docs) {
+      if (Array.isArray(doc.series) && doc.series.length > 0) {
+        const cleaned = cleanSeriesName(doc.series[0]);
+        if (cleaned.length > 1) return cleaned;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function trySubjectsAndLinks(workData: Record<string, unknown>): string | null {
+  const allSubjects = Array.isArray(workData.subjects)
+    ? (workData.subjects as string[])
+    : [];
+
+  for (const s of allSubjects) {
+    const tagMatch = s.match(/^[Ss]erie[s]?[:\s_]+(.+)$/);
+    if (tagMatch) {
+      const cleaned = cleanSeriesName(tagMatch[1].replace(/_/g, " "));
+      if (cleaned.length > 1) return cleaned;
+    }
+  }
+
+  const keywordSubjects = allSubjects.filter(
+    (s) =>
+      !s.startsWith("nyt:") &&
+      (/series/i.test(s) || /trilogy/i.test(s) || /saga/i.test(s)),
+  );
+  if (keywordSubjects.length > 0) return cleanSeriesName(keywordSubjects[0]);
+
+  const links = workData.links as Array<{ title?: string; url?: string }> | undefined;
+  if (links && links.length > 0 && links[0]?.title) {
+    return cleanSeriesName(links[0].title);
+  }
+  return null;
+}
+
+const COMPILATION_PATTERN = /\b(box\s*set|collection\s*set|trilogy\s*box|complete\s*series|omnibus|serie completa|\d+\s*books?\s*(collection|set)|edition\s*series)\b|\(series\)\s*\d+-\d+|\(.+\/.+\/.+\)/i;
+
+async function fetchSeriesBooks(
+  seriesName: string,
+  authorHint: string,
+  signal?: AbortSignal,
+): Promise<SeriesInfo["books"]> {
+  const tryQuery = async (queryString: string): Promise<SeriesInfo["books"]> => {
+    const res = await fetch(
+      `${SEARCH_URL}?${queryString}`,
+      { signal },
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as SearchResponseWithSeries;
+
+    const seen = new Set<string>();
+    return data.docs
+      .filter((d) => {
+        if (!d.title || !d.author_name || d.author_name.length === 0) return false;
+        if (COMPILATION_PATTERN.test(d.title)) return false;
+        const lower = d.title.toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      })
       .map((d, i) => ({
         title: d.title,
         author: (d.author_name ?? ["Unknown"])[0],
@@ -171,10 +269,88 @@ export async function fetchSeriesInfo(
         seriesOrder: i + 1,
       }))
       .slice(0, 12);
-    return { seriesName, books };
+  };
+
+  try {
+    const authorPart = authorHint ? ` author:"${escapeFieldValue(authorHint)}"` : "";
+    const seriesParams = new URLSearchParams({
+      q: `series:"${escapeFieldValue(seriesName)}"${authorPart}`,
+      limit: "20",
+      fields: "key,title,author_name,cover_i,series",
+      sort: "old",
+    });
+    let books = await tryQuery(seriesParams.toString());
+
+    if (books.length === 0) {
+      const fallbackParams = new URLSearchParams({
+        q: `${escapeFieldValue(seriesName)}${authorPart}`,
+        limit: "20",
+        fields: "key,title,author_name,cover_i,series",
+        sort: "old",
+      });
+      books = await tryQuery(fallbackParams.toString());
+    }
+    return books;
   } catch {
-    return { seriesName, books: [] };
+    return [];
   }
+}
+
+export async function fetchSeriesInfo(
+  workKey: string,
+  signal?: AbortSignal,
+): Promise<SeriesInfo | null> {
+  const key = workKey.startsWith("/") ? workKey : `/${workKey}`;
+
+  let workData: Record<string, unknown>;
+  try {
+    const workRes = await fetch(`${WORK_URL}${key}.json`, { signal });
+    if (!workRes.ok) return null;
+    workData = (await workRes.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const workTitle = (workData.title as string) ?? "";
+  const authors = workData.authors as Array<{ author?: { key?: string } }> | undefined;
+  let authorName = "";
+  if (authors && authors.length > 0 && authors[0]?.author?.key) {
+    try {
+      const authorRes = await fetch(`${WORK_URL}${authors[0].author.key}.json`, { signal });
+      if (authorRes.ok) {
+        const authorData = (await authorRes.json()) as { name?: string };
+        authorName = authorData.name ?? "";
+      }
+    } catch {}
+  }
+
+  const titleLower = workTitle.toLowerCase().trim();
+
+  const candidates: string[] = [];
+
+  const editionsSeries = await tryEditionsSeries(key, signal);
+  if (editionsSeries) candidates.push(editionsSeries);
+
+  const subjectsSeries = trySubjectsAndLinks(workData);
+  if (subjectsSeries) candidates.push(subjectsSeries);
+
+  const searchSeries = await trySearchSeries(workTitle, authorName, signal);
+  if (searchSeries) candidates.push(searchSeries);
+
+  const preferred = candidates.find(
+    (c) => c.toLowerCase().trim() !== titleLower,
+  );
+  const seriesName = preferred ?? candidates[0] ?? null;
+
+  if (!seriesName) return null;
+
+  const books = await fetchSeriesBooks(seriesName, authorName, signal);
+
+  if (seriesName.toLowerCase().trim() === titleLower && books.length < 2) {
+    return null;
+  }
+
+  return { seriesName, books };
 }
 
 /**
