@@ -307,12 +307,141 @@ async function fetchSeriesBooks(
 
 interface SeriesCacheEntry {
   expiresAt: number;
+  lastAccessedAt: number;
   value: SeriesInfo | null;
 }
 
-const SERIES_CACHE_TTL_MS = 30 * 60 * 1000;
+const SERIES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const SERIES_CACHE_MAX_ENTRIES = 50;
+const SERIES_CACHE_STORAGE_KEY = "@jtb_series_cache_v1";
+const SERIES_CACHE_STORAGE_VERSION = 1;
+
 const seriesInfoCache = new Map<string, SeriesCacheEntry>();
 const seriesInfoInFlight = new Map<string, Promise<SeriesInfo | null>>();
+
+interface PersistedCachePayload {
+  version: number;
+  entries: Array<[string, SeriesCacheEntry]>;
+}
+
+function getSeriesCacheStorage(): Storage | null {
+  try {
+    if (typeof globalThis === "undefined") return null;
+    const ls = (globalThis as { localStorage?: Storage }).localStorage;
+    if (!ls || typeof ls.getItem !== "function") return null;
+    return ls;
+  } catch {
+    return null;
+  }
+}
+
+function isValidSeriesBook(value: unknown): value is SeriesInfo["books"][number] {
+  if (!value || typeof value !== "object") return false;
+  const b = value as Record<string, unknown>;
+  if (typeof b.title !== "string") return false;
+  if (typeof b.author !== "string") return false;
+  if (typeof b.workKey !== "string") return false;
+  if (typeof b.seriesOrder !== "number") return false;
+  if (b.coverUrl !== null && typeof b.coverUrl !== "string") return false;
+  if (b.coverUrlLarge !== null && typeof b.coverUrlLarge !== "string") return false;
+  return true;
+}
+
+function isValidSeriesInfo(value: unknown): value is SeriesInfo {
+  if (!value || typeof value !== "object") return false;
+  const v = value as { seriesName?: unknown; books?: unknown };
+  if (typeof v.seriesName !== "string") return false;
+  if (!Array.isArray(v.books)) return false;
+  if (!v.books.every(isValidSeriesBook)) return false;
+  return true;
+}
+
+let seriesCacheHydrated = false;
+
+function hydrateSeriesCacheFromStorage(): void {
+  if (seriesCacheHydrated) return;
+  seriesCacheHydrated = true;
+  const storage = getSeriesCacheStorage();
+  if (!storage) return;
+  let raw: string | null = null;
+  try {
+    raw = storage.getItem(SERIES_CACHE_STORAGE_KEY);
+  } catch {
+    return;
+  }
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedCachePayload>;
+    if (
+      !parsed ||
+      parsed.version !== SERIES_CACHE_STORAGE_VERSION ||
+      !Array.isArray(parsed.entries)
+    ) {
+      try {
+        storage.removeItem(SERIES_CACHE_STORAGE_KEY);
+      } catch {}
+      return;
+    }
+    const now = Date.now();
+    for (const item of parsed.entries) {
+      if (!Array.isArray(item) || item.length !== 2) continue;
+      const [key, entry] = item;
+      if (typeof key !== "string" || !entry || typeof entry !== "object") continue;
+      const expiresAt =
+        typeof (entry as SeriesCacheEntry).expiresAt === "number"
+          ? (entry as SeriesCacheEntry).expiresAt
+          : 0;
+      if (expiresAt <= now) continue;
+      const lastAccessedAt =
+        typeof (entry as SeriesCacheEntry).lastAccessedAt === "number"
+          ? (entry as SeriesCacheEntry).lastAccessedAt
+          : 0;
+      const rawValue = (entry as SeriesCacheEntry).value;
+      let value: SeriesInfo | null;
+      if (rawValue === null) {
+        value = null;
+      } else if (isValidSeriesInfo(rawValue)) {
+        value = rawValue;
+      } else {
+        continue;
+      }
+      seriesInfoCache.set(key, { expiresAt, lastAccessedAt, value });
+    }
+    if (seriesInfoCache.size > SERIES_CACHE_MAX_ENTRIES) {
+      evictSeriesCacheIfNeeded();
+      persistSeriesCacheToStorage();
+    }
+  } catch {
+    try {
+      storage.removeItem(SERIES_CACHE_STORAGE_KEY);
+    } catch {}
+  }
+}
+
+function persistSeriesCacheToStorage(): void {
+  const storage = getSeriesCacheStorage();
+  if (!storage) return;
+  try {
+    const payload: PersistedCachePayload = {
+      version: SERIES_CACHE_STORAGE_VERSION,
+      entries: Array.from(seriesInfoCache.entries()),
+    };
+    storage.setItem(SERIES_CACHE_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Quota errors or similar — drop silently; the in-memory cache still works.
+  }
+}
+
+function evictSeriesCacheIfNeeded(): void {
+  if (seriesInfoCache.size <= SERIES_CACHE_MAX_ENTRIES) return;
+  const sorted = Array.from(seriesInfoCache.entries()).sort(
+    (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt,
+  );
+  const overflow = sorted.length - SERIES_CACHE_MAX_ENTRIES;
+  for (let i = 0; i < overflow; i++) {
+    seriesInfoCache.delete(sorted[i][0]);
+  }
+}
 
 function normalizeWorkKey(workKey: string): string {
   return workKey.startsWith("/") ? workKey : `/${workKey}`;
@@ -321,20 +450,30 @@ function normalizeWorkKey(workKey: string): string {
 export function clearSeriesInfoCache(): void {
   seriesInfoCache.clear();
   seriesInfoInFlight.clear();
+  const storage = getSeriesCacheStorage();
+  if (storage) {
+    try {
+      storage.removeItem(SERIES_CACHE_STORAGE_KEY);
+    } catch {}
+  }
 }
 
 export async function fetchSeriesInfo(
   workKey: string,
   signal?: AbortSignal,
 ): Promise<SeriesInfo | null> {
+  hydrateSeriesCacheFromStorage();
   const key = normalizeWorkKey(workKey);
 
   const cached = seriesInfoCache.get(key);
   if (cached && cached.expiresAt > Date.now()) {
+    cached.lastAccessedAt = Date.now();
+    persistSeriesCacheToStorage();
     return cached.value;
   }
   if (cached) {
     seriesInfoCache.delete(key);
+    persistSeriesCacheToStorage();
   }
 
   const inFlight = seriesInfoInFlight.get(key);
@@ -379,10 +518,14 @@ export async function fetchSeriesInfo(
         new DOMException("Aborted", "AbortError");
       throw reason;
     }
+    const now = Date.now();
     seriesInfoCache.set(key, {
       value: result,
-      expiresAt: Date.now() + SERIES_CACHE_TTL_MS,
+      expiresAt: now + SERIES_CACHE_TTL_MS,
+      lastAccessedAt: now,
     });
+    evictSeriesCacheIfNeeded();
+    persistSeriesCacheToStorage();
     return result;
   } finally {
     if (seriesInfoInFlight.get(key) === promise) {
