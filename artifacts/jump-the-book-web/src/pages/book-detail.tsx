@@ -482,7 +482,7 @@ export default function BookDetail() {
               </p>
 
               {bibleBookId && !bibleQ.isLoading && !bible && (
-                <Link href={`/setup-book?bookId=${bibleBookId}&auto=1`}>
+                <Link href={`/setup-book?bookId=${bibleBookId}&auto=1&title=${encodeURIComponent(book.title)}&author=${encodeURIComponent(book.author)}`}>
                   <Button size="sm" className="mb-4">
                     <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Create bible
                   </Button>

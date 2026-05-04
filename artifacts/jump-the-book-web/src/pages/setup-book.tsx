@@ -119,6 +119,8 @@ export default function SetupBook() {
   const search = useSearch();
   const params = new URLSearchParams(search);
   const editingBookId = params.get("bookId");
+  const paramTitle = params.get("title") ?? "";
+  const paramAuthor = params.get("author") ?? "";
 
   const [, setLocation] = useLocation();
   const { isSignedIn, isLoaded } = useUser();
@@ -207,31 +209,57 @@ export default function SetupBook() {
     if (existingBibleQ.isLoading || !existingBibleQ.isFetched) return;
     if (existingBibleQ.data?.bible) return;
 
-    if (remoteBooks.isLoading || !remoteBooks.isFetched) return;
+    const autoTitle = paramTitle.trim();
+    const autoAuthor = paramAuthor.trim();
 
-    const books = remoteBooks.data ?? [];
-    const match = books.find((b) => b.id === editingBookId);
-    if (!match) {
-      toast({
-        title: "Couldn't find this book",
-        description: "Try creating the bible from the book's detail page.",
-        variant: "destructive",
-      });
-      setStep(1);
+    if (!autoTitle || !autoAuthor) {
+      const books = remoteBooks.data ?? [];
+      const match = books.find((b) => b.id === editingBookId);
+      if (remoteBooks.isLoading || !remoteBooks.isFetched) return;
+      if (!match) {
+        toast({
+          title: "Couldn't find this book",
+          description: "Try creating the bible from the book's detail page.",
+          variant: "destructive",
+        });
+        autoGenerateStarted.current = true;
+        setStep(1);
+        return;
+      }
+      setTitle(match.title);
+      setAuthor(match.author);
+      const capturedBookId = editingBookId;
+      autoGenerateStarted.current = true;
+      setStep(2);
+      (async () => {
+        try {
+          const res = await generateDraft.mutateAsync({
+            title: match.title,
+            author: match.author,
+          });
+          if (capturedBookId !== editingBookId) return;
+          setBibleValue({ draft: res.draft, userNotes: "", focusAreas: [], avoidNotes: "" });
+          setStep(3);
+        } catch (err) {
+          if (capturedBookId !== editingBookId) return;
+          toast({ title: "Couldn't build a bible draft", description: err instanceof Error ? err.message : "Try again in a moment.", variant: "destructive" });
+          setStep(1);
+        }
+      })();
       return;
     }
 
     const capturedBookId = editingBookId;
     autoGenerateStarted.current = true;
-    setTitle(match.title);
-    setAuthor(match.author);
+    setTitle(autoTitle);
+    setAuthor(autoAuthor);
     setStep(2);
 
     (async () => {
       try {
         const res = await generateDraft.mutateAsync({
-          title: match.title,
-          author: match.author,
+          title: autoTitle,
+          author: autoAuthor,
         });
         if (capturedBookId !== editingBookId) return;
         setBibleValue({
@@ -255,6 +283,8 @@ export default function SetupBook() {
   }, [
     editingBookId,
     autoMode,
+    paramTitle,
+    paramAuthor,
     hydratedFromExisting,
     existingBibleQ.isLoading,
     existingBibleQ.isFetched,
