@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { db, sceneCacheTable, imageCacheTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { objectPathToUrl } from "../lib/sceneCache";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -15,6 +14,15 @@ interface TrendingBook {
   uniqueChapters: number;
   sceneCount: number;
   imageCount: number;
+  /**
+   * Always an empty array on the public endpoint. Previously we surfaced
+   * up-to-4 generated scene images per trending book (drawn from the
+   * cross-user image cache), which leaked one user's generations to
+   * everyone hitting Discover anonymously. The Discover UI now resolves
+   * a public Open Library cover client-side instead. This field is kept
+   * on the type so existing clients don't break, but is intentionally
+   * empty until we ship a per-user opt-in (`shareToTrending`).
+   */
   sampleImages: string[];
   lastAccessedAt: string;
 }
@@ -44,30 +52,17 @@ router.get("/trending", async (_req, res) => {
       .from(imageCacheTable)
       .groupBy(imageCacheTable.bookTitle, imageCacheTable.author);
 
-    const sampleImages = await db
-      .select({
-        bookTitle: imageCacheTable.bookTitle,
-        author: imageCacheTable.author,
-        objectPath: imageCacheTable.objectPath,
-        hitCount: imageCacheTable.hitCount,
-      })
-      .from(imageCacheTable)
-      .orderBy(sql`${imageCacheTable.hitCount} desc, ${imageCacheTable.generatedAt} desc`);
-
+    // Privacy: previously this route returned up to 4 sample image URLs
+    // per book, sourced from the global imageCache. Because cache rows
+    // span all users, that effectively published one user's generated
+    // images to every anonymous Discover visitor. The aggregate counts
+    // (hits, scene/image counts) are still safe to expose since they're
+    // aggregated, but per-image URLs are gated until we ship a per-user
+    // opt-in (`shareToTrending`). For now we return an empty array and
+    // the Discover UI resolves a public Open Library cover instead.
     const imageStatsMap = new Map(
       imageStats.map((r) => [`${r.bookTitle}|||${r.author}`, r]),
     );
-
-    const sampleImagesMap = new Map<string, string[]>();
-    for (const img of sampleImages) {
-      const key = `${img.bookTitle}|||${img.author}`;
-      const existing = sampleImagesMap.get(key) ?? [];
-      if (existing.length < 4) {
-        const url = objectPathToUrl(img.objectPath);
-        if (url) existing.push(url);
-      }
-      sampleImagesMap.set(key, existing);
-    }
 
     const sceneStatsMap = new Map(
       sceneStats.map((r) => [`${r.bookTitle}|||${r.author}`, r]),
@@ -94,7 +89,7 @@ router.get("/trending", async (_req, res) => {
         uniqueChapters: Number(scene?.uniqueChapters) || 0,
         sceneCount: Number(scene?.sceneCount) || 0,
         imageCount: Number(img?.imageCount) || 0,
-        sampleImages: sampleImagesMap.get(key) ?? [],
+        sampleImages: [],
         lastAccessedAt: (img?.lastAccessed ?? scene?.lastAccessed ?? new Date().toISOString()).toString(),
       };
     });

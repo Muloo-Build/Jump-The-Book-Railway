@@ -1,11 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Sparkles, Upload as UploadIcon, Wand2, Compass, TrendingUp, BookOpen, ImageIcon, Flame } from "lucide-react";
+import { Sparkles, Upload as UploadIcon, Wand2, Compass, TrendingUp, BookOpen, Flame } from "lucide-react";
 import Layout from "@/components/layout";
 import { DEMO_BOOKS } from "@/data/books";
 import { useRemoteSceneLibrary, useRemoteBooks } from "@/hooks/useApiLibrary";
 import { useLibrary } from "@/lib/library";
 import { useTrending, type TrendingBook } from "@/hooks/useTrending";
+import { useOpenLibraryEnrichment } from "@/hooks/useOpenLibraryEnrichment";
 import LibraryBookTile from "@/components/library-book-tile";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,9 +41,25 @@ const CATEGORIES: Category[] = [
   },
 ];
 
+/**
+ * Cover-first trending card.
+ *
+ * Earlier versions displayed up-to-4 generated scene images sourced
+ * from the cross-user image cache, which leaked one user's generations
+ * to every anonymous Discover visitor. The /api/trending route no
+ * longer returns those URLs (`sampleImages` is always empty).
+ *
+ * We now lead with the public Open Library cover for the title+author
+ * and keep activity numbers as a thin metadata strip at the bottom.
+ */
 function TrendingBookCard({ book, index }: { book: TrendingBook; index: number }) {
-  const hasImages = book.sampleImages.length > 0;
   const searchUrl = `/setup-book?title=${encodeURIComponent(book.bookTitle)}&author=${encodeURIComponent(book.author)}`;
+  const enrichment = useOpenLibraryEnrichment(book.bookTitle, book.author);
+  // Track image-load failures so we fall back to the title placeholder
+  // instead of leaving an empty box (broken/expired OL cover URLs).
+  const [imgFailed, setImgFailed] = useState(false);
+  const coverUrl = imgFailed ? null : enrichment.coverUrl;
+  const showFallback = !coverUrl && !enrichment.loading;
 
   return (
     <motion.div
@@ -52,59 +69,50 @@ function TrendingBookCard({ book, index }: { book: TrendingBook; index: number }
     >
       <Link href={searchUrl}>
         <Card className="group overflow-hidden hover:ring-2 ring-primary/50 transition-all cursor-pointer h-full border-border/40 bg-card/50">
-          <div className="aspect-[3/4] w-full relative bg-gradient-to-br from-primary/10 to-primary/5">
-            {hasImages ? (
-              book.sampleImages.length >= 4 ? (
-                <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
-                  {book.sampleImages.slice(0, 4).map((url, i) => (
-                    <img
-                      key={i}
-                      src={url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => { e.currentTarget.style.display = "none"; }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <img
-                  src={book.sampleImages[0]}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => { e.currentTarget.style.display = "none"; }}
-                />
-              )
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <BookOpen className="w-12 h-12 text-primary/30" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                {index < 3 && (
-                  <Flame className="w-3.5 h-3.5 text-orange-400" />
-                )}
-                <span className="text-[10px] uppercase tracking-wider text-white/70 font-medium">
-                  {book.sceneCount} {book.sceneCount === 1 ? "scene" : "scenes"} · {book.imageCount} {book.imageCount === 1 ? "image" : "images"}
+          <div className="aspect-[2/3] w-full relative bg-gradient-to-br from-primary/15 to-primary/5">
+            {coverUrl ? (
+              <img
+                src={coverUrl}
+                alt={`Cover of ${book.bookTitle}`}
+                className="absolute inset-0 w-full h-full object-cover"
+                loading="lazy"
+                onError={() => setImgFailed(true)}
+              />
+            ) : enrichment.loading ? (
+              <Skeleton className="absolute inset-0 w-full h-full" />
+            ) : null}
+            {showFallback && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+                <BookOpen className="w-10 h-10 text-primary/40" />
+                <span className="font-serif text-sm text-foreground/70 line-clamp-3">
+                  {book.bookTitle}
                 </span>
               </div>
-            </div>
+            )}
+            {index < 3 && (
+              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/70 backdrop-blur-sm px-2 py-1">
+                <Flame className="w-3 h-3 text-orange-400" />
+                <span className="text-[10px] uppercase tracking-wider text-white font-semibold">
+                  Hot
+                </span>
+              </div>
+            )}
           </div>
-          <CardContent className="p-3 sm:p-4 space-y-1">
+          <CardContent className="p-3 sm:p-4 space-y-1.5">
             <h3 className="font-serif font-bold line-clamp-1 text-sm sm:text-base">{book.bookTitle}</h3>
             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">
               {book.author}
             </p>
-            {book.uniqueChapters > 1 && (
-              <div className="flex items-center gap-1.5 pt-1">
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80 font-medium">
+                {book.sceneCount} {book.sceneCount === 1 ? "scene" : "scenes"}
+              </span>
+              {book.uniqueChapters > 1 && (
                 <Badge variant="outline" className="text-[10px] border-primary/30 text-primary/80 px-1.5 py-0">
-                  {book.uniqueChapters} chapters explored
+                  {book.uniqueChapters} chapters
                 </Badge>
-              </div>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
       </Link>
