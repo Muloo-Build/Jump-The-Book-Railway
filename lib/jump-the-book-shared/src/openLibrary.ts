@@ -296,12 +296,96 @@ async function fetchSeriesBooks(
   }
 }
 
+interface SeriesCacheEntry {
+  expiresAt: number;
+  value: SeriesInfo | null;
+}
+
+const SERIES_CACHE_TTL_MS = 30 * 60 * 1000;
+const seriesInfoCache = new Map<string, SeriesCacheEntry>();
+const seriesInfoInFlight = new Map<string, Promise<SeriesInfo | null>>();
+
+function normalizeWorkKey(workKey: string): string {
+  return workKey.startsWith("/") ? workKey : `/${workKey}`;
+}
+
+export function clearSeriesInfoCache(): void {
+  seriesInfoCache.clear();
+  seriesInfoInFlight.clear();
+}
+
 export async function fetchSeriesInfo(
   workKey: string,
   signal?: AbortSignal,
 ): Promise<SeriesInfo | null> {
-  const key = workKey.startsWith("/") ? workKey : `/${workKey}`;
+  const key = normalizeWorkKey(workKey);
 
+  const cached = seriesInfoCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+  if (cached) {
+    seriesInfoCache.delete(key);
+  }
+
+  const inFlight = seriesInfoInFlight.get(key);
+  if (inFlight) {
+    if (!signal) return inFlight;
+    return new Promise<SeriesInfo | null>((resolve, reject) => {
+      const onAbort = () => {
+        const reason =
+          (signal as AbortSignal & { reason?: unknown }).reason ??
+          new DOMException("Aborted", "AbortError");
+        reject(reason);
+      };
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      signal.addEventListener("abort", onAbort, { once: true });
+      inFlight.then(
+        (value) => {
+          signal.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        (err) => {
+          signal.removeEventListener("abort", onAbort);
+          reject(err);
+        },
+      );
+    });
+  }
+
+  const promise = (async (): Promise<SeriesInfo | null> => {
+    return await fetchSeriesInfoUncached(key, signal);
+  })();
+
+  seriesInfoInFlight.set(key, promise);
+
+  try {
+    const result = await promise;
+    if (signal?.aborted) {
+      const reason =
+        (signal as AbortSignal & { reason?: unknown }).reason ??
+        new DOMException("Aborted", "AbortError");
+      throw reason;
+    }
+    seriesInfoCache.set(key, {
+      value: result,
+      expiresAt: Date.now() + SERIES_CACHE_TTL_MS,
+    });
+    return result;
+  } finally {
+    if (seriesInfoInFlight.get(key) === promise) {
+      seriesInfoInFlight.delete(key);
+    }
+  }
+}
+
+async function fetchSeriesInfoUncached(
+  key: string,
+  signal?: AbortSignal,
+): Promise<SeriesInfo | null> {
   let workData: Record<string, unknown>;
   try {
     const workRes = await fetch(`${WORK_URL}${key}.json`, { signal });
