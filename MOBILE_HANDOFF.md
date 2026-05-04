@@ -783,54 +783,268 @@ Two modes the mobile app should support:
 
 ## 10. Design System
 
-The complete design spec lives in `mobile-design-spec/` in the web project. Copy this folder into the mobile repo.
+The complete mobile design spec lives in `mobile-design-spec/` in the web project. Copy this folder into the mobile repo. The web app's actual theme is defined via CSS variables in `index.css` — the tokens below are the source of truth that both apps must match.
 
-### Quick Summary
-- **Dark mode only.** Background: `#08080B`
-- **One accent:** Antique brass gold `#C9A96A` (NOT bright amber)
-- **Three fonts:** Cormorant Garamond (serif), Inter (sans), JetBrains Mono (mono)
-- **Signature element:** Mono uppercase eyebrows (e.g. `CH. 14 · SCENE 02`)
-- **Gold-tinted borders:** `rgba(201,169,106,0.10)` — never neutral grey
-- **Icons:** lucide-react-native, stroke width 1.4
+### 10.1 Color Palette (Source of Truth)
 
-### What's in `mobile-design-spec/`
+Both apps use the **exact same palette**. The web defines these as CSS custom properties (`--jtb-*`), the mobile design spec defines them in `tokens.ts`.
+
+#### Ink Ramp (near-blacks with warm violet undertone)
+| Token | Hex | Usage |
+|-------|-----|-------|
+| ink-950 | `#050507` | Deepest black (rare) |
+| ink-900 | `#08080B` | **Page background** |
+| ink-800 | `#0F1015` | Card background |
+| ink-700 | `#16171E` | Elevated card / popover |
+| ink-600 | `#1E1F28` | Hover / pressed |
+| ink-500 | `#2A2B36` | Strong divider |
+| ink-400 | `#3A3B47` | Divider |
+
+#### Gold Ramp (antique brass — the only accent)
+| Token | Hex | Usage |
+|-------|-----|-------|
+| gold-50 | `#FBF3DC` | — |
+| gold-100 | `#F2E1B0` | — |
+| gold-200 | `#E6C885` | **Highlight / italic emphasis** (`accentHi`) |
+| gold-300 | `#D4B26B` | — |
+| gold-400 | `#C9A96A` | **Primary accent** — buttons, eyebrows, CTAs |
+| gold-500 | `#B0904D` | — |
+| gold-600 | `#8E7339` | — |
+| gold-700 | `#6B552A` | Faded accent edges (`accentLo`) |
+
+#### Semantic Colors
+| Token | Value | Usage |
+|-------|-------|-------|
+| paper | `#EDE6D3` | All body text on dark |
+| text-dim | `#9D958A` | Secondary text |
+| text-mute | `#6B6258` | Captions, placeholders |
+| border | `rgba(201,169,106,0.10)` | All hairlines — **gold-tinted, never grey** |
+| border-hi | `rgba(201,169,106,0.22)` | Hero borders, button outlines |
+| accent-on | `#1A1208` | Text on gold buttons |
+| danger | `#C9624A` | Destructive actions |
+| success | `#6BA37A` | Success states |
+
+### 10.2 Typography
+
+Three font families — identical across web and mobile:
+
+| Role | Font | Weight | Size | Line | LS | Color |
+|------|------|--------|------|------|----|-------|
+| Hero title | Cormorant Garamond | 500 | 32 | 34 | -0.5 | paper |
+| Hero italic | Cormorant Garamond | 500i | 32 | 34 | -0.5 | gold-200 |
+| Section heading | Cormorant Garamond | 500 | 18 | 22 | -0.2 | paper |
+| Pull-quote | Cormorant Garamond | 500i | 18 | 24 | 0 | white |
+| Reader body | Cormorant Garamond | 400 | 17 | 28 | 0 | paper |
+| UI body | Inter | 400 | 13 | 19 | 0 | paper |
+| Body strong | Inter | 600 | 13 | 19 | 0 | paper |
+| Caption | Inter | 400 | 12 | 17 | 0 | text-mute |
+| Button label | Inter | 600 | 13 | 13 | 0.1 | accent-on |
+| **Eyebrow** | JetBrains Mono | 400 | 9.5-11 | 12 | 1.5 | accent (UPPERCASE) |
+| Meta number | JetBrains Mono | 400 | 10 | 12 | 1 | text-mute |
+| Tab label | Inter | 500 | 9 | 11 | 0.3 | accent / text-mute |
+
+The **mono uppercase eyebrow** is the signature design element — used for `CH. 14 · SCENE 02`, `CONTINUE · 62%`, timestamps, status labels, etc. Never skip it.
+
+### 10.3 Spacing, Radii, Shadows
+
+**Spacing scale:** 4 / 8 / 12 / 16 / 20 / 24 / 32 / 48 (px/pt). Screen edge padding = 20.
+
+**Border radius:**
+| Token | Value |
+|-------|-------|
+| sm | 6px |
+| md | 10px |
+| lg | 14px |
+| xl | 22px |
+| pill | 999px |
+
+**Shadows:**
 ```
-tokens.ts               — colors, spacing, radius, shadows, typography
-fonts.ts                — expo-font loader
-Logo.tsx                — 4 logo marks (Crescent is default)
-DESIGN_SPEC.md          — full visual rules
+Card:     0 8px 24px rgba(0,0,0,0.35) + 1px white inset highlight
+Raised:   0 14px 40px rgba(0,0,0,0.5) + 1px white inset
+Gold glow: 0 6px 30px rgba(201,169,106,0.18) + 1px gold ring
+```
+
+### 10.4 Web App CSS Utility Classes
+
+The web app defines these `.jtb-*` classes. The mobile app should replicate equivalent styled components:
+
+- **`.jtb-eyebrow`** — Mono 11px, letter-spacing 0.18em, uppercase, gold accent color
+- **`.jtb-label`** — Mono 10px, letter-spacing 0.15em, uppercase, muted color
+- **`.jtb-tag`** — Mono 9.5px pill with gold background (10% alpha) + gold border (18% alpha)
+- **`.jtb-chip`** — Sans 11px pill, subtle border, hover/active states with gold highlight
+- **`.jtb-card-accent`** — Card with gold-tinted border + subtle gold gradient background
+
+### 10.5 Design Rules (What NOT to Do)
+- **No bright amber.** Always antique brass `#C9A96A`, never `#fbbf24`
+- **No system fonts.** Always Cormorant + Inter + JetBrains Mono
+- **No neutral grey borders.** Always gold-tinted alpha borders
+- **No second accent colour.** Gold is the only chromatic accent
+- **No shadows on flat dark cards.** Use `shadows.card` only on raised cards
+- **No light mode.** Dark only on mobile
+
+### 10.6 Mobile Design Spec Files
+
+Copy `mobile-design-spec/` into the mobile repo at `src/design/`:
+
+```
+tokens.ts               — colors, spacing, radius, shadows, typography (matches web tokens)
+fonts.ts                — expo-font loader (Cormorant + Inter + JetBrains Mono)
+Logo.tsx                — 4 logo marks (Crescent is the default, always use it)
+DESIGN_SPEC.md          — full visual rules document
 
 components/
-  MobShell.tsx           — screen wrapper (header + tab bar)
-  Header.tsx, BottomTabBar.tsx
+  MobShell.tsx           — screen wrapper with header + tab bar
+  ScreenBackground.tsx   — gradient background
+  Header.tsx             — Crescent logo + wordmark left, icon buttons right
+  Wordmark.tsx           — "Jump the Book" styled wordmark
+  BottomTabBar.tsx       — Library / Scenes / Upload / Settings tabs
   Button.tsx             — primary | ghost | quiet x sm | md | lg
-  Card.tsx, Tag.tsx, Chip.tsx
-  BookCover.tsx          — procedural gradient cover placeholder
-  SceneArt.tsx           — procedural scene art placeholder
-  ProgressBar.tsx
-  + more
+  IconButton.tsx         — 32x32 tap target, dark variant for over imagery
+  Card.tsx               — dark surface + gold border + card shadow
+  SectionHeading.tsx     — serif title left, mono CTA right
+  Tag.tsx                — mono uppercase pill
+  Chip.tsx               — filter chip for grids
+  ProgressBar.tsx        — thin gold-gradient bar
+  BookCover.tsx          — procedural gradient cover (placeholder until real cover loads)
+  SceneArt.tsx           — procedural scene art placeholder (cinematic/comic/watercolour)
 
-variants/
-  MobLibEditorial.tsx    — recommended library layout
-  MobLibMinimal.tsx, MobLibCinematic.tsx, MobLibSceneFirst.tsx
-  MobReadHero.tsx        — recommended reading/scene layout
-  MobReadFilm.tsx
+variants/ (drop-in complete screens)
+  MobLibEditorial.tsx    — RECOMMENDED: magazine-style library with hero scene
+  MobLibMinimal.tsx      — text-forward list for power readers
+  MobLibCinematic.tsx    — streaming-app style, full-bleed swipeable hero
+  MobLibSceneFirst.tsx   — Pinterest-style scene grid
+  MobReadHero.tsx        — RECOMMENDED: scene image top, text scrolls under
+  MobReadFilm.tsx        — vertical thumbnail rail alongside text
 ```
 
-### Recommended Variants
-- **Library:** `MobLibEditorial` (magazine-style with hero scene)
-- **Reading/Scene viewer:** `MobReadHero` (scene image up top, text scrolls under)
-
-### Bottom Tab Bar Navigation
-The design spec defines 4 tabs:
-- **Library** — user's bookshelf
-- **Scenes** — scene gallery
-- **Upload** — add a book
-- **Settings** — account & preferences
+### 10.7 Bottom Tab Bar Navigation
+| Tab | Icon | Purpose |
+|-----|------|---------|
+| Library | `Book` | User's bookshelf |
+| Scenes | `Film` | Scene gallery |
+| Upload | `Plus` | Add a book |
+| Settings | `Settings` | Account & preferences |
 
 ---
 
-## 11. Image Handling
+## 11. Web App Page Layouts (What to Mirror)
+
+The mobile app should replicate these screens. Each entry shows what data/API calls the screen uses and which components render it.
+
+### 11.1 Home / Landing (`/`)
+- Signed out: branding hero, "Start a shelf" + "I have an account" CTAs
+- Signed in: redirects to `/library` (or `/onboarding` if not onboarded)
+
+### 11.2 Library (`/library`)
+- **Data:** `GET /me/books`, `GET /me/scenes`, `GET /me/bibles/summaries`, `GET /me/streak`
+- **Sections (top to bottom):**
+  1. **Welcome Hero** — greeting with time of day, subtitle based on reading state
+  2. **Now Reading Hero** — pinned card for active book: cover image/gradient, chapter + scene labels, narration quote, progress bar, "Resume" + "All scenes" buttons
+  3. **Reading Stats** — strip of stat cards: Currently reading, In library, Scenes generated, Streak, Time read
+  4. **Add Another Book** — inline book search + Snap Cover + Upload + Guided Setup links
+  5. **My Books** — grid of book tiles (`grid-cols-2 sm:3 md:4 lg:6`), each tile shows cover (hero > server cover > Open Library enrichment), title/author, progress bar, "Finished" badge, optional "Bible" badge
+  6. **Scene Library** — collapsible per-book sections with scene tiles, search/filter, orphan recovery
+  7. **Classics** — curated demo books grid
+
+### 11.3 Discover (`/discover`)
+- **Data:** `GET /trending` (public, no auth)
+- **Sections:**
+  1. **Hero** — "Find your *next* scene." with serif italic accent
+  2. **Smart Setup card** — links to `/setup-book`
+  3. **Upload card** — links to `/upload`
+  4. **Popular Right Now** — trending books grid (`grid-cols-2 md:3 lg:4`):
+     - Each card shows 4-image mosaic (2x2 grid from `sampleImages`) or single hero if < 4 images
+     - Flame icon on top 3 books
+     - Scene count + image count labels
+     - Book title + author
+     - Chapter count badge
+     - Tapping links to `/setup-book?title=...&author=...` with pre-filled form
+
+### 11.4 Book Detail (`/book/:id`)
+- **Data:** `GET /me/books`, book bible, book scenes
+- **Sections:** Cover hero, metadata (Open Library enrichment), chapter selector, "Generate scenes" button, "Add a bible" button, Reading Companion chat panel
+
+### 11.5 Scene Generation (`/generate`)
+- **Data:** `POST /scenes/generate`, `POST /scenes/image`
+- **Flow:** Loading animation while AI generates, then renders scene cards one by one with images painting in
+
+### 11.6 Comic View (`/comic/:id?chapter=N`)
+- Stacked vertical panels: each scene shows image + narration + location/mood/characters metadata
+- Share button per scene (builds shareable URL)
+
+### 11.7 Cinematic View (`/experience/:id?chapter=N`)
+- Full-screen scene image with overlay narration, swipe/tap between scenes
+- Ken Burns slow zoom on images (scale 1.0 -> 1.08 over 8s)
+
+### 11.8 Account (`/account`)
+- **Data:** `GET /me`, `PATCH /me`
+- **Sections:**
+  1. Avatar picker — 10 bunny styles in a grid, instant save
+  2. Reading Preferences card — visual styles (multi-select), spoiler mode, reading mode (auto-save, 600ms debounce)
+  3. Reading Profile card — genres, platforms, pace, about me (auto-save, 800ms debounce)
+  4. Clerk Profile & Security (embedded Clerk UI for email/password/Google)
+
+### 11.9 Setup Book Wizard (`/setup-book`)
+- 4-step wizard:
+  1. Enter title + author (or pre-filled from URL params)
+  2. AI generates bible draft via `POST /books/context/search`
+  3. Review/edit bible (characters, locations, factions, tone, etc.)
+  4. Save book + bible
+
+---
+
+## 12. Web App Component Library Reference
+
+The web app has 30+ custom components. The mobile app should build equivalent React Native components:
+
+### Layout & Navigation
+| Component | Purpose |
+|-----------|---------|
+| `layout.tsx` | App shell: sticky header, nav bar (Library/Discover/Upload/Help), user dropdown, streak badge |
+| `error-boundary.tsx` | App-wide crash handler |
+
+### Hero & Dashboard
+| Component | Purpose |
+|-----------|---------|
+| `welcome-hero.tsx` | Greeting + date pill + subtitle + CTA buttons |
+| `now-reading-hero.tsx` | Active book card with cover, progress, narration quote, action buttons |
+| `reading-stats.tsx` | Stats strip: books, scenes, streak, reading time |
+
+### Book Tiles & Metadata
+| Component | Purpose |
+|-----------|---------|
+| `library-book-tile.tsx` | Book card in grid: cover (3-tier fallback), title, progress bar, badges |
+| `book-metadata.tsx` | Expandable "About this book" from Open Library: description + subject chips |
+| `book-search.tsx` | Debounced Open Library search with "Add to library" per result |
+| `cover-picker.tsx` / `cover-picker-dialog.tsx` | Choose/change book cover image |
+
+### Scene Components
+| Component | Purpose |
+|-----------|---------|
+| `scene-library.tsx` | Full scene gallery: search, per-book collapsible sections, scene tiles, orphan recovery |
+| `paste-passage.tsx` | "Paste a passage" input to start scene generation |
+
+### AI & Reading
+| Component | Purpose |
+|-----------|---------|
+| `book-companion.tsx` | Reading companion chat: starter prompts, message history, AI responses |
+| `bible-editor.tsx` | Rich form for editing book bible: characters, locations, factions, etc. |
+
+### Input Helpers
+| Component | Purpose |
+|-----------|---------|
+| `snap-cover-button.tsx` | Camera capture for book cover identification |
+| `snap-page-button.tsx` | Camera capture for page OCR |
+| `voice-capture-button.tsx` | Web Speech API dictation button |
+| `streak-badge.tsx` | Flame icon + streak count in header |
+
+### UI Primitives (shadcn/ui style)
+The web uses 40+ shadcn/ui primitives (Button, Card, Dialog, Sheet, Tabs, Toast, etc.). The mobile app should use React Native equivalents — the `mobile-design-spec/components/` already provides the core ones (Button, Card, Tag, Chip) with the correct styling.
+
+---
+
+## 13. Image Handling
 
 Scene images are stored in the API server's object storage and served at:
 ```
@@ -846,7 +1060,7 @@ Image URLs returned by the scene generation endpoints are already in this format
 
 ---
 
-## 12. Open Library Integration
+## 14. Open Library Integration
 
 Both apps use Open Library for book covers and metadata:
 - Search: `https://openlibrary.org/search.json?q=<query>&limit=12`
@@ -857,7 +1071,7 @@ The shared library (`@workspace/jump-the-book-shared/openLibrary`) provides help
 
 ---
 
-## 13. PWA / Offline Considerations
+## 15. PWA / Offline Considerations
 
 The web app has a service worker that caches scene images for offline viewing (`jtb-scenes-v1` cache). The mobile app should implement equivalent offline support:
 - Cache viewed scene images locally
@@ -866,20 +1080,74 @@ The web app has a service worker that caches scene images for offline viewing (`
 
 ---
 
-## 14. What's Coming (Task #9)
+## 16. Live Features — Trending / Popularity Tracking
 
-The web app is about to add these features. The mobile app should plan for them:
+The trending system is **already live** on the web app. The mobile app should implement it.
 
-1. **Reading status tags:** Each book will get a `readingStatus` field: `"reading"`, `"want-to-read"`, or `"finished"`
-2. **Series support:** `seriesName` and `seriesOrder` fields on books
-3. **Now Reading page:** Dedicated view for actively-read books
-4. **Bookshelf reorganization:** Books organized by reading status
+### How It Works
+Scene and image caches track `hit_count` and `last_accessed_at` per book. When any user generates scenes or images for a book, those counters increment. The `/api/trending` endpoint aggregates them into a ranked list.
+
+### TrendingBook Interface
+```ts
+interface TrendingBook {
+  bookTitle: string;
+  author: string;
+  totalSceneHits: number;       // total scene generation requests
+  totalImageHits: number;       // total image generation requests
+  totalHits: number;            // scene + image combined
+  uniqueChapters: number;       // how many chapters have been explored
+  sceneCount: number;           // total cached scene entries
+  imageCount: number;           // total cached image entries
+  sampleImages: string[];       // up to 4 image URLs for the mosaic
+  lastAccessedAt: string;       // ISO timestamp of last activity
+}
+```
+
+### API Endpoint
+```
+GET /trending
+Response: { "books": TrendingBook[], "totalBooks": number }
+```
+- Public (no auth required)
+- Returns top 20 books sorted by `totalHits DESC`, then `sceneCount DESC`
+- `sampleImages` are `/api/storage/objects/scene-images/<uuid>` URLs
+
+### Web App "Popular Right Now" Layout
+The Discover page renders this as a grid of `TrendingBookCard` components:
+- **Grid:** 2 columns mobile, 3 tablet, 4 desktop
+- **Each card contains:**
+  1. **Image mosaic** — if 4+ sample images: 2x2 grid layout (rounded corners, 1px gap). If fewer: single hero image
+  2. **Flame badge** — top 3 books get a flame icon overlay (top-left)
+  3. **Stats line** — `"{sceneCount} scenes · {imageCount} images"` in mono eyebrow style
+  4. **Title** — serif font, 1-2 lines
+  5. **Author** — sans dimmed text
+  6. **Chapter badge** — if `uniqueChapters > 1`: `"{uniqueChapters} chapters"` chip
+- **Tap action:** Opens Smart Setup with `?title=...&author=...` pre-filled
+- **Loading state:** Skeleton grid (pulsing placeholder cards)
+
+### Mobile Implementation Notes
+- Call `GET /trending` on the Discover/Explore tab
+- Display as a scrollable grid or list
+- Use the `sampleImages` array for the mosaic (prefix with API base URL)
+- Tapping a trending book should navigate to the "Add Book" flow with title+author pre-filled
+- Refresh on pull-to-refresh, stale time ~5 minutes
+
+---
+
+## 17. What's Coming (Planned Features)
+
+These features are being built for the web app. The mobile app should plan for them:
+
+1. **Reading status tags:** Each book gets a `readingStatus` field: `"reading"`, `"want-to-read"`, or `"finished"` — new column on `user_books`, filterable via `GET /me/books`
+2. **Series grouping:** `seriesName` and `seriesOrder` fields — books in the same series visually grouped
+3. **Reading stats dashboard:** Charts showing reading activity, streak history, genre breakdown
+4. **Open Library editions API:** Better series detection using OL editions endpoint
 
 These will add new columns to `user_books` and new query params to `GET /me/books`. The API contract will be backward-compatible.
 
 ---
 
-## 15. Environment Setup for Mobile
+## 18. Environment Setup for Mobile
 
 ### Required Clerk Config
 The mobile app needs the same Clerk application credentials:
