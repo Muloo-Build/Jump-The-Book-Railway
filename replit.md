@@ -39,6 +39,8 @@ The project is structured as a pnpm workspace monorepo.
 2.  **Scene Generation and Viewing:**
     *   **AI Scene Generation:** `POST /api/scenes/generate` uses `@workspace/integrations-openai-ai-server` (gpt-5.4 + gpt-image-1) to create scenes.
     *   **Image Storage:** Scene PNGs are stored in App Storage (`${PRIVATE_OBJECT_DIR}/scene-images/<uuid>`) and served via `/api/storage/objects/scene-images/<uuid>`.
+    *   **Mobile Auth for Scene Generation:** `useGenerateScene.ts` uses `apiFetchWithTimeout` (wrapping `apiFetch` from `queryClient.ts`) so all scene/image generation requests carry Bearer tokens — fixing Safari ITP cookie-stripping that caused 401s mid-generation on mobile.
+    *   **Image URL Persistence:** `persistScene` in `generate.tsx` is NOT gated on the effect's `active` flag, so image URLs are persisted even if the user navigates away before all images finish painting. Server-side backfill (`backfillSceneImageUrls.ts`) runs on every cold start to link orphaned scene rows to their already-generated images via `image_cache_key`.
     *   **Scene Viewing Modes:** Comic (stacked panels) and Cinematic (full-screen with narration) modes.
     *   **Scene Library:** Collapsible, per-book, per-chapter organization of generated scenes with search and "Play trailer" links.
 

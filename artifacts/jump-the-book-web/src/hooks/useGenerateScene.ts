@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-
-const API_BASE = "/api";
+import { apiFetch } from "@/lib/queryClient";
 
 const CACHE_PREFIX = "@jtb_scene_v5_";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -116,12 +115,22 @@ function setCache<T>(key: string, data: T) {
   }
 }
 
-function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number) {
+async function apiFetchWithTimeout<T>(
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
-    clearTimeout(timer),
-  );
+  try {
+    return await apiFetch<T>(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function runWithConcurrency<T>(
@@ -188,21 +197,11 @@ export function useGenerateScene() {
         }
 
         report({ stage: "loading-text", current: 0, total: 0, message: "Loading saved scenes…" });
-        const textRes = await fetchWithTimeout(
-          `${API_BASE}/scenes/generate`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...params, generateImage: false }),
-          },
-          SCENE_TIMEOUT_MS,
-        );
-        if (!textRes.ok) throw new Error(`Scene server error ${textRes.status}`);
-        const textJson = (await textRes.json()) as {
+        const textJson = await apiFetchWithTimeout<{
           scenes: GeneratedScene[];
           cacheKey?: string;
           cached?: boolean;
-        };
+        }>("/scenes/generate", { ...params, generateImage: false }, SCENE_TIMEOUT_MS);
         const rawScenes = Array.isArray(textJson.scenes) ? textJson.scenes : [];
         if (rawScenes.length === 0) throw new Error("No scenes generated for this chapter");
         if (cancelledRef.current) return null;
@@ -243,30 +242,21 @@ export function useGenerateScene() {
             message: `Creating image ${completed + 1} of ${total}…`,
           });
           try {
-            const imgRes = await fetchWithTimeout(
-              `${API_BASE}/scenes/image`,
+            const { imageUrl } = await apiFetchWithTimeout<{ imageUrl: string }>(
+              "/scenes/image",
               {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  prompt: scene.imagePrompt,
-                  style: params.visualStyle,
-                  bookTitle: params.bookTitle,
-                  author: params.author,
-                  chapterNumber: params.chapterNumber,
-                  sceneIndex: i,
-                  cacheKey: scene.imageCacheKey ?? undefined,
-                  bookBibleId: params.bookBibleId,
-                  sceneCharacters: scene.characters,
-                }),
+                prompt: scene.imagePrompt,
+                style: params.visualStyle,
+                bookTitle: params.bookTitle,
+                author: params.author,
+                chapterNumber: params.chapterNumber,
+                sceneIndex: i,
+                cacheKey: scene.imageCacheKey ?? undefined,
+                bookBibleId: params.bookBibleId,
+                sceneCharacters: scene.characters,
               },
               IMAGE_TIMEOUT_MS,
             );
-            if (!imgRes.ok) {
-              callbacks.onImageFailed?.(i);
-              return;
-            }
-            const { imageUrl } = (await imgRes.json()) as { imageUrl: string };
             if (cancelledRef.current) return;
             workingScenes[i] = { ...workingScenes[i], imageUrl };
             completed++;
@@ -364,19 +354,9 @@ export function prewarmScenes(params: GenerateSceneParams): void {
 
   schedule(async () => {
     try {
-      const textRes = await fetchWithTimeout(
-        `${API_BASE}/scenes/generate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...params, generateImage: false }),
-        },
-        SCENE_TIMEOUT_MS,
-      );
-      if (!textRes.ok) return;
-      const json = (await textRes.json()) as {
+      const json = await apiFetchWithTimeout<{
         scenes?: GeneratedScene[];
-      };
+      }>("/scenes/generate", { ...params, generateImage: false }, SCENE_TIMEOUT_MS);
       const scenes = (json.scenes ?? []).map((s) => ({
         ...s,
         imageUrl: s.imageUrl ?? null,
@@ -390,28 +370,21 @@ export function prewarmScenes(params: GenerateSceneParams): void {
         const scene = scenes[i];
         if (scene.imageUrl) continue;
         try {
-          const imgRes = await fetchWithTimeout(
-            `${API_BASE}/scenes/image`,
+          const { imageUrl } = await apiFetchWithTimeout<{ imageUrl: string }>(
+            "/scenes/image",
             {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                prompt: scene.imagePrompt,
-                style: params.visualStyle,
-                bookTitle: params.bookTitle,
-                author: params.author,
-                chapterNumber: params.chapterNumber,
-                sceneIndex: i,
-                cacheKey: scene.imageCacheKey ?? undefined,
-                bookBibleId: params.bookBibleId,
-                sceneCharacters: scene.characters,
-              }),
+              prompt: scene.imagePrompt,
+              style: params.visualStyle,
+              bookTitle: params.bookTitle,
+              author: params.author,
+              chapterNumber: params.chapterNumber,
+              sceneIndex: i,
+              cacheKey: scene.imageCacheKey ?? undefined,
+              bookBibleId: params.bookBibleId,
+              sceneCharacters: scene.characters,
             },
             IMAGE_TIMEOUT_MS,
           );
-          if (imgRes.status === 429) return;
-          if (!imgRes.ok) continue;
-          const { imageUrl } = (await imgRes.json()) as { imageUrl: string };
           scenes[i] = { ...scenes[i], imageUrl };
           setCache(localKey, scenes);
         } catch {
