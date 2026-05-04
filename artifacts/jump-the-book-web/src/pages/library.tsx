@@ -11,7 +11,7 @@ import {
 } from "@/hooks/useApiLibrary";
 import { useUserBibleSummaries } from "@/hooks/useBookBible";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, Loader2, BookOpen, BookMarked, CheckCircle2, ChevronDown } from "lucide-react";
+import { Plus, Sparkles, Loader2, BookOpen, BookMarked, CheckCircle2, ChevronDown, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { Show } from "@clerk/react";
 import ReadingStats from "@/components/reading-stats";
 import LibraryBookTile from "@/components/library-book-tile";
@@ -81,6 +81,21 @@ export default function Library() {
       return next;
     });
   }, []);
+
+  const setAllSeriesCollapsed = useCallback(
+    (keys: string[], collapsed: boolean) => {
+      setCollapsedSeries((prev) => {
+        const next = new Set(prev);
+        if (collapsed) {
+          for (const k of keys) next.add(k);
+        } else {
+          for (const k of keys) next.delete(k);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const filteredLibrary = useMemo(() => {
     let list = userLibrary;
@@ -163,6 +178,20 @@ export default function Library() {
     groups.sort((a, b) => a.name.localeCompare(b.name));
     return { groups, standalone };
   }, [filteredLibrary]);
+
+  const seriesCollapseKeys = useMemo(
+    () => seriesGroups.groups.map((g) => g.name.trim().toLowerCase()),
+    [seriesGroups.groups],
+  );
+
+  // "All collapsed" only when every currently-rendered series is collapsed —
+  // that's what flips the button label to "Expand all".
+  const allSeriesCollapsed = useMemo(
+    () =>
+      seriesCollapseKeys.length > 0 &&
+      seriesCollapseKeys.every((k) => collapsedSeries.has(k)),
+    [seriesCollapseKeys, collapsedSeries],
+  );
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: userLibrary.length, reading: 0, "want-to-read": 0, finished: 0 };
@@ -362,34 +391,53 @@ export default function Library() {
           </div>
 
           {hasBooks && (
-            <div className="flex items-center gap-1 flex-wrap">
-              {STATUS_TABS.map((tab) => {
-                const count = statusCounts[tab.key] ?? 0;
-                const isActive = activeTab === tab.key;
-                const TabIcon = tab.icon;
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveTab(tab.key)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                      isActive
-                        ? "bg-primary/20 text-[var(--jtb-accent-hi)] border border-primary/40"
-                        : "text-muted-foreground hover:text-foreground hover:bg-card/50 border border-transparent",
-                    )}
-                  >
-                    <TabIcon className="w-3.5 h-3.5" />
-                    {tab.label}
-                    <span className={cn(
-                      "text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center",
-                      isActive ? "bg-primary/30" : "bg-card/50",
-                    )}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-1 flex-wrap">
+                {STATUS_TABS.map((tab) => {
+                  const count = statusCounts[tab.key] ?? 0;
+                  const isActive = activeTab === tab.key;
+                  const TabIcon = tab.icon;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTab(tab.key)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                        isActive
+                          ? "bg-primary/20 text-[var(--jtb-accent-hi)] border border-primary/40"
+                          : "text-muted-foreground hover:text-foreground hover:bg-card/50 border border-transparent",
+                      )}
+                    >
+                      <TabIcon className="w-3.5 h-3.5" />
+                      {tab.label}
+                      <span className={cn(
+                        "text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center",
+                        isActive ? "bg-primary/30" : "bg-card/50",
+                      )}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {seriesGroups.groups.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAllSeriesCollapsed(seriesCollapseKeys, !allSeriesCollapsed)
+                  }
+                  aria-pressed={allSeriesCollapsed}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card/50 transition-colors"
+                >
+                  {allSeriesCollapsed ? (
+                    <ChevronsUpDown className="w-3.5 h-3.5" aria-hidden="true" />
+                  ) : (
+                    <ChevronsDownUp className="w-3.5 h-3.5" aria-hidden="true" />
+                  )}
+                  {allSeriesCollapsed ? "Expand all" : "Collapse all"}
+                </button>
+              )}
             </div>
           )}
 
