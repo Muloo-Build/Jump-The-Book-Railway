@@ -80,7 +80,12 @@ The project is structured as a pnpm workspace monorepo.
 9.  **Book Parsing Limits:**
     *   EPUB and PDF parsers cover full novels (up to 200 chapters, 12000 chars per chapter, PDF page limit 1500). EPUB yields to the event loop every 10 chapters to keep the UI responsive.
 
-10. **Mobile App Integration:**
+10. **Popularity Tracking & Trending:**
+    *   **Cache hit tracking:** `scene_cache` and `image_cache` tables have `hit_count` and `last_accessed_at` columns. `getSceneBundle` and `getCachedImage` fire-and-forget increment hits on every cache read.
+    *   **Public trending API:** `GET /api/trending` (no auth) aggregates scene and image cache data by book title/author, returning top 20 books ranked by total hits with sample image URLs.
+    *   **Discover page "Popular right now":** Shows trending books with image mosaics (4-image grid or single hero), scene/image counts, and flame badges for top 3. Clicking a trending book pre-fills the Smart Setup form with title/author.
+
+11. **Mobile App Integration:**
     *   A separate Expo mobile app consumes the same API.
     *   Shared code for data models (`RemoteUser`, `RemoteBook`, `RemoteScene`) and API client (`Orval-generated React Query hooks`) is synced between web and mobile repos via a GitHub Actions workflow.
 

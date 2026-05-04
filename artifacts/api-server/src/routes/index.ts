@@ -8,6 +8,7 @@ import companionRouter from "./companion";
 import passageRouter from "./passage";
 import coverRouter from "./cover";
 import shareRouter from "./share";
+import trendingRouter from "./trending";
 
 const router: IRouter = Router();
 
@@ -22,6 +23,7 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(shareRouter);
 router.use(storageRouter);
+router.use(trendingRouter);
 router.use(scenesRouter);
 router.use(passageRouter);
 router.use(coverRouter);

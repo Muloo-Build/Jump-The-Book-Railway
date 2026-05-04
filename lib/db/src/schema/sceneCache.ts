@@ -18,6 +18,8 @@ export const sceneCacheTable = pgTable(
     scenes: jsonb("scenes").notNull(),
     source: text("source"),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+    hitCount: integer("hit_count").notNull().default(0),
+    lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     bookIdx: index("scene_cache_book_idx").on(t.bookTitle, t.author, t.chapterNumber),
@@ -41,6 +43,8 @@ export const imageCacheTable = pgTable(
     objectPath: text("object_path").notNull(),
     bytes: integer("bytes").notNull(),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+    hitCount: integer("hit_count").notNull().default(0),
+    lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     bookIdx: index("image_cache_book_idx").on(t.bookTitle, t.author, t.chapterNumber),

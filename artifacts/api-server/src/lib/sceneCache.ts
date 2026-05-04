@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   db,
   sceneCacheTable,
@@ -106,7 +106,18 @@ export async function getSceneBundle(
     .from(sceneCacheTable)
     .where(eq(sceneCacheTable.cacheKey, cacheKey))
     .limit(1);
-  return rows[0] ?? null;
+  const row = rows[0] ?? null;
+  if (row) {
+    db.update(sceneCacheTable)
+      .set({
+        hitCount: sql`${sceneCacheTable.hitCount} + 1`,
+        lastAccessedAt: new Date(),
+      })
+      .where(eq(sceneCacheTable.cacheKey, cacheKey))
+      .execute()
+      .catch(() => {});
+  }
+  return row;
 }
 
 export async function saveSceneBundle(
@@ -147,7 +158,18 @@ export async function getCachedImage(
     .from(imageCacheTable)
     .where(eq(imageCacheTable.cacheKey, cacheKey))
     .limit(1);
-  return rows[0] ?? null;
+  const row = rows[0] ?? null;
+  if (row) {
+    db.update(imageCacheTable)
+      .set({
+        hitCount: sql`${imageCacheTable.hitCount} + 1`,
+        lastAccessedAt: new Date(),
+      })
+      .where(eq(imageCacheTable.cacheKey, cacheKey))
+      .execute()
+      .catch(() => {});
+  }
+  return row;
 }
 
 /**

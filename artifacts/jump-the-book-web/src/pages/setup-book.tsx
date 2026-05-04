@@ -141,8 +141,8 @@ export default function SetupBook() {
   const [step, setStep] = useState<number>(
     () => initialPending?.step ?? 1,
   );
-  const [title, setTitle] = useState(initialPending?.title ?? "");
-  const [author, setAuthor] = useState(initialPending?.author ?? "");
+  const [title, setTitle] = useState(paramTitle || initialPending?.title || "");
+  const [author, setAuthor] = useState(paramAuthor || initialPending?.author || "");
   const [series, setSeries] = useState(initialPending?.series ?? "");
   const [bookNumber, setBookNumber] = useState<string>(
     initialPending?.bookNumber ?? "",
