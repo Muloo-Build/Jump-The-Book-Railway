@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
 import Layout from "@/components/layout";
 import { DEMO_BOOKS } from "@/data/books";
@@ -11,7 +11,7 @@ import {
 } from "@/hooks/useApiLibrary";
 import { useUserBibleSummaries } from "@/hooks/useBookBible";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, Loader2, BookOpen, BookMarked, CheckCircle2 } from "lucide-react";
+import { Plus, Sparkles, Loader2, BookOpen, BookMarked, CheckCircle2, ChevronDown } from "lucide-react";
 import { Show } from "@clerk/react";
 import ReadingStats from "@/components/reading-stats";
 import LibraryBookTile from "@/components/library-book-tile";
@@ -42,6 +42,44 @@ export default function Library() {
     [search],
   );
   const [activeTab, setActiveTab] = useState<ReadingStatus | "all">("all");
+
+  // Persist per-series collapsed state in localStorage so a reader's preferred
+  // layout (e.g. Discworld collapsed) survives page reloads. We key by the
+  // normalized series name so capitalization tweaks don't desync state.
+  const [collapsedSeries, setCollapsedSeries] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = window.localStorage.getItem("jtb:collapsedSeries");
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed.map(String));
+    } catch {
+      // Ignore corrupted storage and fall back to empty set.
+    }
+    return new Set();
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        "jtb:collapsedSeries",
+        JSON.stringify([...collapsedSeries]),
+      );
+    } catch {
+      // Storage may be unavailable (private mode, quota); ignore.
+    }
+  }, [collapsedSeries]);
+
+  const toggleSeriesCollapsed = useCallback((name: string) => {
+    const key = name.trim().toLowerCase();
+    setCollapsedSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const filteredLibrary = useMemo(() => {
     let list = userLibrary;
@@ -440,60 +478,89 @@ export default function Library() {
               id="my-books"
               className="space-y-6"
             >
-              {seriesGroups.groups.map((group) => (
-                <div
-                  key={group.name}
-                  className="rounded-xl border border-border/40 bg-card/20 p-4 md:p-5 space-y-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <BookMarked className="w-4 h-4 text-[var(--jtb-accent-hi)] flex-shrink-0" />
-                      <h3 className="text-sm font-semibold text-foreground/90 truncate">
-                        {group.name}
-                      </h3>
-                      <span className="text-[10px] text-muted-foreground rounded-full bg-card/60 px-2 py-0.5 flex-shrink-0">
-                        {group.books.length} book{group.books.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-shrink-0">
-                      <span>
-                        {group.finishedCount}/{group.books.length} finished
-                      </span>
-                      {group.readingCount > 0 && (
-                        <span className="text-[var(--jtb-accent-hi)]/80">
-                          · {group.readingCount} in progress
+              {seriesGroups.groups.map((group) => {
+                const collapseKey = group.name.trim().toLowerCase();
+                const isCollapsed = collapsedSeries.has(collapseKey);
+                const headingId = `series-${collapseKey.replace(/[^a-z0-9]+/g, "-")}`;
+                const panelId = `${headingId}-panel`;
+                return (
+                  <div
+                    key={group.name}
+                    className="rounded-xl border border-border/40 bg-card/20 p-4 md:p-5 space-y-3"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleSeriesCollapsed(group.name)}
+                      aria-expanded={!isCollapsed}
+                      aria-controls={panelId}
+                      className="w-full text-left flex flex-wrap items-center justify-between gap-2 rounded-md -mx-1 px-1 py-0.5 hover:bg-card/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jtb-accent-hi)]/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ChevronDown
+                          className={cn(
+                            "w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform",
+                            isCollapsed && "-rotate-90",
+                          )}
+                          aria-hidden="true"
+                        />
+                        <BookMarked className="w-4 h-4 text-[var(--jtb-accent-hi)] flex-shrink-0" />
+                        <h3
+                          id={headingId}
+                          className="text-sm font-semibold text-foreground/90 truncate"
+                        >
+                          {group.name}
+                        </h3>
+                        <span className="text-[10px] text-muted-foreground rounded-full bg-card/60 px-2 py-0.5 flex-shrink-0">
+                          {group.books.length} book{group.books.length !== 1 ? "s" : ""}
                         </span>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-shrink-0">
+                        <span>
+                          {group.finishedCount}/{group.books.length} finished
+                        </span>
+                        {group.readingCount > 0 && (
+                          <span className="text-[var(--jtb-accent-hi)]/80">
+                            · {group.readingCount} in progress
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 flex-1 rounded-full bg-card/60 overflow-hidden">
+                        <div
+                          className="h-full bg-[var(--jtb-accent-hi)]/70 transition-all"
+                          style={{ width: `${group.avgProgress}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground/80 tabular-nums w-10 text-right">
+                        {group.avgProgress}%
+                      </span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 flex-1 rounded-full bg-card/60 overflow-hidden">
+                    {!isCollapsed && (
                       <div
-                        className="h-full bg-[var(--jtb-accent-hi)]/70 transition-all"
-                        style={{ width: `${group.avgProgress}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground/80 tabular-nums w-10 text-right">
-                      {group.avgProgress}%
-                    </span>
+                        id={panelId}
+                        role="region"
+                        aria-labelledby={headingId}
+                        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5"
+                      >
+                        {group.books.map((book, i) => (
+                          <LibraryBookTile
+                            key={book.id}
+                            book={{
+                              ...book,
+                              sceneCount: getSceneCount(book.id),
+                              seriesOrder: book.seriesOrder,
+                            }}
+                            index={i}
+                            hasBible={bibleBookIds.has(book.id)}
+                            showStatusBadge={isSignedIn}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
-                    {group.books.map((book, i) => (
-                      <LibraryBookTile
-                        key={book.id}
-                        book={{
-                          ...book,
-                          sceneCount: getSceneCount(book.id),
-                          seriesOrder: book.seriesOrder,
-                        }}
-                        index={i}
-                        hasBible={bibleBookIds.has(book.id)}
-                        showStatusBadge={isSignedIn}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {seriesGroups.standalone.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
                   {seriesGroups.standalone.map((book, i) => (
