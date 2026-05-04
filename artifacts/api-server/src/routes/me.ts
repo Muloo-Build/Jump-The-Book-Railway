@@ -369,6 +369,9 @@ function serializeBook(b: typeof userBooksTable.$inferSelect) {
     heroImage: b.heroImage,
     coverUrl: b.coverUrl,
     totalChapters: b.totalChapters,
+    readingStatus: b.readingStatus,
+    seriesName: b.seriesName,
+    seriesOrder: b.seriesOrder,
     createdAt: b.createdAt.toISOString(),
     updatedAt: b.updatedAt.toISOString(),
   };
@@ -621,27 +624,43 @@ async function mergeDuplicateBooksForUser(
   return true;
 }
 
+const READING_STATUSES = new Set(["reading", "want-to-read", "finished"]);
+
 router.get("/me/books", async (req, res) => {
   try {
     const userId = (req as unknown as AuthedRequest).userId;
     await ensureUser(userId);
+
+    const statusFilter = typeof req.query.status === "string" ? req.query.status : null;
+    if (statusFilter && !READING_STATUSES.has(statusFilter)) {
+      res.status(400).json({ error: "Invalid status filter" });
+      return;
+    }
+
+    const conditions = [eq(userBooksTable.userId, userId)];
+    if (statusFilter) {
+      conditions.push(eq(userBooksTable.readingStatus, statusFilter));
+    }
+
     let rows = await db
       .select()
       .from(userBooksTable)
-      .where(eq(userBooksTable.userId, userId))
+      .where(and(...conditions))
       .orderBy(desc(userBooksTable.updatedAt));
 
     // Self-healing merge: if historical duplicates exist (the API used to
     // always insert), merge them in a transaction and re-read. The merge is
     // idempotent and only writes when duplicates are actually present, so
     // the steady-state path is just SELECT.
-    const merged = await mergeDuplicateBooksForUser(userId, rows, req.log);
-    if (merged) {
-      rows = await db
-        .select()
-        .from(userBooksTable)
-        .where(eq(userBooksTable.userId, userId))
-        .orderBy(desc(userBooksTable.updatedAt));
+    if (!statusFilter) {
+      const merged = await mergeDuplicateBooksForUser(userId, rows, req.log);
+      if (merged) {
+        rows = await db
+          .select()
+          .from(userBooksTable)
+          .where(eq(userBooksTable.userId, userId))
+          .orderBy(desc(userBooksTable.updatedAt));
+      }
     }
 
     res.json({ books: rows.map(serializeBook) });
@@ -669,6 +688,9 @@ interface PostBookBody {
   heroImage?: string | null;
   coverUrl?: string | null;
   totalChapters?: number | null;
+  readingStatus?: string;
+  seriesName?: string | null;
+  seriesOrder?: number | null;
 }
 
 router.post("/me/books", async (req, res) => {
@@ -767,6 +789,15 @@ router.post("/me/books", async (req, res) => {
       ) {
         patch.currentChapter = body.currentChapter;
       }
+      if (body.readingStatus && READING_STATUSES.has(body.readingStatus) && body.readingStatus !== existing.readingStatus) {
+        patch.readingStatus = body.readingStatus;
+      }
+      if (body.seriesName && body.seriesName.trim() && !existing.seriesName) {
+        patch.seriesName = body.seriesName.trim();
+      }
+      if (body.seriesOrder != null && existing.seriesOrder == null) {
+        patch.seriesOrder = body.seriesOrder;
+      }
       const [refreshed] = await db
         .update(userBooksTable)
         .set(patch)
@@ -808,6 +839,9 @@ router.post("/me/books", async (req, res) => {
         heroImage: body.heroImage ?? null,
         coverUrl: initialCoverUrl,
         totalChapters: body.totalChapters ?? null,
+        readingStatus: body.readingStatus && READING_STATUSES.has(body.readingStatus) ? body.readingStatus : "reading",
+        seriesName: body.seriesName ?? null,
+        seriesOrder: body.seriesOrder ?? null,
       })
       .returning();
     // If the client didn't supply a cover URL, look one up in the background
@@ -865,6 +899,18 @@ router.patch("/me/books/:id", async (req, res) => {
       res.status(400).json({ error: "progress must be 0-100" });
       return;
     }
+    if (body.readingStatus !== undefined && !READING_STATUSES.has(body.readingStatus)) {
+      res.status(400).json({ error: "Invalid readingStatus" });
+      return;
+    }
+    if (
+      body.seriesOrder !== undefined &&
+      body.seriesOrder !== null &&
+      (!isFiniteInt(body.seriesOrder) || body.seriesOrder < 0)
+    ) {
+      res.status(400).json({ error: "seriesOrder must be a non-negative integer" });
+      return;
+    }
 
     // Trim title/author when supplied so we never store padding whitespace and
     // never let a blank value silently overwrite a real one.
@@ -902,10 +948,18 @@ router.patch("/me/books/:id", async (req, res) => {
       "heroImage",
       "coverUrl",
       "coverGradient",
+      "readingStatus",
+      "seriesName",
+      "seriesOrder",
     ];
     for (const f of fields) {
       if (body[f] !== undefined) updates[f] = body[f];
     }
+
+    if (body.progress !== undefined && body.progress >= 100 && body.readingStatus === undefined) {
+      updates.readingStatus = "finished";
+    }
+
     const [updated] = await db
       .update(userBooksTable)
       .set(updates)

@@ -136,6 +136,9 @@ function remoteBookToItem(b: RemoteBook): UserLibraryItem & {
     remoteId: b.id,
     demoBookId: b.demoBookId,
     source: b.source,
+    readingStatus: b.readingStatus,
+    seriesName: b.seriesName,
+    seriesOrder: b.seriesOrder,
   };
 }
 
@@ -285,6 +288,9 @@ export function useLibrary() {
           tagline: item.tagline ?? null,
           heroImage: item.heroImage ?? null,
           coverUrl: item.coverUrl ?? null,
+          readingStatus: item.readingStatus,
+          seriesName: item.seriesName ?? null,
+          seriesOrder: item.seriesOrder ?? null,
         });
         return created.id;
       }

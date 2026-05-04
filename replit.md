@@ -34,9 +34,13 @@ The project is structured as a pnpm workspace monorepo.
 1.  **Book Management:**
     *   **EPUB Parsing:** Browser-side EPUB parsing using JSZip.
     *   **Book Deduplication:** Server-side logic (`/api/me/books`) to prevent duplicate book entries based on `(userId, demoBookId)` or `(userId, lower(trim(title)), lower(trim(author)))`. Merges progress and metadata for historical duplicates.
-    *   **Book Editing:** `PATCH /api/me/books/:id` allows updating title, author, tagline, heroImage, and totalChapters.
+    *   **Book Editing:** `PATCH /api/me/books/:id` allows updating title, author, tagline, heroImage, totalChapters, readingStatus, seriesName, and seriesOrder.
+    *   **Reading Status Tracking:** Books have a `reading_status` field (`reading`, `want-to-read`, `finished`). Auto-sets to `finished` when progress reaches 100%. Status can be changed via quick-toggle badges on book tiles and the PATCH endpoint. `GET /api/me/books?status=reading` supports filtering by status.
+    *   **Series Awareness:** Books can have `series_name` and `series_order` fields. During Smart Setup, the CoverPicker's Open Library lookup triggers `fetchSeriesInfo()` to detect series membership. After saving, a series prompt (step 4) offers to add remaining series books as "Want to Read" entries.
     *   **Orphan Scene Recovery:** `/api/me/orphan-scenes` identifies and allows claiming or deleting scenes whose parent book no longer exists.
-    *   **Smart Book Setup Wizard (`/setup-book`):** A 4-step wizard for adding modern books, building a "bible" (context for AI), reviewing, and saving. Integrates with `POST /api/books/context/search`.
+    *   **Smart Book Setup Wizard (`/setup-book`):** A 4-step wizard for adding modern books, building a "bible" (context for AI), reviewing, and saving. Integrates with `POST /api/books/context/search`. Step 4 (series prompt) appears when a series is detected.
+    *   **Now Reading Page (`/now-reading`):** Shows books with `reading` status, including progress bars, scene counts, latest scene preview, and generate shortcuts. Empty states for signed-out users and no-books.
+    *   **Bookshelf (`/library`):** Renamed from "Library" to "My Bookshelf". Features status tabs (All/Reading/Want to Read/Finished) with counts, scene counts on tiles, and reading status badges.
 
 2.  **Scene Generation and Viewing:**
     *   **AI Scene Generation:** `POST /api/scenes/generate` uses `@workspace/integrations-openai-ai-server` (gpt-5.4 + gpt-image-1) to create scenes.

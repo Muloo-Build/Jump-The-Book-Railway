@@ -12,27 +12,32 @@ import { useToast } from "@/hooks/use-toast";
 // demo Book entries shown in the Classics grid. Both expose the same set of
 // fields the tile actually reads (title, author, id, coverGradient, …); the
 // tile doesn't depend on the user-only metadata (createdAt, remoteId, etc.).
+import type { ReadingStatus } from "@/hooks/useApiLibrary";
+import ReadingStatusBadge from "@/components/reading-status-badge";
+
 export interface LibraryBookTileBook {
   id: string;
   title: string;
   author: string;
   coverGradient: string[];
   heroImage?: string;
-  // Server-persisted cover URL (Open Library / CDN). When set we render this
-  // directly and skip the Open Library lookup entirely.
   coverUrl?: string | null;
   currentChapter: number;
   progress?: number;
   tagline?: string;
+  readingStatus?: ReadingStatus;
+  remoteId?: string;
+  sceneCount?: number;
 }
 
 interface Props {
   book: LibraryBookTileBook;
   index: number;
   hasBible?: boolean;
+  showStatusBadge?: boolean;
 }
 
-export default function LibraryBookTile({ book, index, hasBible = false }: Props) {
+export default function LibraryBookTile({ book, index, hasBible = false, showStatusBadge = false }: Props) {
   const finished = (book.progress ?? 0) >= 100;
   const progress = Math.max(0, Math.min(100, book.progress ?? 0));
   const localCover = book.heroImage;
@@ -110,7 +115,16 @@ export default function LibraryBookTile({ book, index, hasBible = false }: Props
                 }}
               />
             )}
-            {finished && (
+            {showStatusBadge && book.readingStatus && book.remoteId && (
+              <div className="absolute top-2 left-2 z-10">
+                <ReadingStatusBadge
+                  bookId={book.remoteId}
+                  currentStatus={book.readingStatus}
+                  compact
+                />
+              </div>
+            )}
+            {finished && !showStatusBadge && (
               <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/90 text-white text-[10px] font-medium px-2 py-0.5">
                 <Check className="w-3 h-3" /> Finished
               </div>
@@ -147,6 +161,11 @@ export default function LibraryBookTile({ book, index, hasBible = false }: Props
                   {progress}% · Ch {book.currentChapter}
                 </p>
               </div>
+            )}
+            {book.sceneCount != null && book.sceneCount > 0 && (
+              <p className="text-[10px] text-muted-foreground/60">
+                {book.sceneCount} scene{book.sceneCount !== 1 ? "s" : ""}
+              </p>
             )}
           </CardContent>
         </Card>

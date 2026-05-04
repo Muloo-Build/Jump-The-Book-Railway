@@ -42,6 +42,7 @@ import Playback from "@/pages/playback";
 import Discover from "@/pages/discover";
 import Account from "@/pages/account";
 import SceneShare from "@/pages/scene-share";
+import NowReading from "@/pages/now-reading";
 
 // In production the Clerk proxy runs on the current host; derive the
 // publishable key from window.location so the same build serves multiple
@@ -204,7 +205,7 @@ function SignedInHome() {
     );
   }
   if (!data?.onboarded) return <Redirect to="/onboarding" />;
-  return <Redirect to="/library" />;
+  return <Redirect to="/now-reading" />;
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -249,6 +250,7 @@ function ClerkProviderWithRoutes() {
                 </ProtectedRoute>
               </Route>
               <Route path="/account/*?" component={Account} />
+              <Route path="/now-reading" component={NowReading} />
               <Route path="/library" component={Library} />
               <Route path="/discover" component={Discover} />
               <Route path="/upload" component={Upload} />

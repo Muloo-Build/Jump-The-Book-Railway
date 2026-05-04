@@ -5,7 +5,9 @@ import Layout from "@/components/layout";
 import BibleEditor from "@/components/bible-editor";
 import CoverPicker from "@/components/cover-picker";
 import VoiceCaptureButton from "@/components/voice-capture-button";
+import SeriesPrompt from "@/components/series-prompt";
 import type { OpenLibrarySearchResult } from "@/lib/openLibrary";
+import { fetchSeriesInfo, type SeriesInfo } from "@workspace/jump-the-book-shared/openLibrary";
 import {
   EMPTY_DRAFT,
   useBookBible,
@@ -156,6 +158,8 @@ export default function SetupBook() {
   const [pickedCoverUrl, setPickedCoverUrl] = useState<string | null>(
     initialPending?.pickedCoverUrl ?? null,
   );
+  const [seriesInfo, setSeriesInfo] = useState<SeriesInfo | null>(null);
+  const [savedBookId, setSavedBookId] = useState<string | null>(null);
 
   const [bibleValue, setBibleValue] = useState<BibleEditorValue>(
     initialPending?.bibleValue ?? DEFAULT_VALUE,
@@ -400,6 +404,9 @@ export default function SetupBook() {
             progress: 0,
             coverGradient: ["#1a1525", "#2d2440", "#453560"],
             heroImage: pickedCoverUrl ?? undefined,
+            readingStatus: "reading",
+            seriesName: series.trim() || undefined,
+            seriesOrder: bookNumber ? parseInt(bookNumber, 10) : undefined,
           },
           { source: "manual" },
         );
@@ -453,6 +460,12 @@ export default function SetupBook() {
         title: "Book bible saved",
         description: "Your story profile is ready.",
       });
+
+      if (!editingBookId && seriesInfo && seriesInfo.books.length > 0) {
+        setSavedBookId(bookId);
+        setStep(4);
+        return;
+      }
 
       // If we have excerpt or whatJustHappened, hand off to /generate
       if (!editingBookId && (excerpt.trim() || whatJustHappened.trim())) {
@@ -600,10 +613,17 @@ export default function SetupBook() {
             pickedCoverUrl={pickedCoverUrl}
             onPickCover={(match) => {
               setPickedCoverUrl(match?.coverUrlLarge ?? null);
-              if (match) {
-                if (!series.trim() && match.title && match.title !== title) {
-                  // leave alone — we don't override user-typed series
-                }
+              if (match?.workKey) {
+                fetchSeriesInfo(match.workKey)
+                  .then((info) => {
+                    if (info && info.books.length > 0) {
+                      setSeriesInfo(info);
+                      if (!series.trim()) {
+                        setSeries(info.seriesName);
+                      }
+                    }
+                  })
+                  .catch(() => {});
               }
             }}
             onSearch={handleSearch}
@@ -694,6 +714,36 @@ export default function SetupBook() {
                 )}
               </Button>
             </div>
+          </div>
+        )}
+
+        {step === 4 && seriesInfo && savedBookId && (
+          <div className="space-y-6">
+            <SeriesPrompt
+              seriesInfo={seriesInfo}
+              currentBookTitle={title}
+              onDismiss={() => {
+                if (excerpt.trim() || whatJustHappened.trim()) {
+                  try {
+                    sessionStorage.setItem(
+                      "@jtb_pending_reading_context",
+                      JSON.stringify({
+                        bookId: savedBookId,
+                        chapter: parseInt(chapter, 10) || 1,
+                        excerpt: excerpt.trim() || undefined,
+                        whatJustHappened: whatJustHappened.trim() || undefined,
+                        savedAt: Date.now(),
+                      }),
+                    );
+                  } catch {}
+                  setLocation(
+                    `/generate?bookId=${encodeURIComponent(savedBookId)}&chapter=${parseInt(chapter, 10) || 1}`,
+                  );
+                } else {
+                  setLocation(`/book/${savedBookId}`);
+                }
+              }}
+            />
           </div>
         )}
       </div>

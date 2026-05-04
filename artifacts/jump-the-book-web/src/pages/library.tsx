@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
 import Layout from "@/components/layout";
 import { DEMO_BOOKS } from "@/data/books";
+import type { ReadingStatus } from "@/data/books";
 import { useLibrary } from "@/lib/library";
 import {
   useRemoteSceneLibrary,
@@ -9,9 +10,8 @@ import {
   type RemoteScene,
 } from "@/hooks/useApiLibrary";
 import { useUserBibleSummaries } from "@/hooks/useBookBible";
-import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Sparkles, Loader2, BookOpen, BookMarked, CheckCircle2 } from "lucide-react";
 import { Show } from "@clerk/react";
 import ReadingStats from "@/components/reading-stats";
 import LibraryBookTile from "@/components/library-book-tile";
@@ -20,33 +20,90 @@ import SceneLibrary from "@/components/scene-library";
 import WelcomeHero from "@/components/welcome-hero";
 import SnapCoverButton from "@/components/snap-cover-button";
 import BookSearch from "@/components/book-search";
+import { cn } from "@/lib/utils";
 
 const norm = (s: string) => s.trim().toLowerCase();
+
+const STATUS_TABS: { key: ReadingStatus | "all"; label: string; icon: typeof BookOpen }[] = [
+  { key: "all", label: "All", icon: BookOpen },
+  { key: "reading", label: "Reading", icon: BookOpen },
+  { key: "want-to-read", label: "Want to Read", icon: BookMarked },
+  { key: "finished", label: "Finished", icon: CheckCircle2 },
+];
 
 export default function Library() {
   const { userLibrary, isSignedIn, activeBookId } = useLibrary();
   const sceneLib = useRemoteSceneLibrary();
   const remoteBooks = useRemoteBooks();
   const bibleSummariesQ = useUserBibleSummaries();
-  // wouter's useSearch returns the live query string (without the leading "?")
-  // and re-renders on EVERY navigation, including query-string-only changes —
-  // useLocation alone misses those when the path is unchanged.
   const search = useSearch();
   const q = useMemo(
     () => new URLSearchParams(search).get("q")?.trim() ?? "",
     [search],
   );
-  const filteredLibrary = useMemo(() => {
-    if (!q) return userLibrary;
-    const needle = q.toLowerCase();
-    return userLibrary.filter(
-      (b) =>
-        b.title.toLowerCase().includes(needle) ||
-        b.author.toLowerCase().includes(needle),
-    );
-  }, [userLibrary, q]);
+  const [activeTab, setActiveTab] = useState<ReadingStatus | "all">("all");
 
-  // Build a lookup from remote book uuid → display id (demoBookId or uuid)
+  const filteredLibrary = useMemo(() => {
+    let list = userLibrary;
+    if (q) {
+      const needle = q.toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.title.toLowerCase().includes(needle) ||
+          b.author.toLowerCase().includes(needle),
+      );
+    }
+    if (activeTab !== "all") {
+      list = list.filter((b) => {
+        const status = b.readingStatus ?? (b.progress != null && b.progress >= 100 ? "finished" : "reading");
+        return status === activeTab;
+      });
+    }
+    return [...list].sort((a, b) => {
+      const sA = a.seriesName?.toLowerCase() ?? "";
+      const sB = b.seriesName?.toLowerCase() ?? "";
+      if (sA && sB && sA === sB) {
+        return (a.seriesOrder ?? 999) - (b.seriesOrder ?? 999);
+      }
+      if (sA && !sB) return -1;
+      if (!sA && sB) return 1;
+      if (sA < sB) return -1;
+      if (sA > sB) return 1;
+      return 0;
+    });
+  }, [userLibrary, q, activeTab]);
+
+  const seriesGroups = useMemo(() => {
+    const groups: { name: string; books: typeof filteredLibrary }[] = [];
+    const standalone: typeof filteredLibrary = [];
+    const seriesMap = new Map<string, typeof filteredLibrary>();
+    for (const book of filteredLibrary) {
+      const sn = book.seriesName?.trim();
+      if (sn) {
+        const key = sn.toLowerCase();
+        if (!seriesMap.has(key)) seriesMap.set(key, []);
+        seriesMap.get(key)!.push(book);
+      } else {
+        standalone.push(book);
+      }
+    }
+    for (const [, books] of seriesMap) {
+      if (books.length > 0) {
+        groups.push({ name: books[0].seriesName!, books });
+      }
+    }
+    return { groups, standalone };
+  }, [filteredLibrary]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: userLibrary.length, reading: 0, "want-to-read": 0, finished: 0 };
+    for (const b of userLibrary) {
+      const status = b.readingStatus ?? (b.progress != null && b.progress >= 100 ? "finished" : "reading");
+      counts[status] = (counts[status] ?? 0) + 1;
+    }
+    return counts;
+  }, [userLibrary]);
+
   const bookIdMap = useMemo(() => {
     const map = new Map<string, { displayId: string; title: string }>();
     (remoteBooks.data ?? []).forEach((b) => {
@@ -58,10 +115,22 @@ export default function Library() {
     return map;
   }, [remoteBooks.data]);
 
-  // Bibles are stored against the backend UUID (user_books.id). Library tiles
-  // use the *display* id (demoBookId slug for demo books, UUID for the rest),
-  // so translate UUID → displayId via bookIdMap so the badge appears on
-  // demo-mapped tiles too.
+  const sceneCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const scene of sceneLib.data ?? []) {
+      map.set(scene.userBookId, (map.get(scene.userBookId) ?? 0) + 1);
+    }
+    return map;
+  }, [sceneLib.data]);
+
+  const getSceneCount = (bookId: string) => {
+    const books = remoteBooks.data ?? [];
+    const remote =
+      books.find((b) => b.demoBookId === bookId) ??
+      books.find((b) => b.id === bookId);
+    return remote ? (sceneCountMap.get(remote.id) ?? 0) : 0;
+  };
+
   const bibleBookIds = useMemo(() => {
     const set = new Set<string>();
     (bibleSummariesQ.data?.summaries ?? []).forEach((s) => {
@@ -72,24 +141,16 @@ export default function Library() {
     return set;
   }, [bibleSummariesQ.data, bookIdMap]);
 
-  // Pick the "now reading" book: the active one if it still exists, else the
-  // most-recently-updated book in the library (API returns books ordered by
-  // updatedAt desc).
   const nowReading = useMemo(() => {
     if (userLibrary.length === 0) return null;
+    const readingBooks = userLibrary.filter((b) => (b.readingStatus ?? "reading") === "reading" && (b.progress ?? 0) < 100);
     if (activeBookId) {
-      const match = userLibrary.find((b) => b.id === activeBookId);
+      const match = readingBooks.find((b) => b.id === activeBookId);
       if (match) return match;
     }
-    return userLibrary[0] ?? null;
+    return readingBooks[0] ?? null;
   }, [userLibrary, activeBookId]);
 
-  // Resolve the canonical user_books UUID for the now-reading book so we can
-  // pull its latest generated scene out of sceneLib. We prefer the explicit
-  // remoteId (set after a server roundtrip), then demoBookId / direct id
-  // matches, and only fall back to title+author normalization as a last
-  // resort — that fallback can match the wrong row when a user has both an
-  // upload and a demo of the same book.
   const latestSceneForNowReading = useMemo<RemoteScene | null>(() => {
     if (!nowReading) return null;
     const books = remoteBooks.data ?? [];
@@ -196,50 +257,73 @@ export default function Library() {
           <div className="flex items-end justify-between border-b border-border/40 pb-2 gap-3">
             <div>
               <h2 className="font-serif text-2xl font-semibold leading-tight">
-                My books
+                My Bookshelf
               </h2>
               {hasBooks && (
                 <p className="text-xs text-muted-foreground/80 mt-1">
                   {q ? (
                     <>
                       Showing {filteredLibrary.length} of {userLibrary.length}{" "}
-                      for “{q}”
+                      for "{q}"
                     </>
                   ) : (
                     <>
-                      Your shelf · {userLibrary.length}{" "}
+                      {userLibrary.length}{" "}
                       {userLibrary.length === 1 ? "book" : "books"}
                     </>
                   )}
                 </p>
               )}
             </div>
-            {q ? (
+            {q && (
               <Link
                 href="/library"
                 className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] transition-colors"
               >
                 Clear search ✕
               </Link>
-            ) : (
-              hasBooks &&
-              userLibrary.length > 6 && (
-                <Link
-                  href="#my-books"
-                  className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] transition-colors"
-                >
-                  Browse all →
-                </Link>
-              )
             )}
           </div>
+
+          {hasBooks && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {STATUS_TABS.map((tab) => {
+                const count = statusCounts[tab.key] ?? 0;
+                const isActive = activeTab === tab.key;
+                const TabIcon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                      isActive
+                        ? "bg-primary/20 text-[var(--jtb-accent-hi)] border border-primary/40"
+                        : "text-muted-foreground hover:text-foreground hover:bg-card/50 border border-transparent",
+                    )}
+                  >
+                    <TabIcon className="w-3.5 h-3.5" />
+                    {tab.label}
+                    <span className={cn(
+                      "text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center",
+                      isActive ? "bg-primary/30" : "bg-card/50",
+                    )}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {!hasBooks ? (
             <Show
               when="signed-in"
               fallback={
                 <div className="rounded-xl border border-dashed border-border/50 p-12 text-center flex flex-col items-center gap-3">
                   <p className="text-muted-foreground mb-2">
-                    Your library is empty.
+                    Your bookshelf is empty.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Link href="/setup-book">
@@ -257,10 +341,6 @@ export default function Library() {
                 </div>
               }
             >
-              {/* Signed-in empty state: surface the title-search inline so
-                  adding a book is one tap away — no extra page, no hidden
-                  wizard. Snap-a-cover and Upload still live below for the
-                  other flows. */}
               <div className="rounded-2xl border border-border/50 bg-card/30 p-6 md:p-8 space-y-6">
                 <div className="space-y-1">
                   <h3 className="font-serif text-xl font-semibold">
@@ -291,40 +371,83 @@ export default function Library() {
             </Show>
           ) : filteredLibrary.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border/50 p-10 text-center text-sm text-muted-foreground">
-              No books match “{q}”.{" "}
-              <Link
-                href="/library"
-                className="text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)] underline underline-offset-2"
-              >
-                Clear search
-              </Link>{" "}
-              or{" "}
-              <Link
-                href="/setup-book"
-                className="text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)] underline underline-offset-2"
-              >
-                add a new book
-              </Link>
-              .
+              {q ? (
+                <>
+                  No books match "{q}".{" "}
+                  <Link
+                    href="/library"
+                    className="text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)] underline underline-offset-2"
+                  >
+                    Clear search
+                  </Link>
+                </>
+              ) : (
+                <>
+                  No books with status "{STATUS_TABS.find((t) => t.key === activeTab)?.label}".{" "}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("all")}
+                    className="text-[var(--jtb-accent-hi)] hover:text-[var(--jtb-accent-hi)] underline underline-offset-2"
+                  >
+                    Show all
+                  </button>
+                </>
+              )}
             </div>
           ) : (
-            <div
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
               id="my-books"
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5"
+              className="space-y-6"
             >
-              {filteredLibrary.map((book, i) => (
-                <LibraryBookTile
-                  key={book.id}
-                  book={book}
-                  index={i}
-                  hasBible={bibleBookIds.has(book.id)}
-                />
+              {seriesGroups.groups.map((group) => (
+                <div key={group.name} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <BookMarked className="w-4 h-4 text-[var(--jtb-accent-hi)]" />
+                    <h3 className="text-sm font-semibold text-foreground/90">{group.name}</h3>
+                    <span className="text-[10px] text-muted-foreground rounded-full bg-card/50 px-2 py-0.5">
+                      {group.books.length} book{group.books.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+                    {group.books.map((book, i) => (
+                      <LibraryBookTile
+                        key={book.id}
+                        book={{
+                          ...book,
+                          sceneCount: getSceneCount(book.id),
+                        }}
+                        index={i}
+                        hasBible={bibleBookIds.has(book.id)}
+                        showStatusBadge={isSignedIn}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
-            </div>
+              {seriesGroups.standalone.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+                  {seriesGroups.standalone.map((book, i) => (
+                    <LibraryBookTile
+                      key={book.id}
+                      book={{
+                        ...book,
+                        sceneCount: getSceneCount(book.id),
+                      }}
+                      index={i}
+                      hasBible={bibleBookIds.has(book.id)}
+                      showStatusBadge={isSignedIn}
+                    />
+                  ))}
+                </div>
+              )}
+            </motion.div>
           )}
         </div>
 
-        {/* Personal scene gallery — only for signed-in users */}
         {isSignedIn && (
           <div className="space-y-5">
             <div className="flex items-end justify-between border-b border-border/40 pb-2 gap-3">
@@ -352,9 +475,6 @@ export default function Library() {
                 Loading your scenes…
               </div>
             ) : totalScenes === 0 ? (
-              // Empty state — without it the section was just a header with
-              // "0 total" floating in space, leaving signed-in newcomers with
-              // no idea how to populate it.
               <div className="rounded-2xl border border-dashed border-border/50 bg-card/20 p-8 text-center space-y-3">
                 <p className="font-serif text-lg">
                   No scenes yet — pick a book to start visualizing.

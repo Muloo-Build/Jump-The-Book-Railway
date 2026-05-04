@@ -51,9 +51,10 @@ export interface UserLibraryItem {
   // Resolved cover URL (Open Library or any CDN). When present, the tile
   // renders this directly and skips the per-browser OL lookup.
   coverUrl?: string | null;
-  // Backend user_books.id (UUID). Present for remote-backed items (signed-in
-  // users); local/demo items use slug ids and have no remote id yet.
   remoteId?: string;
+  readingStatus?: "reading" | "want-to-read" | "finished";
+  seriesName?: string | null;
+  seriesOrder?: number | null;
 }
 
 /**

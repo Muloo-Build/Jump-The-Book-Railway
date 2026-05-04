@@ -108,6 +108,8 @@ export interface Book {
   coverUrl?: string | null;
 }
 
+export type ReadingStatus = "reading" | "want-to-read" | "finished";
+
 export interface UserLibraryItem {
   id: string;
   title: string;
@@ -122,16 +124,14 @@ export interface UserLibraryItem {
   progress: number;
   coverGradient: string[];
   createdAt: string;
-  // Optional fields shared with demo Book so screens can render either uniformly
   sourceType?: "demo" | "user-added" | "user-writing";
   tagline?: string;
   heroImage?: string;
-  // Resolved cover URL (Open Library or any CDN). When present, the tile
-  // renders this directly and skips the per-browser OL lookup.
   coverUrl?: string | null;
-  // Backend user_books.id (UUID). Present for remote-backed items (signed-in
-  // users); local/demo items use slug ids and have no remote id yet.
   remoteId?: string;
+  readingStatus?: ReadingStatus;
+  seriesName?: string | null;
+  seriesOrder?: number | null;
 }
 
 export const DEMO_BOOKS: Book[] = [

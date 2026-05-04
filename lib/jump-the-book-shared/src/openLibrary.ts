@@ -109,6 +109,74 @@ export async function fetchWorkDetails(
   };
 }
 
+export interface SeriesInfo {
+  seriesName: string;
+  books: {
+    title: string;
+    author: string;
+    coverUrl: string | null;
+    coverUrlLarge: string | null;
+    workKey: string;
+    seriesOrder: number;
+  }[];
+}
+
+export async function fetchSeriesInfo(
+  workKey: string,
+  signal?: AbortSignal,
+): Promise<SeriesInfo | null> {
+  const key = workKey.startsWith("/") ? workKey : `/${workKey}`;
+  let workRes: Response;
+  try {
+    workRes = await fetch(`${WORK_URL}${key}.json`, { signal });
+  } catch {
+    return null;
+  }
+  if (!workRes.ok) return null;
+  let workData: Record<string, unknown>;
+  try {
+    workData = (await workRes.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const links = workData.links as Array<{ title?: string; url?: string }> | undefined;
+  const seriesSubjects = Array.isArray(workData.subjects)
+    ? (workData.subjects as string[]).filter(
+        (s) => /series/i.test(s) || /trilogy/i.test(s) || /saga/i.test(s),
+      )
+    : [];
+
+  const seriesName = seriesSubjects[0] ??
+    (links && links.length > 0 ? links[0]?.title : null) ??
+    null;
+
+  if (!seriesName) return null;
+
+  try {
+    const searchRes = await fetch(
+      `${SEARCH_URL}?q=${encodeURIComponent(seriesName)}&limit=20&fields=key,title,author_name,cover_i`,
+      { signal },
+    );
+    if (!searchRes.ok) return { seriesName, books: [] };
+    const searchData = (await searchRes.json()) as OpenLibraryResponse;
+    const books = searchData.docs
+      .filter((d) => d.title && d.author_name && d.author_name.length > 0)
+      .map((d, i) => ({
+        title: d.title,
+        author: (d.author_name ?? ["Unknown"])[0],
+        coverUrl: coverUrlFor(d.cover_i, "M"),
+        coverUrlLarge: coverUrlFor(d.cover_i, "L"),
+        workKey: d.key,
+        seriesOrder: i + 1,
+      }))
+      .slice(0, 12);
+    return { seriesName, books };
+  } catch {
+    return { seriesName, books: [] };
+  }
+}
+
 /**
  * Combined helper: search for a book by title+author, then fetch the top
  * match's work-level details. Returns null if no match.

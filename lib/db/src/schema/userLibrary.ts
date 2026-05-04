@@ -79,6 +79,9 @@ export const userBooksTable = pgTable(
     // cover writes it here and every subsequent read uses it.
     coverUrl: text("cover_url"),
     totalChapters: integer("total_chapters"),
+    readingStatus: text("reading_status").notNull().default("reading"),
+    seriesName: text("series_name"),
+    seriesOrder: integer("series_order"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -89,6 +92,7 @@ export const userBooksTable = pgTable(
   (t) => ({
     userIdx: index("user_books_user_idx").on(t.userId),
     demoUniq: uniqueIndex("user_books_demo_uniq").on(t.userId, t.demoBookId),
+    userStatusIdx: index("user_books_user_status_idx").on(t.userId, t.readingStatus),
   }),
 );
 

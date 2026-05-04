@@ -81,9 +81,15 @@ function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
+          <Link href="/now-reading">
+            <UserIcon className="w-4 h-4 mr-2" />
+            Now Reading
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href="/library">
             <UserIcon className="w-4 h-4 mr-2" />
-            My library
+            My Bookshelf
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
@@ -161,6 +167,18 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
           </Link>
           <nav className="flex items-center gap-4 sm:gap-6 text-sm font-medium overflow-x-auto no-scrollbar min-w-0">
             <Link
+              href="/now-reading"
+              className={cn(
+                "transition-colors hover:text-foreground/80",
+                location?.startsWith("/now-reading")
+                  ? "text-foreground"
+                  : "text-foreground/60",
+                "shrink-0",
+              )}
+            >
+              Now Reading
+            </Link>
+            <Link
               href="/library"
               className={cn(
                 "transition-colors hover:text-foreground/80",
@@ -170,7 +188,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
                 "shrink-0",
               )}
             >
-              Library
+              Bookshelf
             </Link>
             <Link
               href="/discover"

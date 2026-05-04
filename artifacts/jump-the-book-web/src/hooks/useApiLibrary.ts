@@ -18,6 +18,8 @@ export interface RemoteUser {
   onboardedAt: string | null;
 }
 
+export type ReadingStatus = "reading" | "want-to-read" | "finished";
+
 export interface RemoteBook {
   id: string;
   title: string;
@@ -37,6 +39,9 @@ export interface RemoteBook {
   heroImage: string | null;
   coverUrl: string | null;
   totalChapters: number | null;
+  readingStatus: ReadingStatus;
+  seriesName: string | null;
+  seriesOrder: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -125,6 +130,9 @@ export interface AddBookInput {
   heroImage?: string | null;
   coverUrl?: string | null;
   totalChapters?: number | null;
+  readingStatus?: ReadingStatus;
+  seriesName?: string | null;
+  seriesOrder?: number | null;
 }
 
 export function useAddRemoteBook() {
@@ -191,6 +199,25 @@ export function usePatchRemoteBook() {
       return r.book;
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me", "books"] });
+    },
+  });
+}
+
+export function useUpdateBookStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, readingStatus }: { id: string; readingStatus: ReadingStatus }) => {
+      const r = await apiFetch<{ book: RemoteBook }>(`/me/books/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ readingStatus }),
+      });
+      return r.book;
+    },
+    onSuccess: (updated) => {
+      qc.setQueryData<RemoteBook[]>(["me", "books"], (prev) =>
+        prev ? prev.map((b) => (b.id === updated.id ? updated : b)) : [],
+      );
       qc.invalidateQueries({ queryKey: ["me", "books"] });
     },
   });
