@@ -74,9 +74,17 @@ export default function Library() {
   }, [userLibrary, q, activeTab]);
 
   const seriesGroups = useMemo(() => {
-    const groups: { name: string; books: typeof filteredLibrary }[] = [];
-    const standalone: typeof filteredLibrary = [];
-    const seriesMap = new Map<string, typeof filteredLibrary>();
+    type GroupBook = typeof filteredLibrary[number];
+    type Group = {
+      name: string;
+      books: GroupBook[];
+      finishedCount: number;
+      readingCount: number;
+      avgProgress: number;
+    };
+    const groups: Group[] = [];
+    const standalone: GroupBook[] = [];
+    const seriesMap = new Map<string, GroupBook[]>();
     for (const book of filteredLibrary) {
       const sn = book.seriesName?.trim();
       if (sn) {
@@ -87,11 +95,33 @@ export default function Library() {
         standalone.push(book);
       }
     }
+    // Only treat as a "series" when there are 2+ books with the same name —
+    // a lone series book is shown alongside standalones to avoid an awkward
+    // one-tile group.
     for (const [, books] of seriesMap) {
-      if (books.length > 0) {
-        groups.push({ name: books[0].seriesName!, books });
+      if (books.length >= 2) {
+        let finishedCount = 0;
+        let readingCount = 0;
+        let progressSum = 0;
+        for (const b of books) {
+          const status = b.readingStatus ?? (b.progress != null && b.progress >= 100 ? "finished" : "reading");
+          if (status === "finished" || (b.progress ?? 0) >= 100) finishedCount += 1;
+          else if (status === "reading" && (b.progress ?? 0) > 0) readingCount += 1;
+          progressSum += Math.max(0, Math.min(100, b.progress ?? 0));
+        }
+        groups.push({
+          name: books[0].seriesName!,
+          books,
+          finishedCount,
+          readingCount,
+          avgProgress: Math.round(progressSum / books.length),
+        });
+      } else if (books.length === 1) {
+        standalone.push(books[0]);
       }
     }
+    // Sort series groups alphabetically for a stable display.
+    groups.sort((a, b) => a.name.localeCompare(b.name));
     return { groups, standalone };
   }, [filteredLibrary]);
 
@@ -404,12 +434,40 @@ export default function Library() {
               className="space-y-6"
             >
               {seriesGroups.groups.map((group) => (
-                <div key={group.name} className="space-y-3">
+                <div
+                  key={group.name}
+                  className="rounded-xl border border-border/40 bg-card/20 p-4 md:p-5 space-y-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <BookMarked className="w-4 h-4 text-[var(--jtb-accent-hi)] flex-shrink-0" />
+                      <h3 className="text-sm font-semibold text-foreground/90 truncate">
+                        {group.name}
+                      </h3>
+                      <span className="text-[10px] text-muted-foreground rounded-full bg-card/60 px-2 py-0.5 flex-shrink-0">
+                        {group.books.length} book{group.books.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-shrink-0">
+                      <span>
+                        {group.finishedCount}/{group.books.length} finished
+                      </span>
+                      {group.readingCount > 0 && (
+                        <span className="text-[var(--jtb-accent-hi)]/80">
+                          · {group.readingCount} in progress
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <BookMarked className="w-4 h-4 text-[var(--jtb-accent-hi)]" />
-                    <h3 className="text-sm font-semibold text-foreground/90">{group.name}</h3>
-                    <span className="text-[10px] text-muted-foreground rounded-full bg-card/50 px-2 py-0.5">
-                      {group.books.length} book{group.books.length !== 1 ? "s" : ""}
+                    <div className="h-1.5 flex-1 rounded-full bg-card/60 overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--jtb-accent-hi)]/70 transition-all"
+                        style={{ width: `${group.avgProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground/80 tabular-nums w-10 text-right">
+                      {group.avgProgress}%
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
@@ -419,6 +477,7 @@ export default function Library() {
                         book={{
                           ...book,
                           sceneCount: getSceneCount(book.id),
+                          seriesOrder: book.seriesOrder,
                         }}
                         index={i}
                         hasBible={bibleBookIds.has(book.id)}

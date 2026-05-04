@@ -28,6 +28,7 @@ export interface LibraryBookTileBook {
   readingStatus?: ReadingStatus;
   remoteId?: string;
   sceneCount?: number;
+  seriesOrder?: number | null;
 }
 
 interface Props {
@@ -127,6 +128,14 @@ export default function LibraryBookTile({ book, index, hasBible = false, showSta
             {finished && !showStatusBadge && (
               <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/90 text-white text-[10px] font-medium px-2 py-0.5">
                 <Check className="w-3 h-3" /> Finished
+              </div>
+            )}
+            {book.seriesOrder != null && (
+              <div
+                className="absolute bottom-2 left-2 inline-flex items-center justify-center rounded-full bg-black/70 text-white text-[10px] font-semibold px-2 py-0.5 shadow-sm backdrop-blur-sm"
+                title={`Book #${book.seriesOrder} in series`}
+              >
+                #{book.seriesOrder}
               </div>
             )}
             {hasBible && !finished && (
