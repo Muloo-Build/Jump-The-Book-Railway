@@ -133,24 +133,30 @@ export default function Library() {
 
         <Show when="signed-in">
           {hasBooks && (
-            // Quiet "add another" banner only when the shelf already has books.
-            // When empty we let the inline search card below speak for itself
-            // instead of stacking three competing CTAs (top buttons, big
-            // banner, search card) on the same screen.
-            <div className="rounded-xl border border-border/50 bg-card/30 p-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <Sparkles className="w-4 h-4 text-[var(--jtb-accent-hi)]/80 shrink-0" />
-                <p className="text-sm text-muted-foreground truncate">
-                  Reading something new? Add it with Smart Setup.
+            <div className="rounded-2xl border border-border/50 bg-card/30 p-6 md:p-8 space-y-4">
+              <div className="space-y-1">
+                <h3 className="font-serif text-xl font-semibold">
+                  Add another book
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Search by title — we'll pull in the cover and details automatically.
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <BookSearch />
+              <div className="pt-2 border-t border-border/40 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>Other ways:</span>
                 <SnapCoverButton className="h-8 px-3 text-xs" />
                 <Link
-                  href="/setup-book"
-                  className="inline-flex items-center justify-center rounded-md border border-primary/40 text-[var(--jtb-accent-hi)] hover:bg-primary/10 h-8 px-3 text-xs font-medium transition-colors"
+                  href="/upload"
+                  className="inline-flex items-center justify-center rounded-md border border-border/50 h-8 px-3 text-xs font-medium hover:bg-card transition-colors"
                 >
-                  Add a book
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Upload EPUB
+                </Link>
+                <Link
+                  href="/setup-book"
+                  className="inline-flex items-center justify-center rounded-md border border-border/50 h-8 px-3 text-xs font-medium hover:bg-card transition-colors"
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Guided setup
                 </Link>
               </div>
             </div>

@@ -477,9 +477,30 @@ export default function BookDetail() {
                   </Button>
                 )}
               </div>
-              <p className="text-xl text-muted-foreground font-medium mb-6">
+              <p className="text-xl text-muted-foreground font-medium mb-4">
                 by {book.author}
               </p>
+
+              {bibleBookId && !bibleQ.isLoading && !bible && (
+                <Link href={`/setup-book?bookId=${bibleBookId}&auto=1`}>
+                  <Button size="sm" className="mb-4">
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Create bible
+                  </Button>
+                </Link>
+              )}
+              {bibleBookId && bible && (
+                <div className="flex items-center gap-2 mb-4">
+                  <Badge variant="secondary" className="text-xs">
+                    <Wand2 className="w-3 h-3 mr-1" /> Bible active
+                  </Badge>
+                  <Link href={`/setup-book?bookId=${bibleBookId}`}>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted-foreground">
+                      <Pencil className="w-3 h-3 mr-1" /> Edit
+                    </Button>
+                  </Link>
+                </div>
+              )}
+
               {book.tagline && (
                 <p className="text-lg text-primary italic border-l-2 border-primary pl-4 py-1">
                   "{book.tagline}"
@@ -518,107 +539,84 @@ export default function BookDetail() {
 
             <BookMetadata title={book.title} author={book.author} />
 
-            {bibleBookId && (
+            {bibleBookId && bible && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                {bible ? (
-                  <Card className="bg-primary/5 border-primary/30">
-                    <CardContent className="p-6 space-y-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-xs font-semibold uppercase tracking-wider">
-                            <Wand2 className="w-3.5 h-3.5" /> Book Bible
-                          </div>
-                          <h3 className="font-serif text-xl font-semibold">
-                            {bible.series
-                              ? `${bible.series}${bible.bookNumber ? ` #${bible.bookNumber}` : ""}`
-                              : "Your story profile"}
-                          </h3>
+                <Card className="bg-primary/5 border-primary/30">
+                  <CardContent className="p-6 space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-xs font-semibold uppercase tracking-wider">
+                          <Wand2 className="w-3.5 h-3.5" /> Book Bible
                         </div>
-                        <Link href={`/setup-book?bookId=${bibleBookId}`}>
-                          <Button size="sm" variant="ghost">
-                            <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
-                          </Button>
-                        </Link>
+                        <h3 className="font-serif text-xl font-semibold">
+                          {bible.series
+                            ? `${bible.series}${bible.bookNumber ? ` #${bible.bookNumber}` : ""}`
+                            : "Your story profile"}
+                        </h3>
                       </div>
+                      <Link href={`/setup-book?bookId=${bibleBookId}`}>
+                        <Button size="sm" variant="ghost">
+                          <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+                        </Button>
+                      </Link>
+                    </div>
 
-                      {bible.nonSpoilerSummary && (
-                        <p className="text-sm text-muted-foreground line-clamp-3">
-                          {bible.nonSpoilerSummary}
-                        </p>
-                      )}
-
-                      {(bible.genre.length > 0 || bible.tone.length > 0) && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {bible.genre.map((g) => (
-                            <Badge key={`g-${g}`} variant="secondary">
-                              {g}
-                            </Badge>
-                          ))}
-                          {bible.tone.map((t) => (
-                            <Badge
-                              key={`t-${t}`}
-                              variant="outline"
-                              className="border-primary/40 text-[var(--jtb-accent-hi)]"
-                            >
-                              {t}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-3 gap-2 text-xs text-center pt-2 border-t border-border/40">
-                        <Stat
-                          n={bible.characterProfiles.length}
-                          label="characters"
-                        />
-                        <Stat
-                          n={bible.locations.length}
-                          label="locations"
-                        />
-                        <Stat n={bible.factions.length} label="factions" />
-                      </div>
-
-                      {bible.avoidNotes && (
-                        <div className="text-xs text-muted-foreground border-t border-border/40 pt-3">
-                          <span className="font-medium text-foreground">
-                            Avoid:
-                          </span>{" "}
-                          {bible.avoidNotes}
-                        </div>
-                      )}
-
-                      <p className="text-[11px] text-muted-foreground/80 pt-1">
-                        Every scene we generate uses this context to stay on-tone
-                        and spoiler-safe.
+                    {bible.nonSpoilerSummary && (
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {bible.nonSpoilerSummary}
                       </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  !bibleQ.isLoading && (
-                    <Card className="border-dashed border-primary/30 bg-primary/5">
-                      <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
-                        <div className="space-y-1">
-                          <div className="inline-flex items-center gap-2 text-[var(--jtb-accent-hi)] text-xs font-semibold uppercase tracking-wider">
-                            <Wand2 className="w-3.5 h-3.5" /> Book Bible
-                          </div>
-                          <p className="text-sm">
-                            Build a story profile so every scene is grounded in
-                            this book's world.
-                          </p>
-                        </div>
-                        <Link href={`/setup-book?bookId=${bibleBookId}`}>
-                          <Button>
-                            <Sparkles className="w-4 h-4 mr-2" /> Add a bible
-                          </Button>
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  )
-                )}
+                    )}
+
+                    {(bible.genre.length > 0 || bible.tone.length > 0) && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {bible.genre.map((g) => (
+                          <Badge key={`g-${g}`} variant="secondary">
+                            {g}
+                          </Badge>
+                        ))}
+                        {bible.tone.map((t) => (
+                          <Badge
+                            key={`t-${t}`}
+                            variant="outline"
+                            className="border-primary/40 text-[var(--jtb-accent-hi)]"
+                          >
+                            {t}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2 text-xs text-center pt-2 border-t border-border/40">
+                      <Stat
+                        n={bible.characterProfiles.length}
+                        label="characters"
+                      />
+                      <Stat
+                        n={bible.locations.length}
+                        label="locations"
+                      />
+                      <Stat n={bible.factions.length} label="factions" />
+                    </div>
+
+                    {bible.avoidNotes && (
+                      <div className="text-xs text-muted-foreground border-t border-border/40 pt-3">
+                        <span className="font-medium text-foreground">
+                          Avoid:
+                        </span>{" "}
+                        {bible.avoidNotes}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-muted-foreground/80 pt-1">
+                      Every scene we generate uses this context to stay on-tone
+                      and spoiler-safe.
+                    </p>
+                  </CardContent>
+                </Card>
               </motion.div>
             )}
 

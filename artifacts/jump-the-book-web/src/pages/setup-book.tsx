@@ -14,6 +14,7 @@ import {
   type BibleDraft,
 } from "@/hooks/useBookBible";
 import { useLibrary } from "@/lib/library";
+import { useRemoteBooks } from "@/hooks/useApiLibrary";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -160,7 +161,15 @@ export default function SetupBook() {
 
   // ── Edit-existing-bible mode ────────────────────────────────────────────
   const existingBibleQ = useBookBible(editingBookId);
+  const remoteBooks = useRemoteBooks();
+  const autoMode = params.get("auto") === "1";
   const [hydratedFromExisting, setHydratedFromExisting] = useState(false);
+  const autoGenerateStarted = useRef(false);
+
+  const generateDraft = useGenerateBibleDraft();
+  const saveBible = useSaveBookBible();
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
     if (!editingBookId || hydratedFromExisting) return;
     const b = existingBibleQ.data?.bible;
@@ -189,13 +198,73 @@ export default function SetupBook() {
       avoidNotes: b.avoidNotes,
     });
     setHydratedFromExisting(true);
-    // Skip identify + search — go straight to review
     setStep(3);
   }, [editingBookId, existingBibleQ.data, hydratedFromExisting]);
 
-  const generateDraft = useGenerateBibleDraft();
-  const saveBible = useSaveBookBible();
-  const [isSaving, setIsSaving] = useState(false);
+  useEffect(() => {
+    if (!editingBookId || !autoMode || autoGenerateStarted.current) return;
+    if (hydratedFromExisting) return;
+    if (existingBibleQ.isLoading || !existingBibleQ.isFetched) return;
+    if (existingBibleQ.data?.bible) return;
+
+    if (remoteBooks.isLoading || !remoteBooks.isFetched) return;
+
+    const books = remoteBooks.data ?? [];
+    const match = books.find((b) => b.id === editingBookId);
+    if (!match) {
+      toast({
+        title: "Couldn't find this book",
+        description: "Try creating the bible from the book's detail page.",
+        variant: "destructive",
+      });
+      setStep(1);
+      return;
+    }
+
+    const capturedBookId = editingBookId;
+    autoGenerateStarted.current = true;
+    setTitle(match.title);
+    setAuthor(match.author);
+    setStep(2);
+
+    (async () => {
+      try {
+        const res = await generateDraft.mutateAsync({
+          title: match.title,
+          author: match.author,
+        });
+        if (capturedBookId !== editingBookId) return;
+        setBibleValue({
+          draft: res.draft,
+          userNotes: "",
+          focusAreas: [],
+          avoidNotes: "",
+        });
+        setStep(3);
+      } catch (err) {
+        if (capturedBookId !== editingBookId) return;
+        toast({
+          title: "Couldn't build a bible draft",
+          description:
+            err instanceof Error ? err.message : "Try again in a moment.",
+          variant: "destructive",
+        });
+        setStep(1);
+      }
+    })();
+  }, [
+    editingBookId,
+    autoMode,
+    hydratedFromExisting,
+    existingBibleQ.isLoading,
+    existingBibleQ.isFetched,
+    existingBibleQ.data,
+    remoteBooks.data,
+    remoteBooks.isLoading,
+    remoteBooks.isFetched,
+    generateDraft,
+    toast,
+  ]);
 
   // ── Step handlers ───────────────────────────────────────────────────────
   const handleSearch = async () => {
@@ -466,7 +535,21 @@ export default function SetupBook() {
 
         <Stepper current={step} />
 
-        {step === 1 && (
+        {step === 1 && autoMode && editingBookId && !autoGenerateStarted.current && (
+          <Card>
+            <CardContent className="py-16 text-center space-y-4">
+              <Loader2 className="w-12 h-12 mx-auto animate-spin text-primary" />
+              <h2 className="font-serif text-2xl font-semibold">
+                Preparing your book…
+              </h2>
+              <p className="text-muted-foreground">
+                Loading book details to build the bible automatically.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 1 && !(autoMode && editingBookId && !autoGenerateStarted.current) && (
           <Step1
             title={title}
             setTitle={setTitle}
