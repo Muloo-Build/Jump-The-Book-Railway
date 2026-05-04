@@ -210,14 +210,21 @@ export default function Library() {
 
   return (
     <Layout>
-      <div className="container max-w-6xl mx-auto px-4 py-10 md:py-12 space-y-10 md:space-y-12">
-        <WelcomeHero nowReading={nowReading} totalBooks={userLibrary.length} />
+      <div className="container max-w-6xl mx-auto px-4 py-6 sm:py-10 md:py-12 space-y-8 sm:space-y-10 md:space-y-12">
+        {/* WelcomeHero is desktop-only — on mobile the slim top bar plus
+            the bottom tab nav already orient the user, so a giant greeting
+            block above the bookshelf is just clutter. */}
+        <div className="hidden sm:block">
+          <WelcomeHero nowReading={nowReading} totalBooks={userLibrary.length} />
+        </div>
 
         {nowReading && (
-          <NowReadingHero
-            book={nowReading}
-            latestScene={latestSceneForNowReading}
-          />
+          <div className="hidden sm:block">
+            <NowReadingHero
+              book={nowReading}
+              latestScene={latestSceneForNowReading}
+            />
+          </div>
         )}
 
         <ReadingStats nowReading={nowReading} />

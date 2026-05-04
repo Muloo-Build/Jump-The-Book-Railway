@@ -43,6 +43,7 @@ import Discover from "@/pages/discover";
 import Account from "@/pages/account";
 import SceneShare from "@/pages/scene-share";
 import NowReading from "@/pages/now-reading";
+import { useLibrary } from "@/lib/library";
 
 // In production the Clerk proxy runs on the current host; derive the
 // publishable key from window.location so the same build serves multiple
@@ -197,6 +198,7 @@ function HomeRedirect() {
 
 function SignedInHome() {
   const { data, isLoading } = useRemoteUser();
+  const { userLibrary } = useLibrary();
   if (isLoading) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background dark text-foreground">
@@ -205,7 +207,18 @@ function SignedInHome() {
     );
   }
   if (!data?.onboarded) return <Redirect to="/onboarding" />;
-  return <Redirect to="/now-reading" />;
+
+  // State-based landing: send users to the place that's most useful for
+  // their current state, instead of always dumping them on Now Reading
+  // (which is empty for users who haven't started anything yet).
+  const hasAnyBooks = userLibrary.length > 0;
+  const hasReadingBook = userLibrary.some(
+    (b) => (b.readingStatus ?? "reading") === "reading" && (b.progress ?? 0) < 100,
+  );
+
+  if (hasReadingBook) return <Redirect to="/now-reading" />;
+  if (hasAnyBooks) return <Redirect to="/library" />;
+  return <Redirect to="/upload" />;
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {

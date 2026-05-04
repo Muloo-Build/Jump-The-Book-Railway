@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import StreakBadge from "@/components/streak-badge";
+import BottomNav from "@/components/bottom-nav";
 import { cn } from "@/lib/utils";
 
 interface LayoutProps {
@@ -98,6 +99,12 @@ function UserMenu() {
             Account &amp; preferences
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/help">
+            <UserIcon className="w-4 h-4 mr-2" />
+            Help
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: basePath || "/" })}
@@ -165,7 +172,10 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
               Book
             </span>
           </Link>
-          <nav className="flex items-center gap-4 sm:gap-6 text-sm font-medium overflow-x-auto no-scrollbar min-w-0">
+          {/* Top nav links: hidden on mobile (bottom tabs handle that). On
+              tablet+ the horizontal nav returns. Help moves out of primary
+              nav and into the avatar dropdown to reduce clutter. */}
+          <nav className="hidden sm:flex items-center gap-6 text-sm font-medium overflow-x-auto no-scrollbar min-w-0">
             <Link
               href="/now-reading"
               className={cn(
@@ -212,19 +222,7 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
                 "shrink-0",
               )}
             >
-              Upload
-            </Link>
-            <Link
-              href="/help"
-              className={cn(
-                "transition-colors hover:text-foreground/80",
-                location?.startsWith("/help")
-                  ? "text-foreground"
-                  : "text-foreground/60",
-                "shrink-0",
-              )}
-            >
-              Help
+              Add
             </Link>
           </nav>
           <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
@@ -251,7 +249,12 @@ export default function Layout({ children, hideNav = false }: LayoutProps) {
           </div>
         </div>
       </header>
-      <main className="flex-1 flex flex-col">{children}</main>
+      {/* Bottom padding on mobile so content isn't covered by the bottom
+          tab bar (≈64px nav + safe-area inset). */}
+      <main className="flex-1 flex flex-col pb-[calc(64px+env(safe-area-inset-bottom))] sm:pb-0">
+        {children}
+      </main>
+      <BottomNav />
     </div>
   );
 }
