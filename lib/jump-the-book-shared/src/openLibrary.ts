@@ -41,12 +41,10 @@ function coverUrlFor(coverId: number | undefined, size: "S" | "M" | "L" = "M"): 
   return `${COVER_URL}/${coverId}-${size}.jpg`;
 }
 
-export async function searchOpenLibrary(
-  query: string,
+async function searchOpenLibraryUncached(
+  trimmed: string,
   signal?: AbortSignal,
 ): Promise<OpenLibrarySearchResult[]> {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
   const url = `${SEARCH_URL}?q=${encodeURIComponent(trimmed)}&limit=20&fields=key,title,author_name,first_publish_year,number_of_pages_median,cover_i`;
   const res = await fetch(url, { signal });
   if (!res.ok) {
@@ -68,6 +66,23 @@ export async function searchOpenLibrary(
     .slice(0, 12);
 }
 
+const searchCache = createRequestCache<OpenLibrarySearchResult[]>({
+  ttlMs: 60 * 60 * 1000,
+  maxEntries: 50,
+});
+
+export async function searchOpenLibrary(
+  query: string,
+  signal?: AbortSignal,
+): Promise<OpenLibrarySearchResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const key = trimmed.toLowerCase();
+  return cachedRequest(searchCache, key, signal, (s) =>
+    searchOpenLibraryUncached(trimmed, s),
+  );
+}
+
 interface OpenLibraryWorkResponse {
   description?: string | { value?: string };
   subjects?: string[];
@@ -84,11 +99,10 @@ function flatString(v: unknown): string | null {
   return null;
 }
 
-export async function fetchWorkDetails(
-  workKey: string,
+async function fetchWorkDetailsUncached(
+  key: string,
   signal?: AbortSignal,
 ): Promise<OpenLibraryWorkDetails | null> {
-  const key = workKey.startsWith("/") ? workKey : `/${workKey}`;
   let res: Response;
   try {
     res = await fetch(`${WORK_URL}${key}.json`, { signal });
@@ -107,6 +121,21 @@ export async function fetchWorkDetails(
     subjects: Array.isArray(data.subjects) ? data.subjects.slice(0, 8) : [],
     firstSentence: flatString(data.first_sentence),
   };
+}
+
+const workDetailsCache = createRequestCache<OpenLibraryWorkDetails | null>({
+  ttlMs: 24 * 60 * 60 * 1000,
+  maxEntries: 100,
+});
+
+export async function fetchWorkDetails(
+  workKey: string,
+  signal?: AbortSignal,
+): Promise<OpenLibraryWorkDetails | null> {
+  const key = workKey.startsWith("/") ? workKey : `/${workKey}`;
+  return cachedRequest(workDetailsCache, key, signal, (s) =>
+    fetchWorkDetailsUncached(key, s),
+  );
 }
 
 export interface SeriesInfo {
@@ -589,11 +618,7 @@ async function fetchSeriesInfoUncached(
   return { seriesName, books };
 }
 
-/**
- * Combined helper: search for a book by title+author, then fetch the top
- * match's work-level details. Returns null if no match.
- */
-export async function searchAndFetchWork(
+async function searchAndFetchWorkUncached(
   title: string,
   author: string,
   signal?: AbortSignal,
@@ -608,4 +633,137 @@ export async function searchAndFetchWork(
   if (!top) return null;
   const details = await fetchWorkDetails(top.workKey, signal).catch(() => null);
   return { result: top, details };
+}
+
+const searchAndFetchWorkCache = createRequestCache<{
+  result: OpenLibrarySearchResult;
+  details: OpenLibraryWorkDetails | null;
+} | null>({
+  ttlMs: 24 * 60 * 60 * 1000,
+  maxEntries: 100,
+});
+
+/**
+ * Combined helper: search for a book by title+author, then fetch the top
+ * match's work-level details. Returns null if no match.
+ */
+export async function searchAndFetchWork(
+  title: string,
+  author: string,
+  signal?: AbortSignal,
+): Promise<{ result: OpenLibrarySearchResult; details: OpenLibraryWorkDetails | null } | null> {
+  const key = `${title.trim().toLowerCase()}|${author.trim().toLowerCase()}`;
+  return cachedRequest(searchAndFetchWorkCache, key, signal, (s) =>
+    searchAndFetchWorkUncached(title, author, s),
+  );
+}
+
+interface RequestCacheEntry<T> {
+  value: T;
+  expiresAt: number;
+  lastAccessedAt: number;
+}
+
+interface RequestCache<T> {
+  ttlMs: number;
+  maxEntries: number;
+  cache: Map<string, RequestCacheEntry<T>>;
+  inFlight: Map<string, Promise<T>>;
+}
+
+function createRequestCache<T>(opts: {
+  ttlMs: number;
+  maxEntries: number;
+}): RequestCache<T> {
+  return {
+    ttlMs: opts.ttlMs,
+    maxEntries: opts.maxEntries,
+    cache: new Map(),
+    inFlight: new Map(),
+  };
+}
+
+function evictRequestCacheIfNeeded<T>(c: RequestCache<T>): void {
+  if (c.cache.size <= c.maxEntries) return;
+  const sorted = Array.from(c.cache.entries()).sort(
+    (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt,
+  );
+  const overflow = sorted.length - c.maxEntries;
+  for (let i = 0; i < overflow; i++) {
+    c.cache.delete(sorted[i][0]);
+  }
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return (
+    (signal as AbortSignal & { reason?: unknown }).reason ??
+    new DOMException("Aborted", "AbortError")
+  );
+}
+
+function waitForPromiseWithSignal<T>(
+  p: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortReason(signal));
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
+async function cachedRequest<T>(
+  c: RequestCache<T>,
+  key: string,
+  signal: AbortSignal | undefined,
+  fetcher: (signal?: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  const cached = c.cache.get(key);
+  if (cached && cached.expiresAt > now) {
+    cached.lastAccessedAt = now;
+    return cached.value;
+  }
+  if (cached) c.cache.delete(key);
+
+  const inFlight = c.inFlight.get(key);
+  if (inFlight) {
+    if (!signal) return inFlight;
+    return waitForPromiseWithSignal(inFlight, signal);
+  }
+
+  const promise = fetcher(signal);
+  c.inFlight.set(key, promise);
+
+  try {
+    const result = await promise;
+    if (signal?.aborted) {
+      throw abortReason(signal);
+    }
+    const ts = Date.now();
+    c.cache.set(key, {
+      value: result,
+      expiresAt: ts + c.ttlMs,
+      lastAccessedAt: ts,
+    });
+    evictRequestCacheIfNeeded(c);
+    return result;
+  } finally {
+    if (c.inFlight.get(key) === promise) {
+      c.inFlight.delete(key);
+    }
+  }
 }
