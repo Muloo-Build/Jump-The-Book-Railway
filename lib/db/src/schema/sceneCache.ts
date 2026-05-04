@@ -1,7 +1,12 @@
 import { pgTable, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { appUsersTable } from "./userLibrary";
 
-export const SCENE_CACHE_VERSION = 1;
+// v2 (May 2026): rebuilt character roster clause (always include bible
+// characters as a baseline + token-overlap matching) and scoped cache key
+// per-user when the request has neither excerpt nor bible to ground it.
+// Bump invalidates pre-existing bundles that were generated under the old,
+// hallucination-prone prompt.
+export const SCENE_CACHE_VERSION = 2;
 export const IMAGE_CACHE_VERSION = 3;
 
 export const sceneCacheTable = pgTable(

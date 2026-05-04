@@ -537,6 +537,61 @@ export default function BookDetail() {
               </Card>
             </motion.div>
 
+            {/* Saved scenes — surfaced near the top so readers see their
+                existing visual library before scrolling past metadata, the
+                bible card, and the paste/generate UI. */}
+            {scenes.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="space-y-4"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="font-serif text-xl font-semibold">
+                    Your scenes
+                  </h3>
+                  <span className="text-xs text-muted-foreground">
+                    {scenes.length} saved
+                  </span>
+                </div>
+                <div className="space-y-5">
+                  {chapterEntries.map(([chapterNumber, chScenes]) => {
+                    const sorted = [...chScenes].sort(
+                      (a, b) => a.sceneIndex - b.sceneIndex,
+                    );
+                    return (
+                      <div key={chapterNumber} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground/80 font-medium">
+                            Chapter {chapterNumber}
+                          </p>
+                          <Link
+                            href={`/playback/${book.id}?chapter=${chapterNumber}`}
+                            className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] inline-flex items-center gap-1"
+                          >
+                            <PlayCircle className="w-3 h-3" />
+                            Play trailer
+                          </Link>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {sorted.map((scene) => (
+                            <SceneTileWithDelete
+                              key={scene.id}
+                              scene={scene}
+                              bookId={book.id}
+                              chapterNumber={chapterNumber}
+                              onDeleteRequest={() => setDeleteSceneId(scene.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+
             <BookMetadata title={book.title} author={book.author} />
 
             {bibleBookId && bible && (
@@ -674,49 +729,6 @@ export default function BookDetail() {
               </div>
             </motion.div>
 
-            {/* Saved scenes */}
-            {scenes.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="space-y-4"
-              >
-                <h3 className="font-serif text-xl font-semibold">Saved Scenes</h3>
-                <div className="space-y-5">
-                  {chapterEntries.map(([chapterNumber, chScenes]) => {
-                    const sorted = [...chScenes].sort((a, b) => a.sceneIndex - b.sceneIndex);
-                    return (
-                      <div key={chapterNumber} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs uppercase tracking-wider text-muted-foreground/80 font-medium">
-                            Chapter {chapterNumber}
-                          </p>
-                          <Link
-                            href={`/playback/${book.id}?chapter=${chapterNumber}`}
-                            className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] inline-flex items-center gap-1"
-                          >
-                            <PlayCircle className="w-3 h-3" />
-                            Play trailer
-                          </Link>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                          {sorted.map((scene) => (
-                            <SceneTileWithDelete
-                              key={scene.id}
-                              scene={scene}
-                              bookId={book.id}
-                              chapterNumber={chapterNumber}
-                              onDeleteRequest={() => setDeleteSceneId(scene.id)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
           </div>
         </div>
       </div>

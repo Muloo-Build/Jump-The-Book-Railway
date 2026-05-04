@@ -116,69 +116,170 @@ const SAFETY_SUFFIX =
 // otherwise identical.
 const SAFETY_POLICY_VERSION = "v1";
 
+// Cap how many bible characters we ever include in a single image prompt.
+// More than this dilutes the signal and runs into model attention limits.
+const MAX_ROSTER_CHARACTERS = 6;
+
+function characterPhrase(c: CharacterProfile): string | null {
+  const traits = (c.visualTraits ?? [])
+    .map((t) => (typeof t === "string" ? t.trim() : ""))
+    .filter((t) => t.length > 0);
+  const desc = (c.description ?? "").trim();
+  const sig = traits.length > 0 ? traits.join(", ") : desc;
+  if (!sig) return null;
+  return `${c.name}: ${sig}`;
+}
+
+// Articles, conjunctions, prepositions, and the most common 1-letter noise
+// from GPT outputs ("a", "I"). Always dropped — these never carry identity
+// signal even on their own. Single-letter character names like "Q" or "V"
+// survive because they aren't in this set.
+const TOKEN_GENERIC_STOPWORDS = new Set([
+  "a", "an", "and", "as", "at", "be", "by", "de", "der", "die", "do", "for",
+  "from", "i", "in", "is", "it", "la", "le", "of", "on", "or", "out", "the",
+  "to", "up", "with", "y",
+]);
+
+// Generic role / title nouns. These are dropped from a name's token set
+// ONLY when that name has at least one other (non-stopword) token — so
+// "Captain Marvel" matches on "marvel" and not the over-broad "captain",
+// while a character whose only canonical name is literally "Captain"
+// still indexes on "captain" because dropping it would leave nothing.
+const TOKEN_ROLE_STOPWORDS = new Set([
+  "captain", "king", "queen", "lord", "lady", "doctor", "dr", "mr", "mrs",
+  "ms", "sir", "master", "lieutenant", "lt", "general", "officer", "prince",
+  "princess", "duke", "duchess", "father", "mother", "uncle", "aunt",
+]);
+
+function rawTokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s'-]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 0 && !TOKEN_GENERIC_STOPWORDS.has(t));
+}
+
 /**
- * Build a stable visual signature for each character in the bible.
- * When the same character appears in scene N and scene N+1 the model now
- * receives the SAME description string in both image prompts, which is the
- * cheapest available lever for visual consistency without per-character
- * reference images.
+ * Tokenize a single name/alias into the matchable set we'll index it under.
  *
- * The map keys are lowercased character names AND aliases.
+ * Strategy:
+ *   - Strip generic stopwords ("the", "of", ...) unconditionally.
+ *   - Strip role-titles ("captain", "doctor", ...) ONLY when the name has
+ *     at least one other distinctive token. "Captain Marvel" → ["marvel"];
+ *     a character literally named "Captain" → ["captain"].
+ *   - Drop single-character tokens UNLESS this name is essentially a
+ *     single-letter handle ("Q", "V"), in which case the 1-char token is
+ *     the entire identity and must be preserved.
  */
-function buildCharacterVisualMap(bible: BookBibleRow | null): Map<string, string> {
-  const map = new Map<string, string>();
-  if (!bible) return map;
+function tokenizeNamePart(name: string): string[] {
+  const all = rawTokens(name);
+  if (all.length === 0) return [];
+  const distinctive = all.filter((t) => !TOKEN_ROLE_STOPWORDS.has(t));
+  const base = distinctive.length > 0 ? distinctive : all;
+  // If the full-name shape is a single 1-char token, keep it. Otherwise
+  // drop 1-char tokens to suppress noise like residue letters from
+  // hyphenation / punctuation strips.
+  if (base.length === 1 && base[0].length === 1) return base;
+  return base.filter((t) => t.length > 1);
+}
+
+/**
+ * Tokenize a free-form scene-character string from GPT. We keep
+ * single-character tokens here too so a scene reference of "Q" can still
+ * collide with a bible character of the same name; generic stopwords
+ * already filter out "I" / "a" noise.
+ */
+function tokenizeSceneRef(s: string): string[] {
+  return rawTokens(s);
+}
+
+/**
+ * Build the character-consistency clause that gets appended to image
+ * prompts. Two important departures from the old EXACT-match approach:
+ *
+ *  1. **Token-overlap matching.** GPT may write "Sarah" when the bible has
+ *     "Sarah Chen", or "the Captain" when the bible has "Captain Vega". We
+ *     now match on overlapping word tokens across name + aliases so partial
+ *     references still pull in the right visual signature.
+ *
+ *  2. **Always-include baseline.** Even when GPT names no characters, we
+ *     surface the bible's primary characters so any unnamed protagonist the
+ *     model decides to render still looks consistent across scenes.
+ *
+ * Returns the clause text and a stable signature for cache-keying. Both are
+ * derived from the SAME phrase set so two requests that produce the same
+ * clause always collide on cache and two requests that produce different
+ * clauses never collide.
+ */
+function buildCharacterRosterClause(
+  bible: BookBibleRow | null,
+  sceneCharacters: string[] | undefined,
+): { clause: string; signature: string } {
+  const emptySignature = `safety:${SAFETY_POLICY_VERSION}|roster:`;
+  if (!bible) return { clause: "", signature: emptySignature };
+
   const chars = asCharList(bible.characterProfiles);
-  for (const c of chars) {
-    const traits = (c.visualTraits ?? []).filter((t) => t && t.trim().length > 0);
-    if (traits.length === 0 && !c.description) continue;
-    const sig = traits.length > 0 ? traits.join(", ") : (c.description ?? "");
-    if (!sig.trim()) continue;
-    const phrase = `${c.name} (${sig})`;
-    map.set(c.name.toLowerCase().trim(), phrase);
+  if (chars.length === 0) return { clause: "", signature: emptySignature };
+
+  // Pre-compute searchable token sets for each character (name + aliases).
+  // tokenizeNamePart preserves bare single-letter handles like "Q".
+  const charTokens = chars.map((c) => {
+    const tokens = new Set<string>();
+    for (const tok of tokenizeNamePart(c.name)) tokens.add(tok);
     for (const alias of c.aliases ?? []) {
-      if (alias && alias.trim()) {
-        map.set(alias.toLowerCase().trim(), phrase);
+      if (typeof alias === "string") {
+        for (const tok of tokenizeNamePart(alias)) tokens.add(tok);
+      }
+    }
+    return { c, tokens };
+  });
+
+  // Resolve which characters the scene references via token overlap.
+  // tokenizeSceneRef keeps 1-char tokens (so "Q" can still match) but drops
+  // generic stopwords ("a", "I", "the"...) so they don't trigger spurious
+  // matches against unrelated bible entries.
+  const sceneTokenSet = new Set<string>();
+  for (const sc of Array.isArray(sceneCharacters) ? sceneCharacters : []) {
+    for (const tok of tokenizeSceneRef(String(sc ?? ""))) sceneTokenSet.add(tok);
+  }
+
+  const matched: CharacterProfile[] = [];
+  if (sceneTokenSet.size > 0) {
+    for (const { c, tokens } of charTokens) {
+      for (const tok of tokens) {
+        if (sceneTokenSet.has(tok)) {
+          matched.push(c);
+          break;
+        }
       }
     }
   }
-  return map;
-}
 
-/** Pull the consistent visual signatures for any characters in this scene. */
-function characterConsistencyClause(
-  sceneCharacters: string[] | undefined,
-  visualMap: Map<string, string>,
-): string {
-  if (!Array.isArray(sceneCharacters) || sceneCharacters.length === 0) return "";
-  if (visualMap.size === 0) return "";
+  // Baseline fallback: if GPT named no recognised character, include the
+  // first few bible characters anyway so a protagonist drawn without an
+  // explicit name still inherits the bible's visual identity.
+  const chosen = matched.length > 0 ? matched : chars.slice(0, MAX_ROSTER_CHARACTERS);
+
   const seen = new Set<string>();
   const phrases: string[] = [];
-  for (const name of sceneCharacters) {
-    const key = String(name ?? "").toLowerCase().trim();
+  for (const c of chosen) {
+    const key = c.name.toLowerCase().trim();
     if (!key || seen.has(key)) continue;
-    const sig = visualMap.get(key);
-    if (sig) {
-      seen.add(key);
-      phrases.push(sig);
-    }
+    seen.add(key);
+    const phrase = characterPhrase(c);
+    if (phrase) phrases.push(phrase);
+    if (phrases.length >= MAX_ROSTER_CHARACTERS) break;
   }
-  if (phrases.length === 0) return "";
-  return ` Render characters with these EXACT consistent visual traits across every scene of this book: ${phrases.join("; ")}.`;
-}
 
-/**
- * Build the deterministic cache-key signature for everything we ADD to the
- * raw `imagePrompt` server-side: the safety policy version + the resolved
- * character consistency clause. Two requests with the same base prompt but
- * different bibles or policy versions must NOT collide.
- */
-function imageConsistencySignature(
-  sceneCharacters: string[] | undefined,
-  visualMap: Map<string, string>,
-): string {
-  const clause = characterConsistencyClause(sceneCharacters, visualMap);
-  return `safety:${SAFETY_POLICY_VERSION}|consistency:${clause}`;
+  if (phrases.length === 0) {
+    return { clause: "", signature: emptySignature };
+  }
+
+  const joined = phrases.join("; ");
+  const clause =
+    ` If any of these characters appears, render them with these EXACT consistent visual traits — same face, same hair, same wardrobe in every scene of this book: ${joined}.`;
+  const signature = `safety:${SAFETY_POLICY_VERSION}|roster:${joined}`;
+  return { clause, signature };
 }
 
 function clampSceneCount(n: unknown): number {
@@ -278,16 +379,38 @@ router.post("/scenes/generate", requireAuth, async (req, res) => {
 
     const sceneCount = clampSceneCount(rawSceneCount);
     const bibleTag = bible ? bibleCacheTag(bible) : undefined;
+    // Trim every grounding signal BEFORE evaluating presence so a payload of
+    // `excerpt: "   "` or `whatJustHappened: "\n"` is correctly recognised as
+    // having no grounding (and therefore triggers per-user cache scoping).
+    const trimmedExcerpt = (excerpt ?? "").trim();
+    const trimmedWjh = (whatJustHappened ?? "").trim();
+    const trimmedCsc = Array.isArray(currentSceneCharacters)
+      ? currentSceneCharacters
+          .map((c) => (typeof c === "string" ? c.trim() : ""))
+          .filter((c) => c.length > 0)
+      : [];
+    const hasExcerpt = trimmedExcerpt.length > 0;
     // Mix bible tag + reading-context blobs into the excerpt-hash slot so the
     // cache key naturally invalidates when the bible or "what just happened"
     // changes. We avoid changing makeSceneCacheKey's signature.
+    //
+    // When the request has NO grounding signal at all (no excerpt, no bible,
+    // no reading-context), the LLM is forced to invent scenes from training
+    // memory — which for an obscure book means full hallucination. We scope
+    // the cache by user in that case so two readers don't share each other's
+    // hallucinations and so a follow-up generation with a real excerpt isn't
+    // shadowed by the prior context-free run.
+    const hasAnyGrounding =
+      hasExcerpt ||
+      !!bibleTag ||
+      trimmedWjh.length > 0 ||
+      trimmedCsc.length > 0;
     const cacheExcerptInput = [
-      excerpt ?? "",
+      trimmedExcerpt,
       bibleTag ?? "",
-      whatJustHappened ? `wjh:${whatJustHappened}` : "",
-      Array.isArray(currentSceneCharacters) && currentSceneCharacters.length > 0
-        ? `csc:${currentSceneCharacters.join("|")}`
-        : "",
+      trimmedWjh ? `wjh:${trimmedWjh}` : "",
+      trimmedCsc.length > 0 ? `csc:${trimmedCsc.join("|")}` : "",
+      hasAnyGrounding ? "" : `user:${requesterId}`,
     ].filter(Boolean).join("||");
 
     const bundleParams = {
@@ -311,14 +434,13 @@ router.post("/scenes/generate", requireAuth, async (req, res) => {
         "scene cache hit",
       );
 
-      // Recompute keys here using the current bible-derived visual map so
+      // Recompute keys here using the current bible-derived roster clause so
       // cached scene bundles still produce consistency-aware image keys after
       // any bible edit. We deliberately ignore `s.imageCacheKey` from the
       // bundle for this reason.
-      const visualMapForCacheHit = buildCharacterVisualMap(bible);
       const enriched = await Promise.all(
         scenes.map(async (s, i) => {
-          const sig = imageConsistencySignature(s.characters, visualMapForCacheHit);
+          const { signature: sig } = buildCharacterRosterClause(bible, s.characters);
           const key = makeImageCacheKey({
             bookTitle,
             author,
@@ -360,19 +482,30 @@ router.post("/scenes/generate", requireAuth, async (req, res) => {
       : "Generate 3-5 scenes that progress naturally through the chapter.";
 
     const bibleSection = bible ? formatBibleContext(bible) : "";
-    const wjhSection = whatJustHappened
-      ? `\nWhat the reader says just happened in their reading position (use to ground mood and recent context — do NOT extrapolate further):\n---\n${whatJustHappened.slice(0, 1200)}\n---`
+    const wjhSection = trimmedWjh
+      ? `\nWhat the reader says just happened in their reading position (use to ground mood and recent context — do NOT extrapolate further):\n---\n${trimmedWjh.slice(0, 1200)}\n---`
       : "";
     const cscSection =
-      Array.isArray(currentSceneCharacters) && currentSceneCharacters.length > 0
-        ? `\nCharacters present in or near the reader's current scene: ${currentSceneCharacters.join(", ")}.`
+      trimmedCsc.length > 0
+        ? `\nCharacters present in or near the reader's current scene: ${trimmedCsc.join(", ")}.`
         : "";
+
+    // No-context guard. Only when the request has NO grounding signal at
+    // all (no excerpt, no bible, no "what just happened", no current-scene
+    // characters) do we force the model into a plot-free generic mode. If
+    // ANY grounding signal is present (e.g., the reader pasted "what just
+    // happened" or named the characters they're currently with), the model
+    // may use that signal — we don't want this guard to suppress legitimate
+    // user-supplied context.
+    const noContextWarning = !hasAnyGrounding
+      ? `\nIMPORTANT: You have NO chapter excerpt and NO reader-supplied story profile. You MUST NOT invent specific characters, places, ships, factions, or plot beats. Generate purely generic, mood-driven atmospheric scenes (weather, light, time of day, ambient sensory detail). Use the chapter number ONLY as a hint about pacing (early = setup mood, late = tense mood). Do NOT reference any character by name. Do NOT name any specific location. If you are tempted to write a recognisable plot detail, replace it with sensory atmosphere instead.\n`
+      : "";
 
     const userPrompt = `Book: "${bookTitle}" by ${author}
 Chapter ${chapterNumber}: "${chapterTitle}"
 Spoiler strictness: ${spoilerMode}
 ${bibleSection ? `\n=== BOOK BIBLE (reader-confirmed context — ground every scene in this) ===\n${bibleSection}\n=== END BIBLE ===\n` : ""}${wjhSection}${cscSection}
-${excerpt ? `\nExcerpt from this chapter (this is the actual text the reader is on — base scenes on this, not your training memory of the book):\n---\n${excerpt.slice(0, 3000)}\n---` : ""}
+${hasExcerpt ? `\nExcerpt from this chapter (this is the actual text the reader is on — base scenes on this, not your training memory of the book):\n---\n${trimmedExcerpt.slice(0, 3000)}\n---` : ""}${noContextWarning}
 
 ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.${bible?.avoidNotes ? ` Strictly honor the AVOID notes from the bible.` : ""}`;
 
@@ -411,10 +544,8 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
       };
     });
 
-    const visualMap = buildCharacterVisualMap(bible);
-
     const sceneListWithKeys: CachedScene[] = sceneList.map((s, i) => {
-      const sig = imageConsistencySignature(s.characters, visualMap);
+      const { signature: sig } = buildCharacterRosterClause(bible, s.characters);
       return {
         ...s,
         imageCacheKey: makeImageCacheKey({
@@ -441,8 +572,8 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
     if (generateImage && sceneListWithKeys.length > 0) {
       const first = sceneListWithKeys[0];
       const styleDesc = STYLE_DESCRIPTIONS[visualStyle] ?? "illustrated";
-      const firstSig = imageConsistencySignature(first.characters, visualMap);
-      const consistency = characterConsistencyClause(first.characters, visualMap);
+      const { clause: consistency, signature: firstSig } =
+        buildCharacterRosterClause(bible, first.characters);
       const fullPrompt = `${styleDesc}. ${first.imagePrompt}${consistency} ${SAFETY_SUFFIX}`;
       try {
         const buffer = await generateImageBuffer(fullPrompt, "1024x1024");
@@ -560,15 +691,8 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
         );
       }
     }
-    const visualMapForImage = buildCharacterVisualMap(bibleForImage);
-    const consistencySignature = imageConsistencySignature(
-      sceneCharacters,
-      visualMapForImage,
-    );
-    const consistency = characterConsistencyClause(
-      sceneCharacters,
-      visualMapForImage,
-    );
+    const { clause: consistency, signature: consistencySignature } =
+      buildCharacterRosterClause(bibleForImage, sceneCharacters);
 
     // SECURITY: never trust a client-provided cache key; recompute from canonical inputs.
     const cacheKey = makeImageCacheKey({

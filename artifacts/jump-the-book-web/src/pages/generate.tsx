@@ -200,7 +200,13 @@ export default function Generate() {
         },
         {
           onScenesReady: (scenes, cacheKey) => {
-            if (!active) return;
+            // Intentionally NOT gated on `active`. Initial scene-text
+            // generation can take 20-30 seconds against GPT; if the user
+            // taps "Continue browsing" during that window we still need to
+            // persist the scene rows when the response finally arrives.
+            // Otherwise leaving the page mid-text-gen would silently
+            // discard the run (the very "trap" we just removed from the UI).
+            // The mutation is idempotent on the server side.
             runScenes.length = 0;
             scenes.forEach((s) => runScenes.push(s));
             runSceneCacheKey = cacheKey;
@@ -284,7 +290,8 @@ export default function Generate() {
 
           {isSignedIn && (
             <p className="text-xs text-muted-foreground">
-              Scenes are being saved to your library as they generate.
+              Scenes are being saved to your library as they generate. You can
+              leave this page — generation will keep going in the background.
             </p>
           )}
 
@@ -334,13 +341,20 @@ export default function Generate() {
           </AnimatePresence>
 
           {!isComplete && !error && (
-            <Button
-              variant="ghost"
-              onClick={() => setLocation(`/book/${book.id}`)}
-              className="mt-12 text-muted-foreground hover:text-foreground"
-            >
-              Cancel
-            </Button>
+            <div className="mt-12 flex flex-col items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setLocation(`/book/${book.id}`)}
+                className="px-6"
+              >
+                {isSignedIn ? "Continue browsing" : "Back to book"}
+              </Button>
+              {isSignedIn && (
+                <p className="text-[11px] text-muted-foreground/80">
+                  Your scenes will appear in your library when ready.
+                </p>
+              )}
+            </div>
           )}
         </motion.div>
       </div>
