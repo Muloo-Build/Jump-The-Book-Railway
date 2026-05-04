@@ -221,3 +221,9 @@ id = "O8PISPbqnYKDvCZg4EHkf"
 uri = "file://.local/mobile-handoff-notes.md"
 type = "text"
 title = "Mobile App Handoff Notes"
+
+[[outputs]]
+id = "MfbSyD6gJZlLPOnQKrBHH"
+uri = "file://MOBILE_HANDOFF.md"
+type = "text"
+title = "Mobile App Handoff Document"

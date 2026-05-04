@@ -86,8 +86,10 @@ The project is structured as a pnpm workspace monorepo.
     *   **Discover page "Popular right now":** Shows trending books with image mosaics (4-image grid or single hero), scene/image counts, and flame badges for top 3. Clicking a trending book pre-fills the Smart Setup form with title/author.
 
 11. **Mobile App Integration:**
-    *   A separate Expo mobile app consumes the same API.
-    *   Shared code for data models (`RemoteUser`, `RemoteBook`, `RemoteScene`) and API client (`Orval-generated React Query hooks`) is synced between web and mobile repos via a GitHub Actions workflow.
+    *   A separate Expo mobile app (in a different Replit project) consumes the same API with the same Clerk auth.
+    *   Shared code for data models (`RemoteUser`, `RemoteBook`, `RemoteScene`) and API client lives in `lib/jump-the-book-shared`. Note: the shared `RemoteUser` type is currently missing some fields the web uses (`avatarId`, `defaultVisualStyles`, `favoriteGenres`, `readingPlatforms`, `readingPace`, `aboutMe`) — needs syncing.
+    *   A complete mobile design system lives in `mobile-design-spec/` (tokens, components, screen variants).
+    *   **`MOBILE_HANDOFF.md`** — comprehensive handoff document for the mobile project covering the full API reference (28 endpoints), data types, database schema, user flows, design system, auth setup, and environment configuration.
 
 # External Dependencies
 
