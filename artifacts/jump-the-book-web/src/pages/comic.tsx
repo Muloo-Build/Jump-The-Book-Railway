@@ -185,7 +185,7 @@ export default function Comic() {
           </div>
         </header>
 
-        <main className="container max-w-3xl mx-auto px-4 py-12 space-y-16">
+        <main className="container max-w-3xl mx-auto px-4 py-6 sm:py-12 space-y-8 sm:space-y-16">
           {scenes.length === 0 ? (
             <div className="text-center py-24 space-y-4">
               <p className="text-xl text-muted-foreground font-serif">Scenes haven't been generated yet.</p>
@@ -203,7 +203,7 @@ export default function Comic() {
                 transition={{ duration: 0.6 }}
               >
                 <Card className="overflow-hidden border-border/50 bg-card/30 shadow-xl ring-1 ring-border/50">
-                  <div className="relative aspect-video w-full bg-muted">
+                  <div className="relative aspect-[3/4] sm:aspect-[4/3] md:aspect-video w-full bg-muted">
                     {scene.imageUrl ? (
                       <img 
                         src={scene.imageUrl} 
@@ -224,19 +224,19 @@ export default function Comic() {
                         bookAuthor={book.author}
                       />
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8 pointer-events-none">
-                      <h3 className="font-serif text-2xl text-white font-semibold drop-shadow-md mb-2">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-4 sm:p-6 md:p-8 pointer-events-none">
+                      <h3 className="font-serif text-xl sm:text-2xl text-white font-semibold drop-shadow-md mb-1.5 sm:mb-2">
                         {scene.title}
                       </h3>
-                      <div className="flex items-center gap-3 text-xs uppercase tracking-widest text-white/70 font-medium drop-shadow">
+                      <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs uppercase tracking-widest text-white/70 font-medium drop-shadow">
                         <span>{scene.location}</span>
-                        <span>•</span>
+                        <span>·</span>
                         <span>{scene.mood}</span>
                       </div>
                     </div>
                   </div>
-                  <CardContent className="p-6 md:p-8 bg-card">
-                    <p className="font-serif text-xl md:text-2xl leading-relaxed text-card-foreground">
+                  <CardContent className="p-4 sm:p-6 md:p-8 bg-card">
+                    <p className="font-serif text-base sm:text-xl md:text-2xl leading-relaxed text-card-foreground">
                       {scene.narration}
                     </p>
                   </CardContent>

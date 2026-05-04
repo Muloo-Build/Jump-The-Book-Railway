@@ -440,7 +440,7 @@ function SceneTile({
 
   const tile = (
     <div
-      className={`group relative aspect-square overflow-hidden rounded-xl border border-white/5 transition-all ${
+      className={`group relative aspect-[3/4] overflow-hidden rounded-xl border border-white/5 transition-all ${
         link
           ? "cursor-pointer hover:border-primary/40"
           : "cursor-default opacity-90"

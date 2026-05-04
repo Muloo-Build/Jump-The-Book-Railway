@@ -379,10 +379,10 @@ export default function BookDetail() {
 
   return (
     <Layout>
-      <div className="container max-w-5xl mx-auto px-4 py-12">
-        <div className="flex flex-col md:flex-row gap-12">
+      <div className="container max-w-5xl mx-auto px-4 py-6 sm:py-12">
+        <div className="flex flex-col md:flex-row gap-6 sm:gap-12">
           {/* Cover Column */}
-          <div className="w-full md:w-1/3 max-w-[300px] mx-auto md:mx-0 shrink-0">
+          <div className="w-full md:w-1/3 max-w-[220px] sm:max-w-[300px] mx-auto md:mx-0 shrink-0">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -829,7 +829,7 @@ function SceneTileWithDelete({
     <div className="relative group">
       <Link href={`/experience/${bookId}?chapter=${chapterNumber}`}>
         <div
-          className="aspect-square overflow-hidden rounded-xl border border-white/5 transition-all cursor-pointer hover:border-primary/40"
+          className="aspect-[3/4] overflow-hidden rounded-xl border border-white/5 transition-all cursor-pointer hover:border-primary/40"
           style={{ background: bg }}
         >
           {scene.imageUrl && (
