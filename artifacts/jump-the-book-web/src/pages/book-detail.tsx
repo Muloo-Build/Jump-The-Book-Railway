@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Trash2,
   Loader2,
+  Eraser,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import BookMetadata from "@/components/book-metadata";
@@ -51,7 +52,7 @@ import {
 } from "@/hooks/useApiLibrary";
 import EditBookDialog from "@/components/edit-book-dialog";
 import BookCompanion from "@/components/book-companion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // User-book IDs from the remote API are UUIDs. Demo books use slugs ("alice").
 // Only call the bible endpoint for UUID-shaped IDs to avoid spurious 404s.
@@ -67,6 +68,8 @@ export default function BookDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteBookOpen, setDeleteBookOpen] = useState(false);
   const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
+  const [clearChapter, setClearChapter] = useState<number | null>(null);
+  const [isClearingChapter, setIsClearingChapter] = useState(false);
 
   const remoteBooks = useRemoteBooks();
   const deleteBook = useDeleteRemoteBook();
@@ -358,6 +361,57 @@ export default function BookDetail() {
 
   const sceneToDelete = scenes.find((s) => s.id === deleteSceneId);
 
+  // Bulk-delete every scene the current user owns for (this book, chapter X).
+  // Uses the existing per-scene DELETE endpoint in parallel rather than adding
+  // a new bulk route — the per-scene endpoint already enforces ownership and
+  // optimistically updates both relevant query caches.
+  const handleClearChapter = async () => {
+    if (clearChapter === null) return;
+    const targets = scenes.filter((s) => s.chapterNumber === clearChapter);
+    if (targets.length === 0) {
+      setClearChapter(null);
+      return;
+    }
+    setIsClearingChapter(true);
+    const results = await Promise.allSettled(
+      targets.map((s) => deleteScene.mutateAsync(s.id)),
+    );
+    setIsClearingChapter(false);
+    const failed = results.filter((r) => r.status === "rejected").length;
+    setClearChapter(null);
+    if (failed === 0) {
+      toast({
+        title:
+          targets.length === 1
+            ? "Scene cleared"
+            : `Cleared ${targets.length} scenes`,
+        description: `Chapter ${clearChapter} is empty. Generate again whenever you're ready.`,
+      });
+    } else {
+      toast({
+        title: "Some scenes couldn't be cleared",
+        description: `${targets.length - failed} of ${targets.length} removed. Please try again.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Honor `#paste-passage` deep links from the Generate page's "Add chapter
+  // context" CTA. wouter doesn't auto-scroll to hashes, so we do it once the
+  // book has loaded and the section has rendered.
+  useEffect(() => {
+    if (!book) return;
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash) return;
+    // Wait one paint so the target element exists before we measure it.
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [book?.id]);
+
   // Group scenes by chapter for display
   const scenesByChapter = new Map<number, RemoteScene[]>();
   for (const s of scenes) {
@@ -562,17 +616,28 @@ export default function BookDetail() {
                     );
                     return (
                       <div key={chapterNumber} className="space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-3">
                           <p className="text-xs uppercase tracking-wider text-muted-foreground/80 font-medium">
                             Chapter {chapterNumber}
                           </p>
-                          <Link
-                            href={`/playback/${book.id}?chapter=${chapterNumber}`}
-                            className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] inline-flex items-center gap-1"
-                          >
-                            <PlayCircle className="w-3 h-3" />
-                            Play trailer
-                          </Link>
+                          <div className="flex items-center gap-3">
+                            <Link
+                              href={`/playback/${book.id}?chapter=${chapterNumber}`}
+                              className="text-xs text-[var(--jtb-accent-hi)]/80 hover:text-[var(--jtb-accent-hi)] inline-flex items-center gap-1"
+                            >
+                              <PlayCircle className="w-3 h-3" />
+                              Play trailer
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => setClearChapter(chapterNumber)}
+                              className="text-xs text-muted-foreground/70 hover:text-destructive inline-flex items-center gap-1"
+                              title={`Clear all ${sorted.length} scene${sorted.length === 1 ? "" : "s"} for chapter ${chapterNumber}`}
+                            >
+                              <Eraser className="w-3 h-3" />
+                              Clear
+                            </button>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                           {sorted.map((scene) => (
@@ -690,7 +755,9 @@ export default function BookDetail() {
               </motion.div>
             )}
 
-            <PastePassage bookId={book.id} chapter={currentChapter} />
+            <div id="paste-passage" className="scroll-mt-24">
+              <PastePassage bookId={book.id} chapter={currentChapter} />
+            </div>
 
             <motion.div id="scenes" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-4 scroll-mt-24">
               <h3 className="font-serif text-2xl font-semibold">Experience Chapter {currentChapter}</h3>
@@ -811,6 +878,52 @@ export default function BookDetail() {
                 </>
               ) : (
                 "Delete scene"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear-chapter confirmation */}
+      <AlertDialog
+        open={clearChapter !== null}
+        onOpenChange={(open) => !open && !isClearingChapter && setClearChapter(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Clear every scene for chapter {clearChapter}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {clearChapter !== null
+                ? (() => {
+                    const n = scenes.filter(
+                      (s) => s.chapterNumber === clearChapter,
+                    ).length;
+                    return `${n} scene${n === 1 ? "" : "s"} for chapter ${clearChapter} will be removed from your library. This can't be undone, but you can regenerate any time — and once you add chapter context (a passage or "what just happened"), the new scenes will reflect what's actually happening.`;
+                  })()
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearingChapter}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleClearChapter();
+              }}
+              disabled={isClearingChapter}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isClearingChapter ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Clearing…
+                </>
+              ) : (
+                "Clear chapter"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

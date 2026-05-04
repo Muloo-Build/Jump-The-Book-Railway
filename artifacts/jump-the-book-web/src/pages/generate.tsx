@@ -10,7 +10,7 @@ import { useSaveRemoteScene } from "@/hooks/useApiLibrary";
 import { DEMO_BOOKS } from "@/data/books";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Sparkles, Image as ImageIcon, BookOpen, Wand2 } from "lucide-react";
+import { Loader2, Sparkles, Image as ImageIcon, BookOpen, Wand2, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   readPendingPassage,
@@ -251,6 +251,15 @@ export default function Generate() {
       ? (progress.current / progress.total) * 100
       : 0;
 
+  // Show the "atmospheric mode" warning when neither a pasted excerpt nor a
+  // reader-supplied "what just happened" is available for this chapter.
+  // The bible is intentionally NOT considered chapter-level context — it
+  // tells the model the world, not what happens in chapter N.
+  const hasChapterContext =
+    !!pendingPassage?.excerpt?.trim() ||
+    !!pendingReadingContext?.excerpt?.trim() ||
+    !!pendingReadingContext?.whatJustHappened?.trim();
+
   return (
     <Layout hideNav>
       <div className="min-h-[100dvh] flex flex-col items-center justify-center p-6 relative overflow-hidden bg-background">
@@ -287,6 +296,31 @@ export default function Generate() {
               {progress?.message || "Preparing..."}
             </div>
           </div>
+
+          {!hasChapterContext && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 text-left px-4 py-3 space-y-2">
+              <div className="flex items-start gap-2 text-amber-200">
+                <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                <div className="text-xs leading-relaxed">
+                  <span className="font-semibold">Atmospheric mode.</span>{" "}
+                  We don't have the chapter text or your reading context, so
+                  scenes will be mood and setting only — no characters or
+                  plot. Add a passage or a quick "what just happened" for
+                  scenes that match your story.
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-9 border-amber-500/40 text-amber-100 hover:bg-amber-500/15"
+                onClick={() =>
+                  setLocation(`/book/${book.id}#paste-passage`)
+                }
+              >
+                Add chapter context
+              </Button>
+            </div>
+          )}
 
           {isSignedIn && (
             <p className="text-xs text-muted-foreground">

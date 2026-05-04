@@ -24,6 +24,14 @@ export interface CachedScene {
   imageCacheKey?: string;
   imageUrl?: string | null;
   imageGeneratedAt?: string | null;
+  /**
+   * True when this scene was generated in atmospheric-only mode (no
+   * chapter-level grounding was available at request time). The image
+   * pipeline must NOT inject the bible's character roster for atmospheric
+   * scenes — otherwise the named characters the text was forbidden from
+   * referencing get reintroduced through the image prompt.
+   */
+  atmosphericMode?: boolean;
 }
 
 export interface SceneBundleParams {

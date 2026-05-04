@@ -214,8 +214,15 @@ function tokenizeSceneRef(s: string): string[] {
 function buildCharacterRosterClause(
   bible: BookBibleRow | null,
   sceneCharacters: string[] | undefined,
+  opts?: { atmosphericMode?: boolean },
 ): { clause: string; signature: string } {
   const emptySignature = `safety:${SAFETY_POLICY_VERSION}|roster:`;
+  // Atmospheric mode short-circuit. When the originating scene had no
+  // chapter-level grounding, the text-generation prompt forbade naming any
+  // bible character. Injecting the character roster here would reintroduce
+  // those very names into the image prompt and burn a fresh image of a
+  // character the text never mentioned. Always return empty in this case.
+  if (opts?.atmosphericMode) return { clause: "", signature: emptySignature };
   if (!bible) return { clause: "", signature: emptySignature };
 
   const chars = asCharList(bible.characterProfiles);
@@ -390,21 +397,24 @@ router.post("/scenes/generate", requireAuth, async (req, res) => {
           .filter((c) => c.length > 0)
       : [];
     const hasExcerpt = trimmedExcerpt.length > 0;
-    // Mix bible tag + reading-context blobs into the excerpt-hash slot so the
-    // cache key naturally invalidates when the bible or "what just happened"
-    // changes. We avoid changing makeSceneCacheKey's signature.
+    // CHAPTER-level vs BOOK-level grounding distinction.
     //
-    // When the request has NO grounding signal at all (no excerpt, no bible,
-    // no reading-context), the LLM is forced to invent scenes from training
-    // memory — which for an obscure book means full hallucination. We scope
-    // the cache by user in that case so two readers don't share each other's
-    // hallucinations and so a follow-up generation with a real excerpt isn't
-    // shadowed by the prior context-free run.
-    const hasAnyGrounding =
-      hasExcerpt ||
-      !!bibleTag ||
-      trimmedWjh.length > 0 ||
-      trimmedCsc.length > 0;
+    // The bible is BOOK-level: it tells the model the world (genre, characters,
+    // locations, tone) but knows NOTHING about what happens in chapter N. If
+    // we let the model improvise chapter-N plot from a bible alone, it falls
+    // back to genre clichés ("sci-fi chapter 14 → briefing under harsh lights →
+    // descent through dirty skies → alien ruins"). The fix is to gate on
+    // CHAPTER-level grounding (excerpt, "what just happened", or
+    // current-scene-characters the reader explicitly named) and forbid
+    // plot invention when none is present, even if a bible is loaded.
+    //
+    // hasAnyGrounding (book-level OR chapter-level) is still the right test
+    // for cache scoping — a bible IS unique enough to share across cache
+    // hits because each user's bibleId differs, so we don't user-scope when
+    // bible is present.
+    const hasChapterGrounding =
+      hasExcerpt || trimmedWjh.length > 0 || trimmedCsc.length > 0;
+    const hasAnyGrounding = hasChapterGrounding || !!bibleTag;
     const cacheExcerptInput = [
       trimmedExcerpt,
       bibleTag ?? "",
@@ -440,7 +450,11 @@ router.post("/scenes/generate", requireAuth, async (req, res) => {
       // bundle for this reason.
       const enriched = await Promise.all(
         scenes.map(async (s, i) => {
-          const { signature: sig } = buildCharacterRosterClause(bible, s.characters);
+          const { signature: sig } = buildCharacterRosterClause(
+            bible,
+            s.characters,
+            { atmosphericMode: s.atmosphericMode },
+          );
           const key = makeImageCacheKey({
             bookTitle,
             author,
@@ -490,15 +504,37 @@ router.post("/scenes/generate", requireAuth, async (req, res) => {
         ? `\nCharacters present in or near the reader's current scene: ${trimmedCsc.join(", ")}.`
         : "";
 
-    // No-context guard. Only when the request has NO grounding signal at
-    // all (no excerpt, no bible, no "what just happened", no current-scene
-    // characters) do we force the model into a plot-free generic mode. If
-    // ANY grounding signal is present (e.g., the reader pasted "what just
-    // happened" or named the characters they're currently with), the model
-    // may use that signal — we don't want this guard to suppress legitimate
-    // user-supplied context.
-    const noContextWarning = !hasAnyGrounding
-      ? `\nIMPORTANT: You have NO chapter excerpt and NO reader-supplied story profile. You MUST NOT invent specific characters, places, ships, factions, or plot beats. Generate purely generic, mood-driven atmospheric scenes (weather, light, time of day, ambient sensory detail). Use the chapter number ONLY as a hint about pacing (early = setup mood, late = tense mood). Do NOT reference any character by name. Do NOT name any specific location. If you are tempted to write a recognisable plot detail, replace it with sensory atmosphere instead.\n`
+    // Two-tier no-context guard.
+    //
+    // Tier 1 (no grounding at all): pure atmospheric mode — no characters,
+    // no places, no plot.
+    //
+    // Tier 2 (bible only, no chapter content): the bible can inform visual
+    // style, palette, and general world-tone, but the model still has zero
+    // information about what happens in *this specific chapter*. Without
+    // this guard, GPT confidently invents a chapter-N plot from genre tags
+    // alone — exactly the "Briefing Under Harsh Lights / Descent Through
+    // Dirty Skies / Alien Ruins" stock-trope failure that prompted this
+    // distinction. The model is allowed to use the bible's setting as
+    // ambient backdrop only.
+    const noContextWarning = !hasChapterGrounding
+      ? bible
+        ? `\nIMPORTANT: You have a story profile (bible) for this book but NO information about what happens in chapter ${chapterNumber} specifically — no excerpt, no "what just happened", no scene characters from the reader. The bible tells you the WORLD; it does NOT tell you the chapter's events.
+
+You MUST NOT:
+- Reference any character from the bible by name in title/summary/narration/imagePrompt
+- Depict any specific plot event, conversation, action, or revelation
+- Invent named locations, factions, ships, or events not directly listed in the bible's locations
+- Use stock genre beats as a substitute for actual chapter knowledge (no "briefing", "descent", "ruins of X", "council meeting", etc. unless they appear verbatim in the bible)
+
+You MAY:
+- Use the bible's visual style, color palette, and overall tone
+- Show one of the bible's existing locations as an empty atmospheric backdrop (no characters present, no events occurring)
+- Show ambient world details (weather, light, time of day, terrain, architecture style)
+
+Treat each scene as a still landscape/environment shot from the world, not a plot moment. Titles should describe atmosphere ("Quiet hour in [bible-listed location]", "Storm light over the plains") not actions.
+`
+        : `\nIMPORTANT: You have NO chapter excerpt and NO reader-supplied story profile. You MUST NOT invent specific characters, places, ships, factions, or plot beats. Generate purely generic, mood-driven atmospheric scenes (weather, light, time of day, ambient sensory detail). Use the chapter number ONLY as a hint about pacing (early = setup mood, late = tense mood). Do NOT reference any character by name. Do NOT name any specific location. If you are tempted to write a recognisable plot detail, replace it with sensory atmosphere instead.\n`
       : "";
 
     const userPrompt = `Book: "${bookTitle}" by ${author}
@@ -528,24 +564,37 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
     }
 
     const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+    const atmosphericMode = !hasChapterGrounding;
     const sceneList: CachedScene[] = rawScenes.map((s) => {
       const obj = (s as Record<string, unknown>) ?? {};
+      // In atmospheric mode the prompt explicitly forbids naming characters,
+      // but the LLM occasionally disobeys. Force-clear the characters array
+      // so any downstream consumer (image prompt enrichment, comic-style
+      // captions, etc.) sees the same empty list the prompt promised.
+      const rawCharacters = Array.isArray(obj.characters)
+        ? (obj.characters as string[])
+        : [];
       return {
         title: String(obj.title ?? ""),
         summary: String(obj.summary ?? ""),
         narration: String(obj.narration ?? ""),
         location: String(obj.location ?? ""),
         mood: String(obj.mood ?? ""),
-        characters: Array.isArray(obj.characters) ? (obj.characters as string[]) : [],
+        characters: atmosphericMode ? [] : rawCharacters,
         gradientColors: Array.isArray(obj.gradientColors)
           ? (obj.gradientColors as string[])
           : ["#1a1a4e", "#3a1a6e", "#9d7fe8"],
         imagePrompt: String(obj.imagePrompt ?? ""),
+        atmosphericMode,
       };
     });
 
     const sceneListWithKeys: CachedScene[] = sceneList.map((s, i) => {
-      const { signature: sig } = buildCharacterRosterClause(bible, s.characters);
+      const { signature: sig } = buildCharacterRosterClause(
+        bible,
+        s.characters,
+        { atmosphericMode },
+      );
       return {
         ...s,
         imageCacheKey: makeImageCacheKey({
@@ -573,7 +622,7 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
       const first = sceneListWithKeys[0];
       const styleDesc = STYLE_DESCRIPTIONS[visualStyle] ?? "illustrated";
       const { clause: consistency, signature: firstSig } =
-        buildCharacterRosterClause(bible, first.characters);
+        buildCharacterRosterClause(bible, first.characters, { atmosphericMode });
       const fullPrompt = `${styleDesc}. ${first.imagePrompt}${consistency} ${SAFETY_SUFFIX}`;
       try {
         const buffer = await generateImageBuffer(fullPrompt, "1024x1024");
@@ -635,6 +684,14 @@ interface ImageBody {
    */
   sceneCharacters?: string[];
   bookBibleId?: string;
+  /**
+   * Echoed back from the cached scene's `atmosphericMode` flag. When true,
+   * the server skips bible-roster injection for this image — the originating
+   * text scene was generated under atmospheric-only constraints (no chapter
+   * grounding) and naming bible characters in the image would re-violate
+   * that contract.
+   */
+  atmosphericMode?: boolean;
 }
 
 router.post("/scenes/image", requireAuth, async (req, res) => {
@@ -650,6 +707,7 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
       cacheKey: providedKey,
       sceneCharacters,
       bookBibleId,
+      atmosphericMode,
     } = req.body as ImageBody;
 
     if (!prompt) {
@@ -674,8 +732,15 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
     // derived consistency signature. Otherwise two users with different
     // bibles (or one user before/after editing their bible) would collide on
     // the same key and serve each other's images.
+    //
+    // Skip the lookup entirely in atmospheric mode — the roster will be
+    // discarded anyway and we save a DB roundtrip per image.
     let bibleForImage: BookBibleRow | null = null;
-    if (typeof bookBibleId === "string" && bookBibleId.length > 0) {
+    if (
+      !atmosphericMode &&
+      typeof bookBibleId === "string" &&
+      bookBibleId.length > 0
+    ) {
       const rows = await db
         .select()
         .from(bookBiblesTable)
@@ -692,7 +757,9 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
       }
     }
     const { clause: consistency, signature: consistencySignature } =
-      buildCharacterRosterClause(bibleForImage, sceneCharacters);
+      buildCharacterRosterClause(bibleForImage, sceneCharacters, {
+        atmosphericMode,
+      });
 
     // SECURITY: never trust a client-provided cache key; recompute from canonical inputs.
     const cacheKey = makeImageCacheKey({

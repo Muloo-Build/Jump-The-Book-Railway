@@ -22,6 +22,14 @@ export interface GeneratedScene {
    * URL (server-generated images) or a static `/scenes/...` path (demo books).
    */
   imageUrl?: string | null;
+  /**
+   * Echoed by the server when the scene was generated under atmospheric-only
+   * constraints (no chapter grounding). Must be passed back on every
+   * subsequent /scenes/image call so the server skips bible-roster injection
+   * for the image — otherwise the named characters the text was forbidden
+   * from referencing get reintroduced through the image prompt.
+   */
+  atmosphericMode?: boolean;
 }
 
 export interface GenerateSceneParams {
@@ -254,6 +262,7 @@ export function useGenerateScene() {
                 cacheKey: scene.imageCacheKey ?? undefined,
                 bookBibleId: params.bookBibleId,
                 sceneCharacters: scene.characters,
+                atmosphericMode: scene.atmosphericMode,
               },
               IMAGE_TIMEOUT_MS,
             );
@@ -382,6 +391,7 @@ export function prewarmScenes(params: GenerateSceneParams): void {
               cacheKey: scene.imageCacheKey ?? undefined,
               bookBibleId: params.bookBibleId,
               sceneCharacters: scene.characters,
+              atmosphericMode: scene.atmosphericMode,
             },
             IMAGE_TIMEOUT_MS,
           );
