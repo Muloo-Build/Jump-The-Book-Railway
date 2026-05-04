@@ -15,6 +15,7 @@ import { Plus, Sparkles, Loader2, BookOpen, BookMarked, CheckCircle2, ChevronDow
 import { Show } from "@clerk/react";
 import ReadingStats from "@/components/reading-stats";
 import LibraryBookTile from "@/components/library-book-tile";
+import SeriesBookGrid from "@/components/series-book-grid";
 import NowReadingHero from "@/components/now-reading-hero";
 import SceneLibrary from "@/components/scene-library";
 import WelcomeHero from "@/components/welcome-hero";
@@ -537,26 +538,18 @@ export default function Library() {
                       </span>
                     </div>
                     {!isCollapsed && (
-                      <div
-                        id={panelId}
-                        role="region"
-                        aria-labelledby={headingId}
-                        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5"
-                      >
-                        {group.books.map((book, i) => (
-                          <LibraryBookTile
-                            key={book.id}
-                            book={{
-                              ...book,
-                              sceneCount: getSceneCount(book.id),
-                              seriesOrder: book.seriesOrder,
-                            }}
-                            index={i}
-                            hasBible={bibleBookIds.has(book.id)}
-                            showStatusBadge={isSignedIn}
-                          />
-                        ))}
-                      </div>
+                      <SeriesBookGrid
+                        books={group.books.map((book) => ({
+                          ...book,
+                          sceneCount: getSceneCount(book.id),
+                          seriesOrder: book.seriesOrder,
+                          remoteId: book.remoteId,
+                        }))}
+                        bibleBookIds={bibleBookIds}
+                        isSignedIn={isSignedIn}
+                        panelId={panelId}
+                        headingId={headingId}
+                      />
                     )}
                   </div>
                 );
