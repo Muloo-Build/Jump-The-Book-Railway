@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, sceneCacheTable, imageCacheTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { objectPathToUrl } from "../lib/sceneCache";
 
 const router = Router();
 
@@ -15,13 +16,12 @@ interface TrendingBook {
   sceneCount: number;
   imageCount: number;
   /**
-   * Always an empty array on the public endpoint. Previously we surfaced
-   * up-to-4 generated scene images per trending book (drawn from the
-   * cross-user image cache), which leaked one user's generations to
-   * everyone hitting Discover anonymously. The Discover UI now resolves
-   * a public Open Library cover client-side instead. This field is kept
-   * on the type so existing clients don't break, but is intentionally
-   * empty until we ship a per-user opt-in (`shareToTrending`).
+   * Sample image URLs from generations whose creator opted into sharing
+   * via the per-user `shareToTrending` flag on `app_users`. Restricted
+   * to opt-in users only — never surfaces a generation from a user who
+   * left the default (off). Empty when no opted-in user has generated
+   * for this book yet, in which case the Discover UI falls back to a
+   * public Open Library cover. Capped at 4 per book.
    */
   sampleImages: string[];
   lastAccessedAt: string;
@@ -52,14 +52,50 @@ router.get("/trending", async (_req, res) => {
       .from(imageCacheTable)
       .groupBy(imageCacheTable.bookTitle, imageCacheTable.author);
 
-    // Privacy: previously this route returned up to 4 sample image URLs
-    // per book, sourced from the global imageCache. Because cache rows
-    // span all users, that effectively published one user's generated
-    // images to every anonymous Discover visitor. The aggregate counts
-    // (hits, scene/image counts) are still safe to expose since they're
-    // aggregated, but per-image URLs are gated until we ship a per-user
-    // opt-in (`shareToTrending`). For now we return an empty array and
-    // the Discover UI resolves a public Open Library cover instead.
+    // Per-book sample images. Eligibility (all must hold):
+    //   1. The image's creator has `share_to_trending = true`.
+    //   2. The image was generated AFTER the creator opted in
+    //      (`ic.generated_at >= au.share_to_trending_enabled_at`), so
+    //      flipping the toggle on does NOT retroactively expose images
+    //      generated while the toggle was off.
+    // The window function caps at 4 per (book, author) so a single
+    // chatty creator can't flood any one card's gallery.
+    const sharedRows = await db.execute<{
+      book_title: string;
+      author: string;
+      object_path: string;
+    }>(sql`
+      SELECT book_title, author, object_path
+      FROM (
+        SELECT
+          ic.book_title,
+          ic.author,
+          ic.object_path,
+          ic.generated_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY ic.book_title, ic.author
+            ORDER BY ic.generated_at DESC
+          ) AS rn
+        FROM image_cache ic
+        INNER JOIN app_users au
+          ON au.user_id = ic.creator_user_id
+        WHERE au.share_to_trending = true
+          AND au.share_to_trending_enabled_at IS NOT NULL
+          AND ic.generated_at >= au.share_to_trending_enabled_at
+      ) ranked
+      WHERE rn <= 4
+      ORDER BY book_title, author, generated_at DESC
+    `);
+
+    const sharedSampleMap = new Map<string, string[]>();
+    for (const r of sharedRows.rows) {
+      const key = `${r.book_title}|||${r.author}`;
+      const arr = sharedSampleMap.get(key) ?? [];
+      const url = objectPathToUrl(r.object_path);
+      if (url) arr.push(url);
+      sharedSampleMap.set(key, arr);
+    }
+
     const imageStatsMap = new Map(
       imageStats.map((r) => [`${r.bookTitle}|||${r.author}`, r]),
     );
@@ -89,7 +125,7 @@ router.get("/trending", async (_req, res) => {
         uniqueChapters: Number(scene?.uniqueChapters) || 0,
         sceneCount: Number(scene?.sceneCount) || 0,
         imageCount: Number(img?.imageCount) || 0,
-        sampleImages: [],
+        sampleImages: sharedSampleMap.get(key) ?? [],
         lastAccessedAt: (img?.lastAccessed ?? scene?.lastAccessed ?? new Date().toISOString()).toString(),
       };
     });

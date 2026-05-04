@@ -14,6 +14,13 @@ export interface RemoteUser {
   readingPlatforms: string[];
   readingPace: "slow" | "steady" | "voracious" | null;
   aboutMe: string;
+  /**
+   * Per-user opt-in to share locally generated scene images with the
+   * public Discover/trending feed. Defaults to false. Toggling controls
+   * whether this user's contributions appear as `sampleImages` on
+   * trending books.
+   */
+  shareToTrending: boolean;
   onboarded: boolean;
   onboardedAt: string | null;
 }

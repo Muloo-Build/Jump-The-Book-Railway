@@ -8,7 +8,7 @@ import {
   type RemoteScene,
 } from "@/hooks/useApiLibrary";
 import { motion } from "framer-motion";
-import { Play, Layers, ImagePlus, BookOpen } from "lucide-react";
+import { Play, Layers, BookOpen } from "lucide-react";
 import { Show } from "@clerk/react";
 import { useOpenLibraryEnrichment } from "@/hooks/useOpenLibraryEnrichment";
 import { Progress } from "@/components/ui/progress";
@@ -122,26 +122,24 @@ function NowReadingCard({ book, latestScene, sceneCount }: NowReadingCardProps) 
           </div>
         )}
 
-        <div className="flex flex-wrap gap-1.5 pt-1 mt-auto">
+        {/* Mobile-first CTA row: primary Continue takes the lion's share so
+            it's an obvious thumb target on small screens; Scenes is a fixed
+            secondary. We dropped the prior "Generate" button — it pointed
+            to the same /experience URL as Continue, so it was a confusing
+            duplicate that just stole tap target area from the real action. */}
+        <div className="flex gap-2 pt-1 mt-auto">
           <Link
             href={resumeHref}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-8 px-3 text-xs font-semibold transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-11 sm:h-10 px-4 text-sm font-semibold transition-colors"
           >
-            <Play className="w-3.5 h-3.5" />
+            <Play className="w-4 h-4" />
             Continue
           </Link>
           <Link
-            href={`/experience/${book.id}?chapter=${chapter}`}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] h-8 px-3 text-xs font-medium transition-colors"
-          >
-            <ImagePlus className="w-3.5 h-3.5" />
-            Generate
-          </Link>
-          <Link
             href={`/book/${book.id}#scenes`}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] h-8 px-3 text-xs font-medium transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] h-11 sm:h-10 px-4 text-sm font-medium transition-colors"
           >
-            <Layers className="w-3.5 h-3.5" />
+            <Layers className="w-4 h-4" />
             Scenes
           </Link>
         </div>
@@ -196,9 +194,9 @@ export default function NowReading() {
 
   return (
     <Layout>
-      <div className="container max-w-4xl mx-auto px-4 py-10 md:py-12 space-y-8">
-        <div className="space-y-2">
-          <h1 className="font-serif text-3xl md:text-4xl font-bold">Now Reading</h1>
+      <div className="container max-w-4xl mx-auto px-4 py-6 sm:py-10 md:py-12 space-y-6 sm:space-y-8">
+        <div className="space-y-1.5 sm:space-y-2">
+          <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold">Now Reading</h1>
           <p className="text-sm text-muted-foreground">
             {readingBooks.length === 0
               ? "No books currently in progress"
@@ -207,20 +205,22 @@ export default function NowReading() {
         </div>
 
         <Show when="signed-out">
-          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 md:p-8 text-center space-y-4">
-            <p className="text-base text-foreground">
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 sm:p-6 md:p-8 text-center space-y-4">
+            <p className="text-sm sm:text-base text-foreground">
               Sign in to track your reading progress and see your active books here.
             </p>
-            <div className="flex gap-2 justify-center">
+            {/* Stack CTAs on mobile so each gets a comfortable full-width
+                tap target; revert to inline once there's room for both. */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-center">
               <Link
                 href="/sign-up"
-                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 font-medium hover:bg-[var(--jtb-accent-hi)] transition-colors"
+                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-11 sm:h-10 px-4 py-2 text-sm font-semibold hover:bg-[var(--jtb-accent-hi)] transition-colors"
               >
                 Get started
               </Link>
               <Link
                 href="/sign-in"
-                className="inline-flex items-center justify-center rounded-md border border-white/20 h-10 px-4 py-2 font-medium hover:bg-white/5 transition-colors"
+                className="inline-flex items-center justify-center rounded-md border border-white/20 h-11 sm:h-10 px-4 py-2 text-sm font-medium hover:bg-white/5 transition-colors"
               >
                 Sign in
               </Link>
@@ -229,7 +229,7 @@ export default function NowReading() {
         </Show>
 
         {readingBooks.length === 0 && isSignedIn && (
-          <div className="rounded-2xl border border-dashed border-border/50 bg-card/20 p-10 text-center space-y-4">
+          <div className="rounded-2xl border border-dashed border-border/50 bg-card/20 p-6 sm:p-10 text-center space-y-4">
             <BookOpen className="w-10 h-10 mx-auto text-muted-foreground/50" />
             <div className="space-y-2">
               <p className="font-serif text-lg">Nothing on the nightstand</p>
@@ -237,16 +237,16 @@ export default function NowReading() {
                 Head to your bookshelf to pick something up, or add a new book.
               </p>
             </div>
-            <div className="flex gap-2 justify-center">
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-center">
               <Link
                 href="/library"
-                className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-10 px-4 text-sm font-semibold transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-[var(--jtb-accent-hi)] h-11 sm:h-10 px-4 text-sm font-semibold transition-colors"
               >
                 Go to Bookshelf
               </Link>
               <Link
-                href="/setup-book"
-                className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] h-10 px-4 text-sm font-medium transition-colors"
+                href="/upload"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] h-11 sm:h-10 px-4 text-sm font-medium transition-colors"
               >
                 Add a book
               </Link>

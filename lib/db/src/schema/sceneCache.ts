@@ -1,4 +1,5 @@
 import { pgTable, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { appUsersTable } from "./userLibrary";
 
 export const SCENE_CACHE_VERSION = 1;
 export const IMAGE_CACHE_VERSION = 3;
@@ -42,12 +43,23 @@ export const imageCacheTable = pgTable(
     promptHash: text("prompt_hash").notNull(),
     objectPath: text("object_path").notNull(),
     bytes: integer("bytes").notNull(),
+    // Who first generated this image. Nullable because legacy rows
+    // pre-date the per-user opt-in (and a few server-side flows may
+    // generate without an authed user). Only rows whose creator has
+    // `shareToTrending = true` ever surface as public sample images on
+    // the Discover/trending feed. Set ON DELETE SET NULL so deleting an
+    // app user doesn't blow up the shared cache.
+    creatorUserId: text("creator_user_id").references(
+      () => appUsersTable.userId,
+      { onDelete: "set null" },
+    ),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
     hitCount: integer("hit_count").notNull().default(0),
     lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     bookIdx: index("image_cache_book_idx").on(t.bookTitle, t.author, t.chapterNumber),
+    creatorIdx: index("image_cache_creator_idx").on(t.creatorUserId),
   }),
 );
 

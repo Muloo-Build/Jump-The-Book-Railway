@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -820,6 +821,88 @@ function ReadingProfileCard() {
 }
 
 /**
+ * Per-user opt-in toggle for sharing locally generated scene images with
+ * the public Discover/trending feed. Defaults OFF — toggling fires a PATCH
+ * to /me with the new value. We invalidate the trending feed on flip so
+ * the user immediately sees their contribution appear (or disappear) on
+ * Discover. Optimistic local state keeps the switch responsive while the
+ * mutation is in flight; on error we revert and toast.
+ */
+function PrivacyCard() {
+  const remote = useRemoteUser();
+  const update = useUpdateRemoteUser();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const serverValue = remote.data?.shareToTrending ?? false;
+  const [localValue, setLocalValue] = useState<boolean | null>(null);
+  const value = localValue ?? serverValue;
+  const [busy, setBusy] = useState(false);
+
+  const handleChange = async (next: boolean) => {
+    setLocalValue(next);
+    setBusy(true);
+    try {
+      const updated = await update.mutateAsync({ shareToTrending: next });
+      qc.setQueryData(["me"], updated);
+      qc.invalidateQueries({ queryKey: ["trending"] });
+    } catch (err) {
+      // Reconcile from the server rather than freezing a stale local
+      // override — another tab or the previous successful PATCH may
+      // hold the truth. Drop our local guess and force a refetch so
+      // the switch always reflects the canonical /me state next paint.
+      qc.invalidateQueries({ queryKey: ["me"] });
+      toast({
+        title: "Couldn't update sharing setting",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    } finally {
+      setLocalValue(null);
+      setBusy(false);
+    }
+  };
+
+  if (remote.isLoading) return null;
+
+  return (
+    <Card className="bg-card/40 border-border/50">
+      <CardContent className="p-6 space-y-5">
+        <div className="space-y-1">
+          <h2 className="font-serif text-xl font-semibold">
+            Discover &amp; sharing
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Choose whether the scenes you generate help bring books to life
+            for other readers.
+          </p>
+        </div>
+        <div className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-black/20 p-4">
+          <div className="space-y-1 min-w-0">
+            <p className="font-medium text-sm">
+              Share my scenes on Discover
+            </p>
+            <p className="text-xs text-muted-foreground">
+              When on, the images you generate become eligible to appear as
+              sample art on trending books in Discover. Off by default —
+              your generations stay private to you until you turn this on.
+            </p>
+          </div>
+          <Switch
+            checked={value}
+            disabled={busy}
+            onCheckedChange={handleChange}
+            aria-label="Share my generated scenes on Discover"
+            className="mt-0.5 shrink-0"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
  * Destructive actions live in their own card below preferences so they're
  * intentionally hard to find and impossible to trigger accidentally — every
  * action is gated behind an AlertDialog that requires explicit confirmation.
@@ -986,6 +1069,8 @@ function AccountInner() {
       <PreferencesCard />
 
       <ReadingProfileCard />
+
+      <PrivacyCard />
 
       <section className="space-y-3">
         <div className="space-y-1">

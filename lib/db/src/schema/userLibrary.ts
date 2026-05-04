@@ -5,6 +5,7 @@ import {
   timestamp,
   jsonb,
   uuid,
+  boolean,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -38,6 +39,19 @@ export const appUsersTable = pgTable("app_users", {
     .default(sql`'[]'::jsonb`),
   readingPace: text("reading_pace"),
   aboutMe: text("about_me").notNull().default(""),
+  // Privacy opt-in: when true, this user's generated scene images become
+  // eligible to appear as `sampleImages` on the public Discover/trending
+  // feed. Defaults to false so we never leak generations without explicit
+  // consent.
+  shareToTrending: boolean("share_to_trending").notNull().default(false),
+  // Timestamp the user most recently switched `shareToTrending` to true.
+  // Trending only surfaces images whose `generated_at >= this`, so opting
+  // in does NOT retroactively expose images created while the toggle was
+  // off. Toggling off clears the field; toggling on stamps `now()`. Null
+  // means "has never opted in" — equivalent to `share_to_trending = false`.
+  shareToTrendingEnabledAt: timestamp("share_to_trending_enabled_at", {
+    withTimezone: true,
+  }),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

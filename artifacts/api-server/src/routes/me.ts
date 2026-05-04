@@ -203,6 +203,7 @@ function serializeUser(user: typeof appUsersTable.$inferSelect) {
     readingPlatforms: (user.readingPlatforms as string[]) ?? [],
     readingPace: user.readingPace,
     aboutMe: user.aboutMe ?? "",
+    shareToTrending: !!user.shareToTrending,
     onboarded: !!user.onboardedAt,
     onboardedAt: user.onboardedAt?.toISOString() ?? null,
   };
@@ -228,6 +229,7 @@ interface PatchMeBody {
   readingPlatforms?: string[];
   readingPace?: string | null;
   aboutMe?: string;
+  shareToTrending?: boolean;
   markOnboarded?: boolean;
 }
 
@@ -333,6 +335,22 @@ router.patch("/me", async (req, res) => {
         return;
       }
       updates.aboutMe = body.aboutMe.slice(0, MAX_ABOUT_ME);
+    }
+    if (body.shareToTrending !== undefined) {
+      if (typeof body.shareToTrending !== "boolean") {
+        res.status(400).json({ error: "shareToTrending must be a boolean" });
+        return;
+      }
+      updates.shareToTrending = body.shareToTrending;
+      // Stamp the moment the user opted in so trending only surfaces
+      // images they generated AFTER consenting. Toggling off clears
+      // the timestamp; toggling on (when previously off) sets `now()`.
+      // We unconditionally rewrite the field on every PATCH that
+      // includes `shareToTrending` so the cutoff stays accurate even
+      // when a user toggles off and on again.
+      updates.shareToTrendingEnabledAt = body.shareToTrending
+        ? new Date()
+        : null;
     }
     if (body.markOnboarded === true) updates.onboardedAt = new Date();
     const [updated] = await db

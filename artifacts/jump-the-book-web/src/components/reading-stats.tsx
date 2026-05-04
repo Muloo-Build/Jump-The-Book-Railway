@@ -20,18 +20,18 @@ function Stat({ label, value, hint, delay = 0, spanMobile = false }: StatProps) 
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className={`px-3 py-3 sm:px-4 sm:py-4 md:px-5 min-w-0 md:border-r md:border-border/40 md:last:border-r-0 flex flex-col gap-1 sm:gap-1.5${
+      className={`px-3 py-2.5 sm:px-4 sm:py-4 md:px-5 min-w-0 md:border-r md:border-border/40 md:last:border-r-0 flex flex-col gap-0.5 sm:gap-1.5${
         spanMobile ? " col-span-2 md:col-span-1 border-t border-border/40 md:border-t-0" : ""
       }`}
     >
-      <div className="text-[10px] tracking-[0.22em] uppercase text-muted-foreground/70 font-medium truncate">
+      <div className="text-[9px] sm:text-[10px] tracking-[0.2em] sm:tracking-[0.22em] uppercase text-muted-foreground/70 font-medium truncate">
         {label}
       </div>
-      <div className="font-serif text-2xl sm:text-3xl md:text-4xl leading-none truncate">
+      <div className="font-serif text-xl sm:text-3xl md:text-4xl leading-none truncate">
         {value}
       </div>
       {hint && (
-        <div className="text-[11px] sm:text-xs text-muted-foreground/70 leading-tight truncate">
+        <div className="text-[10px] sm:text-xs text-muted-foreground/70 leading-tight truncate">
           {hint}
         </div>
       )}

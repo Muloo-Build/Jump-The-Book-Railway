@@ -71,7 +71,10 @@ export default function LibraryBookTile({ book, index, hasBible = false, showSta
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
+      // Cap the staggered entrance so a long bookshelf doesn't take
+      // multiple seconds to fully animate in on mobile. The first 8
+      // tiles get the cascade; everything after pops in instantly.
+      transition={{ delay: Math.min(index, 8) * 0.04 }}
     >
       <Link href={`/book/${book.id}`}>
         <Card className="group overflow-hidden hover:ring-2 ring-primary/50 transition-all cursor-pointer h-full border-border/40 bg-card/50">
@@ -147,20 +150,33 @@ export default function LibraryBookTile({ book, index, hasBible = false, showSta
               </div>
             )}
             {needsOl && (
+              // Visibility is gated by INPUT CAPABILITY, not viewport
+              // width. A touch tablet wider than `sm` still has no
+              // hover, so a width-based reveal would re-hide this
+              // button on those devices. Default state is visible at
+              // partial opacity; on devices that genuinely have a
+              // mouse-style hover (`@media (hover: hover)`) we revert
+              // to the original "fade in on group hover" affordance.
+              // `focus-visible` keeps the button discoverable for
+              // keyboard users on every device.
               <button
                 type="button"
                 onClick={handleRefresh}
                 title="Refresh cover from Open Library"
                 aria-label="Refresh cover"
-                className="absolute bottom-2 right-2 inline-flex items-center justify-center rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white w-7 h-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute bottom-2 right-2 inline-flex items-center justify-center rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white w-8 h-8 sm:w-7 sm:h-7 opacity-70 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none transition-opacity"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-          <CardContent className="p-4 space-y-2">
-            <h3 className="font-serif font-bold line-clamp-1">{book.title}</h3>
-            <p className="text-sm text-muted-foreground line-clamp-1">
+          {/* Mobile: tighter padding + slightly smaller title so the
+              2-col grid stays scannable; desktop sizing preserved. */}
+          <CardContent className="p-3 sm:p-4 space-y-1.5 sm:space-y-2">
+            <h3 className="font-serif font-bold line-clamp-1 text-sm sm:text-base">
+              {book.title}
+            </h3>
+            <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">
               {book.author}
             </p>
             {progress > 0 && !finished && (

@@ -459,7 +459,11 @@ ${sceneCountInstruction} Remember: atmosphere and setting only, no plot reveals.
               prompt: first.imagePrompt,
               consistencySignature: firstSig,
             },
-            { objectPath, bytes: buffer.length },
+            {
+              objectPath,
+              bytes: buffer.length,
+              creatorUserId: (req as AuthedRequest).userId,
+            },
           );
           firstImageUrl = objectPathToUrl(objectPath);
           first.imageUrl = firstImageUrl;
@@ -628,7 +632,7 @@ router.post("/scenes/image", requireAuth, async (req, res) => {
         prompt,
         consistencySignature,
       },
-      { objectPath, bytes: buffer.length },
+      { objectPath, bytes: buffer.length, creatorUserId: requesterId },
     );
     req.log.info(
       { cacheKey, bytes: buffer.length, bookTitle, chapterNumber, sceneIndex, objectPath },

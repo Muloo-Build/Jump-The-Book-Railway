@@ -187,9 +187,17 @@ export function objectPathToUrl(objectPath: string | null | undefined): string |
 export async function saveCachedImage(
   cacheKey: string,
   p: ImageKeyParams,
-  opts: { objectPath: string; bytes: number },
+  opts: { objectPath: string; bytes: number; creatorUserId?: string | null },
 ): Promise<void> {
   const promptHash = sha(p.prompt.trim()).slice(0, 16);
+  // PRIVACY: on conflict we do NOTHING. The cache key is fully derived
+  // from canonical inputs (book/chapter/scene/style/promptHash + bible
+  // consistency signature), so a conflict means another user generated
+  // for the same logical scene. We must not overwrite the existing
+  // `objectPath` (which would re-publish a non-opted-in user's bytes
+  // under the original opted-in creator's row) or `creatorUserId`
+  // (which would mis-attribute). The original image stays canonical;
+  // hitCount/lastAccessedAt are bumped separately by `getCachedImage`.
   await db
     .insert(imageCacheTable)
     .values({
@@ -203,15 +211,9 @@ export async function saveCachedImage(
       promptHash,
       objectPath: opts.objectPath,
       bytes: opts.bytes,
+      creatorUserId: opts.creatorUserId ?? null,
     })
-    .onConflictDoUpdate({
-      target: imageCacheTable.cacheKey,
-      set: {
-        objectPath: opts.objectPath,
-        bytes: opts.bytes,
-        generatedAt: new Date(),
-      },
-    });
+    .onConflictDoNothing({ target: imageCacheTable.cacheKey });
 }
 
 export async function cacheStats() {
