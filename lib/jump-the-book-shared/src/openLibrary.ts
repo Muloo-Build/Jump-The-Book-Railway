@@ -237,6 +237,14 @@ function trySubjectsAndLinks(workData: Record<string, unknown>): string | null {
 
 const COMPILATION_PATTERN = /\b(box\s*set|collection\s*set|trilogy\s*box|complete\s*series|omnibus|serie completa|\d+\s*books?\s*(collection|set)|edition\s*series)\b|\(series\)\s*\d+-\d+|\(.+\/.+\/.+\)/i;
 
+function isPrimarilyLatinScript(title: string): boolean {
+  const letters = title.match(/\p{L}/gu);
+  if (!letters || letters.length === 0) return true;
+  const latinLetters = title.match(/\p{Script=Latin}/gu);
+  const latinCount = latinLetters?.length ?? 0;
+  return latinCount / letters.length >= 0.8;
+}
+
 async function fetchSeriesBooks(
   seriesName: string,
   authorHint: string,
@@ -255,6 +263,7 @@ async function fetchSeriesBooks(
       .filter((d) => {
         if (!d.title || !d.author_name || d.author_name.length === 0) return false;
         if (COMPILATION_PATTERN.test(d.title)) return false;
+        if (!isPrimarilyLatinScript(d.title)) return false;
         const lower = d.title.toLowerCase();
         if (seen.has(lower)) return false;
         seen.add(lower);
