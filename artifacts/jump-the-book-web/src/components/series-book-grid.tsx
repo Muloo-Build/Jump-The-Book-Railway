@@ -1,6 +1,25 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import LibraryBookTile, {
   type LibraryBookTileBook,
@@ -21,10 +40,11 @@ interface Props {
   headingId: string;
 }
 
-// Renders the books inside a single series card with HTML5 drag-and-drop
-// reordering. Each tile gets a small grip handle (the only draggable element)
-// so taps and clicks on the cover still navigate normally; the surrounding
-// wrapper handles drop targeting and shows an insertion-line cue.
+// Renders the books inside a single series card with @dnd-kit-powered
+// reordering that works on mouse, touch, and keyboard. Each tile gets a
+// small grip handle which is the only drag activator, so taps and clicks
+// on the cover still navigate normally. Touch uses a 200ms long-press so
+// vertical page scrolling still works on phones and tablets.
 //
 // On drop we optimistically rewrite the seriesOrder field on the cached
 // `["me","books"]` rows so the "#N" badges and group sort update on the next
@@ -39,8 +59,7 @@ export default function SeriesBookGrid({
 }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Reordering only makes sense for signed-in users (we need a remoteId to
@@ -49,44 +68,38 @@ export default function SeriesBookGrid({
   const reorderable =
     isSignedIn && books.length >= 2 && books.every((b) => !!b.remoteId);
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    if (!reorderable) return;
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", id);
-    setDraggingId(id);
+  // Mouse drags activate after a tiny movement so plain clicks on the handle
+  // aren't mistaken for drags. Touch waits for a 200ms long-press with a
+  // small tolerance so vertical scrolling on the page still works normally.
+  // Keyboard sensor lets users tab to the handle and reorder with arrow keys.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(String(event.active.id));
   };
 
-  const handleDragEnd = () => {
-    setDraggingId(null);
-    setDragOverId(null);
+  const handleDragCancel = () => {
+    setActiveId(null);
   };
 
-  const handleDragOver = (e: React.DragEvent, id: string) => {
-    if (!reorderable || !draggingId) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (dragOverId !== id) setDragOverId(id);
-  };
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!reorderable || !over || active.id === over.id) return;
 
-  const handleDragLeave = (id: string) => {
-    setDragOverId((prev) => (prev === id ? null : prev));
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetId: string) => {
-    if (!reorderable) return;
-    e.preventDefault();
-    const sourceId = draggingId ?? e.dataTransfer.getData("text/plain");
-    setDraggingId(null);
-    setDragOverId(null);
-    if (!sourceId || sourceId === targetId) return;
-
-    const fromIdx = books.findIndex((b) => b.id === sourceId);
-    const toIdx = books.findIndex((b) => b.id === targetId);
+    const fromIdx = books.findIndex((b) => b.id === active.id);
+    const toIdx = books.findIndex((b) => b.id === over.id);
     if (fromIdx === -1 || toIdx === -1) return;
 
-    const reordered = [...books];
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
+    const reordered = arrayMove(books, fromIdx, toIdx);
 
     // Renumber from 1 so a series always presents a clean 1..N. We only PATCH
     // rows whose order actually changed to keep the request count minimal.
@@ -134,58 +147,117 @@ export default function SeriesBookGrid({
     }
   };
 
-  return (
+  const grid = (
     <div
       id={panelId}
       role="region"
       aria-labelledby={headingId}
       className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5"
     >
-      {books.map((book, i) => {
-        const isDragging = draggingId === book.id;
-        const isDropTarget = dragOverId === book.id && draggingId !== book.id;
-        return (
-          <div
-            key={book.id}
-            onDragOver={(e) => handleDragOver(e, book.id)}
-            onDragLeave={() => handleDragLeave(book.id)}
-            onDrop={(e) => handleDrop(e, book.id)}
-            className={cn(
-              "relative group transition-all rounded-xl",
-              isDragging && "opacity-40",
-              isDropTarget &&
-                "ring-2 ring-[var(--jtb-accent-hi)] ring-offset-2 ring-offset-card/20",
-              isSaving && "pointer-events-none",
-            )}
-          >
-            <LibraryBookTile
-              book={book}
-              index={i}
-              hasBible={bibleBookIds.has(book.id)}
-              showStatusBadge={isSignedIn}
-            />
-            {reorderable && (
-              <button
-                type="button"
-                draggable
-                onDragStart={(e) => handleDragStart(e, book.id)}
-                onDragEnd={handleDragEnd}
-                onClick={(e) => {
-                  // Prevent navigating into the book if a stray click lands on
-                  // the handle — the handle exists only for dragging.
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                title="Drag to reorder"
-                aria-label={`Drag to reorder ${book.title} within the series`}
-                className="absolute top-2 right-2 z-20 inline-flex items-center justify-center w-8 h-8 sm:w-7 sm:h-7 rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white opacity-70 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--jtb-accent-hi)]/60 focus-visible:outline-none transition-opacity cursor-grab active:cursor-grabbing"
-              >
-                <GripVertical className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        );
-      })}
+      {books.map((book, i) => (
+        <SortableSeriesTile
+          key={book.id}
+          book={book}
+          index={i}
+          hasBible={bibleBookIds.has(book.id)}
+          showStatusBadge={isSignedIn}
+          reorderable={reorderable}
+          isSaving={isSaving}
+          isActive={activeId === book.id}
+        />
+      ))}
+    </div>
+  );
+
+  if (!reorderable) return grid;
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragCancel={handleDragCancel}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={books.map((b) => b.id)}
+        strategy={rectSortingStrategy}
+      >
+        {grid}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+interface SortableTileProps {
+  book: SeriesBookEntry;
+  index: number;
+  hasBible: boolean;
+  showStatusBadge: boolean;
+  reorderable: boolean;
+  isSaving: boolean;
+  isActive: boolean;
+}
+
+function SortableSeriesTile({
+  book,
+  index,
+  hasBible,
+  showStatusBadge,
+  reorderable,
+  isSaving,
+  isActive,
+}: SortableTileProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: book.id, disabled: !reorderable });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative group rounded-xl",
+        (isDragging || isActive) && "opacity-40 z-10",
+        isSaving && "pointer-events-none",
+      )}
+    >
+      <LibraryBookTile
+        book={book}
+        index={index}
+        hasBible={hasBible}
+        showStatusBadge={showStatusBadge}
+      />
+      {reorderable && (
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          onClick={(e) => {
+            // The handle exists only for dragging — swallow stray clicks so
+            // they don't navigate into the book.
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          title="Drag to reorder"
+          aria-label={`Drag to reorder ${book.title} within the series`}
+          className="absolute top-2 right-2 z-20 inline-flex items-center justify-center w-8 h-8 sm:w-7 sm:h-7 rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white opacity-70 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--jtb-accent-hi)]/60 focus-visible:outline-none transition-opacity cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   );
 }
