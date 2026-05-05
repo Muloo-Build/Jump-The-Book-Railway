@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import {
-  appUsersTable,
   bookBiblesTable,
   userBooksTable,
   userScenesTable,
@@ -168,46 +167,114 @@ function isFiniteInt(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && Number.isInteger(n);
 }
 
-async function ensureUser(userId: string) {
-  const [existing] = await db
-    .select()
-    .from(appUsersTable)
-    .where(eq(appUsersTable.userId, userId))
-    .limit(1);
-  if (existing) return existing;
-  const [created] = await db
-    .insert(appUsersTable)
-    .values({ userId })
-    .onConflictDoNothing()
-    .returning();
-  if (created) return created;
-  const [reread] = await db
-    .select()
-    .from(appUsersTable)
-    .where(eq(appUsersTable.userId, userId))
-    .limit(1);
-  return reread!;
+interface AppUserRecord {
+  user_id: string;
+  avatar_id?: string | null;
+  default_visual_style?: string | null;
+  default_visual_styles?: unknown;
+  spoiler_mode?: string | null;
+  reading_mode?: string | null;
+  favorite_genres?: unknown;
+  reading_platforms?: unknown;
+  reading_pace?: string | null;
+  about_me?: string | null;
+  share_to_trending?: boolean | null;
+  onboarded_at?: Date | string | null;
+}
+
+let appUserColumnsPromise: Promise<Set<string>> | null = null;
+
+async function getAppUserColumns(): Promise<Set<string>> {
+  if (!appUserColumnsPromise) {
+    appUserColumnsPromise = pool
+      .query<{
+        column_name: string;
+      }>(
+        `
+          select column_name
+          from information_schema.columns
+          where table_schema = current_schema()
+            and table_name = 'app_users'
+        `,
+      )
+      .then((result) => new Set(result.rows.map((row) => row.column_name)))
+      .catch((err) => {
+        appUserColumnsPromise = null;
+        throw err;
+      });
+  }
+  return appUserColumnsPromise;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function asIsoString(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+async function loadAppUser(userId: string): Promise<AppUserRecord | null> {
+  const result = await pool.query<AppUserRecord>(
+    `select * from app_users where user_id = $1 limit 1`,
+    [userId],
+  );
+  return result.rows[0] ?? null;
+}
+
+async function ensureUser(userId: string): Promise<AppUserRecord> {
+  const columns = await getAppUserColumns();
+  if (!columns.has("user_id")) {
+    throw new Error("Database schema missing required column app_users.user_id");
+  }
+  await pool.query(
+    `insert into app_users (user_id) values ($1) on conflict (user_id) do nothing`,
+    [userId],
+  );
+  const user = await loadAppUser(userId);
+  if (!user) {
+    throw new Error(`Failed to load app_users row for user ${userId}`);
+  }
+  return user;
+}
+
+function serializeUser(user: AppUserRecord) {
+  const defaultVisualStyle =
+    typeof user.default_visual_style === "string" &&
+    VISUAL_STYLES.has(user.default_visual_style)
+      ? user.default_visual_style
+      : "fantasy-illustration";
+  const spoilerMode =
+    typeof user.spoiler_mode === "string" && SPOILER_MODES.has(user.spoiler_mode)
+      ? user.spoiler_mode
+      : "no-spoilers";
+  const readingMode =
+    typeof user.reading_mode === "string" && READING_MODES.has(user.reading_mode)
+      ? user.reading_mode
+      : "reading";
+  const onboardedAt = asIsoString(user.onboarded_at);
+  return {
+    userId: user.user_id,
+    avatarId: typeof user.avatar_id === "string" ? user.avatar_id : null,
+    defaultVisualStyle,
+    defaultVisualStyles: asStringArray(user.default_visual_styles),
+    spoilerMode,
+    readingMode,
+    favoriteGenres: asStringArray(user.favorite_genres),
+    readingPlatforms: asStringArray(user.reading_platforms),
+    readingPace: typeof user.reading_pace === "string" ? user.reading_pace : null,
+    aboutMe: typeof user.about_me === "string" ? user.about_me : "",
+    shareToTrending: !!user.share_to_trending,
+    onboarded: !!onboardedAt,
+    onboardedAt,
+  };
 }
 
 // ── /me ──────────────────────────────────────────────────────────────────────
-
-function serializeUser(user: typeof appUsersTable.$inferSelect) {
-  return {
-    userId: user.userId,
-    avatarId: user.avatarId,
-    defaultVisualStyle: user.defaultVisualStyle,
-    defaultVisualStyles: (user.defaultVisualStyles as string[]) ?? [],
-    spoilerMode: user.spoilerMode,
-    readingMode: user.readingMode,
-    favoriteGenres: (user.favoriteGenres as string[]) ?? [],
-    readingPlatforms: (user.readingPlatforms as string[]) ?? [],
-    readingPace: user.readingPace,
-    aboutMe: user.aboutMe ?? "",
-    shareToTrending: !!user.shareToTrending,
-    onboarded: !!user.onboardedAt,
-    onboardedAt: user.onboardedAt?.toISOString() ?? null,
-  };
-}
 
 router.get("/me", async (req, res) => {
   try {
@@ -253,40 +320,92 @@ function sanitizeTagArray(input: unknown, maxItems: number): string[] | null {
   return out;
 }
 
+function queueAppUserUpdate(
+  existingColumns: Set<string>,
+  assignments: string[],
+  values: unknown[],
+  column: string,
+  value: unknown,
+): void {
+  if (!existingColumns.has(column)) return;
+  values.push(value);
+  assignments.push(`${column} = $${values.length}`);
+}
+
 router.patch("/me", async (req, res) => {
   try {
-    await ensureUser((req as unknown as AuthedRequest).userId);
+    const userId = (req as unknown as AuthedRequest).userId;
+    const existingColumns = await getAppUserColumns();
+    await ensureUser(userId);
     const body = (req.body ?? {}) as PatchMeBody;
-    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    const assignments: string[] = [];
+    const values: unknown[] = [];
+    queueAppUserUpdate(
+      existingColumns,
+      assignments,
+      values,
+      "updated_at",
+      new Date(),
+    );
     if (body.defaultVisualStyle !== undefined) {
       if (typeof body.defaultVisualStyle !== "string" || !VISUAL_STYLES.has(body.defaultVisualStyle)) {
         res.status(400).json({ error: "Invalid defaultVisualStyle" });
         return;
       }
-      updates.defaultVisualStyle = body.defaultVisualStyle;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "default_visual_style",
+        body.defaultVisualStyle,
+      );
     }
     if (body.spoilerMode !== undefined) {
       if (typeof body.spoilerMode !== "string" || !SPOILER_MODES.has(body.spoilerMode)) {
         res.status(400).json({ error: "Invalid spoilerMode" });
         return;
       }
-      updates.spoilerMode = body.spoilerMode;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "spoiler_mode",
+        body.spoilerMode,
+      );
     }
     if (body.readingMode !== undefined) {
       if (typeof body.readingMode !== "string" || !READING_MODES.has(body.readingMode)) {
         res.status(400).json({ error: "Invalid readingMode" });
         return;
       }
-      updates.readingMode = body.readingMode;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "reading_mode",
+        body.readingMode,
+      );
     }
     if (body.avatarId !== undefined) {
       if (body.avatarId === null || body.avatarId === "") {
-        updates.avatarId = null;
+        queueAppUserUpdate(
+          existingColumns,
+          assignments,
+          values,
+          "avatar_id",
+          null,
+        );
       } else if (typeof body.avatarId !== "string" || !AVATAR_IDS.has(body.avatarId)) {
         res.status(400).json({ error: "Invalid avatarId" });
         return;
       } else {
-        updates.avatarId = body.avatarId;
+        queueAppUserUpdate(
+          existingColumns,
+          assignments,
+          values,
+          "avatar_id",
+          body.avatarId,
+        );
       }
     }
     if (body.defaultVisualStyles !== undefined) {
@@ -301,7 +420,13 @@ router.patch("/me", async (req, res) => {
         seen.add(s);
         cleaned.push(s);
       }
-      updates.defaultVisualStyles = cleaned;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "default_visual_styles",
+        cleaned,
+      );
     }
     if (body.favoriteGenres !== undefined) {
       const cleaned = sanitizeTagArray(body.favoriteGenres, MAX_GENRES);
@@ -309,7 +434,13 @@ router.patch("/me", async (req, res) => {
         res.status(400).json({ error: "favoriteGenres must be an array" });
         return;
       }
-      updates.favoriteGenres = cleaned;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "favorite_genres",
+        cleaned,
+      );
     }
     if (body.readingPlatforms !== undefined) {
       const cleaned = sanitizeTagArray(body.readingPlatforms, MAX_PLATFORMS);
@@ -317,16 +448,34 @@ router.patch("/me", async (req, res) => {
         res.status(400).json({ error: "readingPlatforms must be an array" });
         return;
       }
-      updates.readingPlatforms = cleaned;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "reading_platforms",
+        cleaned,
+      );
     }
     if (body.readingPace !== undefined) {
       if (body.readingPace === null || body.readingPace === "") {
-        updates.readingPace = null;
+        queueAppUserUpdate(
+          existingColumns,
+          assignments,
+          values,
+          "reading_pace",
+          null,
+        );
       } else if (typeof body.readingPace !== "string" || !READING_PACES.has(body.readingPace)) {
         res.status(400).json({ error: "Invalid readingPace" });
         return;
       } else {
-        updates.readingPace = body.readingPace;
+        queueAppUserUpdate(
+          existingColumns,
+          assignments,
+          values,
+          "reading_pace",
+          body.readingPace,
+        );
       }
     }
     if (body.aboutMe !== undefined) {
@@ -334,31 +483,68 @@ router.patch("/me", async (req, res) => {
         res.status(400).json({ error: "aboutMe must be a string" });
         return;
       }
-      updates.aboutMe = body.aboutMe.slice(0, MAX_ABOUT_ME);
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "about_me",
+        body.aboutMe.slice(0, MAX_ABOUT_ME),
+      );
     }
     if (body.shareToTrending !== undefined) {
       if (typeof body.shareToTrending !== "boolean") {
         res.status(400).json({ error: "shareToTrending must be a boolean" });
         return;
       }
-      updates.shareToTrending = body.shareToTrending;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "share_to_trending",
+        body.shareToTrending,
+      );
       // Stamp the moment the user opted in so trending only surfaces
       // images they generated AFTER consenting. Toggling off clears
       // the timestamp; toggling on (when previously off) sets `now()`.
       // We unconditionally rewrite the field on every PATCH that
       // includes `shareToTrending` so the cutoff stays accurate even
       // when a user toggles off and on again.
-      updates.shareToTrendingEnabledAt = body.shareToTrending
-        ? new Date()
-        : null;
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "share_to_trending_enabled_at",
+        body.shareToTrending ? new Date() : null,
+      );
     }
-    if (body.markOnboarded === true) updates.onboardedAt = new Date();
-    const [updated] = await db
-      .update(appUsersTable)
-      .set(updates)
-      .where(eq(appUsersTable.userId, (req as unknown as AuthedRequest).userId))
-      .returning();
-    res.json(serializeUser(updated!));
+    if (body.markOnboarded === true) {
+      if (!existingColumns.has("onboarded_at")) {
+        throw new Error(
+          "Database schema missing required column app_users.onboarded_at. Run `pnpm --filter @workspace/db push` against the deployed database.",
+        );
+      }
+      queueAppUserUpdate(
+        existingColumns,
+        assignments,
+        values,
+        "onboarded_at",
+        new Date(),
+      );
+    }
+    if (assignments.length === 0) {
+      const current = await ensureUser(userId);
+      res.json(serializeUser(current));
+      return;
+    }
+    values.push(userId);
+    const updated = await pool.query<AppUserRecord>(
+      `update app_users set ${assignments.join(", ")} where user_id = $${values.length} returning *`,
+      values,
+    );
+    if (!updated.rows[0]) {
+      throw new Error(`Failed to update app_users row for user ${userId}`);
+    }
+    res.json(serializeUser(updated.rows[0]));
   } catch (err) {
     req.log.error({ err }, "PATCH /me failed");
     res.status(500).json({ error: "Failed to update user" });
