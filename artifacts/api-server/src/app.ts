@@ -42,15 +42,20 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-// Restrict CORS to trusted origins. The shared Replit proxy fronts both dev
-// and prod over a single origin per artifact, so requests typically share the
-// origin and never need CORS at all. We still allow the configured Replit
-// domains explicitly + same-origin/no-origin requests so curl/health checks
-// continue to work.
+// Restrict CORS to trusted origins. In production the web app is served by this
+// API process, so requests are normally same-origin. For preview/custom domains
+// we also accept explicit origins configured through env vars.
 const allowedOrigins = new Set<string>(
-  (process.env.REPLIT_DOMAINS ?? "")
+  [
+    process.env.REPLIT_DOMAINS,
+    process.env.CORS_ALLOWED_ORIGINS,
+    process.env.RAILWAY_PUBLIC_DOMAIN,
+    process.env.RAILWAY_STATIC_URL,
+  ]
+    .filter(Boolean)
+    .join(",")
     .split(",")
-    .map((d) => d.trim())
+    .map((d) => d.trim().replace(/^https?:\/\//, ""))
     .filter(Boolean)
     .flatMap((d) => [`https://${d}`, `http://${d}`]),
 );

@@ -5,12 +5,10 @@
   },
   "steps": {
     "build": {
-      "commands": [
-        "pnpm -r --if-present run build"
-      ]
+      "commands": ["pnpm run build"]
     }
   },
   "deploy": {
-    "startCommand": "pnpm --filter @workspace/api-server start"
+    "startCommand": "pnpm start"
   }
 }
