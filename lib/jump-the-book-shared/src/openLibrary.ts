@@ -618,11 +618,14 @@ async function fetchSeriesInfoUncached(
   return { seriesName, books };
 }
 
+let _testSearchAndFetchWorkUncachedCalls = 0;
+
 async function searchAndFetchWorkUncached(
   title: string,
   author: string,
   signal?: AbortSignal,
 ): Promise<{ result: OpenLibrarySearchResult; details: OpenLibraryWorkDetails | null } | null> {
+  _testSearchAndFetchWorkUncachedCalls++;
   const matches = await searchOpenLibrary(`${title} ${author}`, signal);
   const top =
     matches.find(
@@ -767,3 +770,32 @@ async function cachedRequest<T>(
     }
   }
 }
+
+/**
+ * Test-only seam. Exposes counters and helpers needed to verify outer-cache
+ * behavior of `searchAndFetchWork` independently of the nested helper caches
+ * (`searchCache` and `workDetailsCache`). Not part of the public API — do not
+ * use in production code.
+ */
+export const __testInternals = {
+  resetCallCounts(): void {
+    _testSearchAndFetchWorkUncachedCalls = 0;
+  },
+  getCallCounts(): { searchAndFetchWorkUncached: number } {
+    return {
+      searchAndFetchWorkUncached: _testSearchAndFetchWorkUncachedCalls,
+    };
+  },
+  /**
+   * Clears the inner caches and in-flight maps used by `searchOpenLibrary`
+   * and `fetchWorkDetails`. Lets tests force the inner helpers to miss their
+   * caches so any regression in the outer `searchAndFetchWork` cache surfaces
+   * as additional network calls.
+   */
+  clearInnerHelperCaches(): void {
+    searchCache.cache.clear();
+    searchCache.inFlight.clear();
+    workDetailsCache.cache.clear();
+    workDetailsCache.inFlight.clear();
+  },
+};

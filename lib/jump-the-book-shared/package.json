@@ -7,5 +7,12 @@
     ".": "./src/index.ts",
     "./openLibrary": "./src/openLibrary.ts",
     "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --noEmit && vitest run",
+    "typecheck:tests": "tsc -p tsconfig.test.json --noEmit"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.5"
   }
 }
